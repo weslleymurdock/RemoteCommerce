@@ -75,7 +75,7 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
 
     private static void ValidateRelativePath(string path)
     {
-        if (Path.IsPathRooted(path) || path.Contains("..", StringComparison.Ordinal) || path.StartsWith('/', StringComparison.Ordinal) || path.StartsWith('\\', StringComparison.Ordinal))
+        if (Path.IsPathRooted(path) || path.Contains("..", StringComparison.Ordinal) || path.StartsWith("/", StringComparison.Ordinal) || path.StartsWith("\\", StringComparison.Ordinal))
             throw new InvalidOperationException($"Plugin path '{path}' is not a safe package-relative path.");
     }
 
