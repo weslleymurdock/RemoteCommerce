@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using RemoteCommerce.Infrastructure.Persistence;
@@ -139,5 +140,11 @@ public sealed class Stage04PluginAdministration : Migration
                 IF COL_LENGTH(N'commerce.PluginInstallations', N'UpdatedAt') IS NOT NULL ALTER TABLE commerce.PluginInstallations DROP COLUMN UpdatedAt;
             END;
             """);
+    }
+
+    /// <inheritdoc />
+    protected override void BuildTargetModel(ModelBuilder modelBuilder)
+    {
+        // The Stage 04 migration uses idempotent SQL so it can upgrade the Stage 03 installation table.
     }
 }
