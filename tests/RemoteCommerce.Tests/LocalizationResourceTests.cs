@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Configuration;
 using RemoteCommerce.Application.Localization;
 using RemoteCommerce.Infrastructure.Persistence;
+using Xunit;
 
 namespace RemoteCommerce.Tests;
 
