@@ -18,8 +18,8 @@
     <MudStack Spacing="2" Class="mt-3">
         <MudTextField @bind-Value="_resourceType" Label="Resource type" Required="true" HelperText="Use the full name of the resource marker type, for example RemoteCommerce.Application.Localization.SharedResource." />
         <MudSelect @bind-Value="_culture" Label="Culture" Required="true">
-            <MudSelectItem Value="en-US">en-US</MudSelectItem>
-            <MudSelectItem Value="pt-BR">pt-BR</MudSelectItem>
+            <MudSelectItem Value="@("en-US")">en-US</MudSelectItem>
+            <MudSelectItem Value="@("pt-BR")">pt-BR</MudSelectItem>
         </MudSelect>
         <InputFile OnChange="SelectFile" accept=".xml" />
         <MudText Typo="Typo.caption">Selected: @(_file?.Name ?? "No XML selected")</MudText>
