@@ -18,11 +18,6 @@ builder.Services.AddDbContextFactory<CommerceDbContext>(options =>
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
 
-await using (var startupProvider = builder.Services.BuildServiceProvider())
-{
-    startupProvider.GetRequiredService<IServiceCollection>();
-}
-
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
