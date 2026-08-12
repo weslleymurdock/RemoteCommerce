@@ -35,6 +35,7 @@
     <Using Include="RemoteCommerce.Infrastructure.Persistence" />
     <Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" />
     <Using Include="RemoteCommerce.Plugins" />
+    <Using Include="RemoteCommerce.Plugins.Abstractions" />
     <Using Include="Scalar.AspNetCore" />
     <Using Include="System.Collections.Concurrent" />
     <Using Include="System.Diagnostics" />
