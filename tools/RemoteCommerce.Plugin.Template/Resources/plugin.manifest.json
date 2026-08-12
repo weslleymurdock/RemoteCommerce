@@ -16,5 +16,7 @@
   "repositoryUrl": "{{RepositoryUrl}}",
   "repositoryType": "{{RepositoryType}}",
   "packageRequireLicenseAcceptance": {{PackageRequireLicenseAcceptance}},
-  "packageProjectUrl": "{{PackageProjectUrl}}"
+  "packageProjectUrl": "{{PackageProjectUrl}}",
+  "dependencies": [],
+  "efCoreVersion": null
 }

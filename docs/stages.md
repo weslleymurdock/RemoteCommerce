@@ -56,17 +56,33 @@ Implemented distributable plugin packaging and generation tooling.
 
 ## Stage 04 — Host Installation and Administration
 
-Goal: make plugin management operationally equivalent to WordPress plugin administration.
+Implemented and validated in the single Stage 04 PR.
 
-- Admin plugin list, install, enable, disable, update, uninstall, and rollback states.
-- Upload/local `.nupkg` installation plus trusted package source support.
-- Dependency and compatibility validation.
-- Package integrity/signature validation.
-- Restart/reload orchestration and installation status.
-- Plugin settings pages and configuration persistence.
-- Navigation/menu contributions from plugins.
+- MudBlazor plugin administration list and details.
+- `.nupkg` upload, package validation, install, update, enable, disable, uninstall, and retained-version rollback.
+- Explicit desired state plus persisted lifecycle states including `ActivationPending`, `Disabled`, `Loaded`, and `Failed`.
+- Manifest validation for identity, version, entry point, package paths, required README/LICENSE declarations, dependencies, and optional EF compatibility metadata.
+- Package structure validation for `plugin.manifest.json`, `README.md`, `LICENSE.md`, target framework layout, and entry assembly metadata.
+- SHA-256 package integrity recording.
+- Host and EF Core compatibility validation without executing plugin code during package validation.
+- Dependency version validation, disabled dependency protection, duplicate dependency detection, and circular dependency detection.
+- SQL Server persistence for installation state, retained versions, dependencies, lifecycle errors, and plugin settings.
+- Trusted local package source abstraction through `PluginAdministration:TrustedPackageDirectory`.
+- Restart-required orchestration that persists desired lifecycle changes without attempting to mutate the root DI provider after host construction.
+- Startup activation diagnostics persisted to the database.
+- README.md and LICENSE.md remain package files and are read from the installed artifact rather than duplicated into database columns.
+- Host administration API at `/api/v1/plugins` with OpenAPI/Scalar metadata.
+- Automated tests covering package validation, missing required files, entry point/framework/host compatibility, integrity, dependency rules, lifecycle state transitions, uninstall dependency protection, and rollback.
+- CI builds the main solution, runs tests, builds tooling/plugin solutions, and packs a generated sample plugin and template tool successfully.
 
-**Exit condition:** an administrator can install and manage plugins from the RemoteCommerce UI without manually editing application files.
+Intentionally deferred from this stage:
+
+- Package signing/trusted signature verification; the current boundary records and validates SHA-256 integrity and leaves signing/source trust extensible.
+- A generic settings-schema/form generator UI; Stage 04 provides the persistence/service boundary for plugin settings.
+- Plugin navigation/menu contributions; this remains part of Stage 13 storefront/admin extension work.
+- Runtime hot reload; lifecycle changes continue to require host restart.
+
+**Exit condition:** an administrator can install and manage plugins from the RemoteCommerce UI without manually editing application files, with build/test/package validation passing in CI.
 
 ## Stage 05 — Site, User, and Localization Administration
 
@@ -218,24 +234,3 @@ Goal: investigate and, where technically safe, enable plugin installation/activa
 - Safe unload verification and assembly leak detection.
 - Atomic activation/update and rollback.
 - Explicit capability matrix for plugins that cannot be hot reloaded.
-
-The restart-based model remains the safe fallback. Hot reload must not compromise DI lifetime correctness, routing, memory safety, security, or in-flight requests.
-
-**Exit condition:** compatible plugins can be installed, enabled, disabled, updated, and unloaded without process restart; unsupported plugins clearly require restart.
-
-## Stage 16 — Production Readiness
-
-Goal: make the platform suitable for production deployment.
-
-- Database migrations and upgrade strategy.
-- Secrets/configuration guidance.
-- Structured logging, metrics, health checks, and tracing.
-- Caching and performance baselines.
-- Concurrency/idempotency safeguards.
-- Security hardening.
-- Backup/restore guidance.
-- Automated integration/end-to-end tests.
-- Upgrade compatibility and plugin API compatibility policy.
-- Disaster recovery and multi-store federation operational guidance.
-
-**Final exit condition:** a fresh RemoteCommerce installation can be configured and operated as a functional WordPress + WooCommerce-equivalent application, with plugins installed and managed through the application UI and supported commerce workflows available end to end.

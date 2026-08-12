@@ -16,5 +16,7 @@
   "repositoryUrl": "https://github.com/remotecodehub/RemoteCommerce.git",
   "repositoryType": "git",
   "packageRequireLicenseAcceptance": true,
-  "packageProjectUrl": "https://github.com/remotecodehub/RemoteCommerce/issues"
+  "packageProjectUrl": "https://github.com/remotecodehub/RemoteCommerce/issues",
+  "dependencies": [],
+  "efCoreVersion": null
 }
