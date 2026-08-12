@@ -11,7 +11,8 @@
 - Prefer primary constructors for services and infrastructure types.
 - Prefer dependency injection over service location or static state.
 - Stable plugin contracts live in `src/RemoteCommerce.Plugin.Abstractions` and are consumed by the host and plugin packages.
-- A plugin package must contain `plugin.manifest.json` at its root and its entry assembly under `lib/net10.0/`.
+- A plugin package must contain `plugin.manifest.json`, `LICENSE.md`, and `README.md` at its root and its entry assembly under `lib/net10.0/`.
+- The manifest is the source of truth for package metadata. Installation state remains in EF Core; static package metadata is read from the installed manifest rather than duplicated in the database.
 - The manifest `EntryAssembly` must use a package-relative path and `EntryType` must implement `IRemoteCommercePlugin`.
 - Never load an installed plugin into an already-running service provider. Installation is transactional; activation happens after the next process restart.
 - Enable, disable, and uninstall operations update persistent state; they do not attempt to mutate the current DI container.
@@ -20,6 +21,8 @@
 - EF Core entities and DbContexts belong under `Infrastructure/Persistence` or a domain-specific extension boundary.
 - Controllers are thin HTTP adapters; application behavior belongs in DI services.
 - Never load arbitrary assemblies from uploaded files without validating the package manifest, path boundaries, target framework location, and plugin contract.
+- The `remotecommerce-plugin` dotnet tool generates one Razor SDK plugin project that can contain Razor pages, controllers, or both. During repository development it uses a ProjectReference to the SDK; released templates use the SDK NuGet package.
+- The template tool must request all package metadata represented by the plugin manifest and generate matching `.csproj` properties.
 
 ## Public API documentation rule
 - Every public API introduced by RemoteCommerce must have XML documentation comments written in en-US.
@@ -29,4 +32,4 @@
 - Configure the compiler to generate XML documentation and treat missing public documentation as a build error.
 
 ## Validation
-Every stage must build from a clean checkout. Plugin packages must be packed and installed as part of the stage validation. Add automated tests before introducing non-trivial business behavior.
+Every stage must build from a clean checkout. Plugin packages and the template dotnet tool must be packed as part of stage validation. Add automated tests before introducing non-trivial business behavior.
