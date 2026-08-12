@@ -1,0 +1,18 @@
+## .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+## Local application data
+src/RemoteCommerce/App_Data/plugins/*/
+src/RemoteCommerce/App_Data/*.db
+
+## IDE
+.idea/
+.vscode/
+
+## OS
+.DS_Store
+Thumbs.db
