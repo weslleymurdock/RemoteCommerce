@@ -38,6 +38,7 @@
     <Using Include="Scalar.AspNetCore" />
     <Using Include="System.Diagnostics" />
     <Using Include="System.Globalization" />
+    <Using Include="System.Net" />
     <Using Include="System.Security.Claims" />
     <Using Include="System.Security.Cryptography" />
     <Using Include="System.Text.Json" />
