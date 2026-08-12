@@ -9,9 +9,7 @@ namespace RemoteCommerce.Plugins;
 /// <summary>Provides persistent lifecycle, version, documentation, and administration operations for installed plugins.</summary>
 /// <param name="dbFactory">The factory used to create persistence contexts.</param>
 /// <param name="restartService">The service used to report restart requirements.</param>
-public sealed class PluginManagementService(
-    IDbContextFactory<CommerceDbContext> dbFactory,
-    IApplicationRestartService restartService)
+public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext> dbFactory, IApplicationRestartService restartService)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -23,7 +21,8 @@ public sealed class PluginManagementService(
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var installations = await db.PluginInstallations.AsNoTracking().OrderBy(x => x.PluginId).ToListAsync(cancellationToken);
         var dependencies = await db.PluginDependencies.AsNoTracking().ToListAsync(cancellationToken);
-        var errors = await db.PluginLifecycleErrors.AsNoTracking().GroupBy(x => x.PluginId).Select(x => x.OrderByDescending(y => y.CreatedAt).First()).ToListAsync(cancellationToken);
+        var errors = await db.PluginLifecycleErrors.AsNoTracking().OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+        var latestErrors = errors.GroupBy(x => x.PluginId, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
         var result = new List<PluginInformation>(installations.Count);
         foreach (var installation in installations)
         {
@@ -32,7 +31,7 @@ public sealed class PluginManagementService(
             if (File.Exists(manifestPath))
                 manifest = JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions);
             var pluginDependencies = dependencies.Where(x => string.Equals(x.PluginId, installation.PluginId, StringComparison.OrdinalIgnoreCase)).ToArray();
-            var latestError = errors.SingleOrDefault(x => string.Equals(x.PluginId, installation.PluginId, StringComparison.OrdinalIgnoreCase));
+            latestErrors.TryGetValue(installation.PluginId, out var latestError);
             result.Add(new PluginInformation(installation, manifest, pluginDependencies, latestError));
         }
         return result;
@@ -60,16 +59,14 @@ public sealed class PluginManagementService(
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="KeyNotFoundException">Thrown when the plugin is not installed.</exception>
-    public Task EnableAsync(string pluginId, CancellationToken cancellationToken = default)
-        => SetDesiredStateAsync(pluginId, PluginDesiredState.Enabled, cancellationToken);
+    public Task EnableAsync(string pluginId, CancellationToken cancellationToken = default) => SetDesiredStateAsync(pluginId, PluginDesiredState.Enabled, cancellationToken);
 
     /// <summary>Requests that a plugin be disabled during the next application startup.</summary>
     /// <param name="pluginId">The stable identifier of the plugin.</param>
     /// <param name="cancellationToken">The token used to cancel the operation.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
     /// <exception cref="KeyNotFoundException">Thrown when the plugin is not installed.</exception>
-    public Task DisableAsync(string pluginId, CancellationToken cancellationToken = default)
-        => SetDesiredStateAsync(pluginId, PluginDesiredState.Disabled, cancellationToken);
+    public Task DisableAsync(string pluginId, CancellationToken cancellationToken = default) => SetDesiredStateAsync(pluginId, PluginDesiredState.Disabled, cancellationToken);
 
     /// <summary>Uninstalls a plugin after protecting plugins that declare it as a required dependency.</summary>
     /// <param name="pluginId">The stable identifier of the plugin.</param>
@@ -82,8 +79,7 @@ public sealed class PluginManagementService(
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
         var dependents = await db.PluginDependencies.AsNoTracking().Where(x => x.DependencyPluginId == pluginId && x.PluginId != pluginId).Select(x => x.PluginId).Distinct().ToListAsync(cancellationToken);
-        if (dependents.Count > 0)
-            throw new InvalidOperationException($"Plugin '{pluginId}' cannot be uninstalled because it is required by: {string.Join(", ", dependents)}.");
+        if (dependents.Count > 0) throw new InvalidOperationException($"Plugin '{pluginId}' cannot be uninstalled because it is required by: {string.Join(", ", dependents)}.");
 
         db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
         db.PluginSettings.RemoveRange(db.PluginSettings.Where(x => x.PluginId == pluginId));
@@ -105,6 +101,8 @@ public sealed class PluginManagementService(
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
         var retained = await db.PluginVersions.SingleOrDefaultAsync(x => x.PluginId == pluginId && x.Version == version, cancellationToken) ?? throw new KeyNotFoundException($"Plugin version '{pluginId} {version}' is not retained.");
+        var manifestPath = Path.Combine(retained.PackagePath, "plugin.manifest.json");
+        var manifest = File.Exists(manifestPath) ? JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions) : null;
         installation.Version = retained.Version;
         installation.PackagePath = retained.PackagePath;
         installation.PackageHash = retained.PackageHash;
@@ -112,6 +110,10 @@ public sealed class PluginManagementService(
         installation.State = PluginInstallationState.ActivationPending;
         installation.UpdatedAt = DateTimeOffset.UtcNow;
         foreach (var item in db.PluginVersions.Where(x => x.PluginId == pluginId)) item.IsCurrent = item.Id == retained.Id;
+        db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
+        if (manifest is not null)
+            foreach (var dependency in manifest.DependencyDeclarations)
+                db.PluginDependencies.Add(new PluginDependency { Id = Guid.NewGuid(), PluginId = pluginId, DependencyPluginId = dependency.PluginId, MinimumVersion = dependency.MinimumVersion, MaximumVersion = dependency.MaximumVersion });
         await db.SaveChangesAsync(cancellationToken);
         restartService.RequestRestart($"Plugin '{pluginId}' rollback to {version} is pending activation.");
     }
@@ -153,11 +155,7 @@ public sealed class PluginManagementService(
 /// <param name="Manifest">The package manifest, when it can be read from disk.</param>
 /// <param name="Dependencies">The dependencies declared by the installed plugin.</param>
 /// <param name="LatestError">The most recent persisted lifecycle error.</param>
-public sealed record PluginInformation(
-    PluginInstallation Installation,
-    PluginManifest? Manifest,
-    IReadOnlyList<PluginDependency> Dependencies,
-    PluginLifecycleError? LatestError)
+public sealed record PluginInformation(PluginInstallation Installation, PluginManifest? Manifest, IReadOnlyList<PluginDependency> Dependencies, PluginLifecycleError? LatestError)
 {
     /// <summary>Gets the plugin display name, falling back to its stable identifier.</summary>
     public string Name => Manifest?.Name ?? Installation.PluginId;
