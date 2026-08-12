@@ -20,6 +20,7 @@
     <Using Include="RemoteCommerce.Application.Site" />
     <Using Include="RemoteCommerce.Infrastructure.Persistence" />
     <Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" />
+    <Using Include="System.Reflection" />
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
