@@ -1,28 +1,71 @@
 name: build
 
 on:
-  push:
-    branches: [main, 'stage/**']
   pull_request:
+    types: [opened, synchronize]
+  push:
     branches: [main]
+    tags: ['v*'] 
+  workflow_dispatch:
+   
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  actions: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - run: dotnet restore RemoteCommerce.slnx
+      - run: dotnet restore RemoteCommerce.Tools.slnx
+      - run: dotnet restore RemoteCommerce.Plugins.slnx
       - run: dotnet build RemoteCommerce.slnx --configuration Release --no-restore
-      - run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/RemoteCommerce.SamplePlugin.csproj --configuration Release --no-restore --output ./artifacts
+      - run: dotnet build RemoteCommerce.Tools.slnx --configuration Release --no-restore
+      - run: dotnet build RemoteCommerce.Plugins.slnx --configuration Release --no-restore
+      - run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/Plugin.csproj --configuration Release --no-restore --output ./artifacts
       - run: dotnet pack tools/RemoteCommerce.Plugin.Template/RemoteCommerce.Plugin.Template.csproj --configuration Release --no-restore --output ./artifacts
       - name: Validate plugin package
         shell: bash
-        run: test -f ./artifacts/RemoteCommerce.SamplePlugin.1.0.0.nupkg
+        run: test -f ./artifacts/RemoteCommerce_SamplePlugin.1.0.0.nupkg
       - name: Validate dotnet tool package
         shell: bash
         run: test -f ./artifacts/RemoteCommerce.Plugin.Template.1.0.0.nupkg
+  
+  publish:
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download packed tools
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts
+
+      - name: NuGet login (OIDC) and package push
+        id: login 
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: NuGet/login@v1
+        with:
+          user: ${{ env.USERNAME }}  
+        env:
+          USERNAME: ${{ secrets.USER_NAME }}
+
+      - name: Publish Dotnet Tools & Packages to NuGet
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg \
+            --api-key ${{ steps.output.login.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate

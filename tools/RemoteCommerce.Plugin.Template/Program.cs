@@ -1,8 +1,4 @@
-using System.Security;
-using System.Text;
-using System.Text.Json;
-
-return await PluginTemplateGenerator.RunAsync(args);
+ return await PluginTemplateGenerator.RunAsync(args);
 
 internal static class PluginTemplateGenerator
 {
@@ -16,9 +12,9 @@ internal static class PluginTemplateGenerator
 
     public static Task<int> RunAsync(string[] args)
     {
-        if (args.Length == 0 || !string.Equals(args[0], "new", StringComparison.OrdinalIgnoreCase))
+        if (args.Length != 3 || !string.Equals(args[0], "new", StringComparison.OrdinalIgnoreCase))
         {
-            Console.WriteLine("Usage: remotecommerce-plugin new <directory> <name>");
+            Console.WriteLine("Usage: rc-plugin new <directory> <name>");
             return Task.FromResult(1);
         }
 
