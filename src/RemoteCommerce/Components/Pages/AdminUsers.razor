@@ -1,12 +1,16 @@
 @page "/admin/users"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using RemoteCommerce.Application.Identity
+@using RemoteCommerce.Application.Security
 @using RemoteCommerce.Infrastructure.Persistence.Entities
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<ApplicationRole> RoleManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuditLogService AuditLog
 @inject ISnackbar Snackbar
 
 <PageTitle>Users | RemoteCommerce</PageTitle>
@@ -103,6 +107,11 @@
                 Snackbar.Add(string.Join(" ", roleResult.Errors.Select(x => x.Description)), Severity.Error);
             }
         }
+
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var actor = state.User.Identity?.Name ?? "unknown";
+        var actorId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        await AuditLog.WriteAsync("identity.user.create", "User", Guid.TryParse(actorId, out var id) ? id : null, actor, "Success", $"TargetUserId={user.Id}");
 
         _displayName = string.Empty;
         _email = string.Empty;
