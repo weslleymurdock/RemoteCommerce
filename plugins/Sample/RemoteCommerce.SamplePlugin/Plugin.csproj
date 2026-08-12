@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <AssemblyName>RemoteCommerce_SamplePlugin</AssemblyName>
+    <RootNamespace>RemoteCommerce_SamplePlugin</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>RemoteCommerce_SamplePlugin</PackageId>
+    <Version>1.0.0</Version>
+    <PackageDescription>Sample plugin genereted with tool Template (rc-plugin).</PackageDescription>
+    <PackageTags>template;generated;sample;plugin;tool;remotecommerce;rc</PackageTags>
+    <Title>Sample</Title>
+    <Authors>Weslley Murdock</Authors>
+    <Company>Remote Code Hub</Company>
+    <RepositoryUrl>https://github.com/remotecodehub/RemoteCommerce.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/remotecodehub/RemoteCommerce/issues</PackageProjectUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
+    <PackageReference Include="MudBlazor" Version="9.8.0" />
+    <None Include="plugin.manifest.json" Pack="true" PackagePath="" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="LICENSE.md" Pack="true" PackagePath="" />
+    <None Update="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

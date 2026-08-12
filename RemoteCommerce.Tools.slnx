@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/tools/">
+    <Project Path="tools/RemoteCommerce.Plugin.Template/RemoteCommerce.Plugin.Template.csproj" />
+  </Folder>
+</Solution>
