@@ -72,6 +72,16 @@ public sealed class LocalizationResourceService(
             ImportedAt = DateTime.UtcNow,
             IsActive = true,
         });
+        db.AuditLogs.Add(new AuditLog
+        {
+            UserId = importedByUserId,
+            Actor = importedByUserId?.ToString() ?? "system",
+            Operation = "localization.resource.import",
+            Resource = resourceType,
+            Result = "Success",
+            Context = $"Culture={culture}; Version={version}; EntryCount={entries.Count}; Hash={hash}",
+            CreatedAt = DateTime.UtcNow,
+        });
 
         await db.SaveChangesAsync(cancellationToken);
         return new LocalizationResourceImportResult(culture, resourceType, version, entries.Count, hash);
@@ -161,14 +171,21 @@ public sealed class LocalizationResourceService(
                 throw new InvalidDataException($"Duplicate localization resource key '{key}'.");
             }
 
+            var hasValue = false;
             using var dataReader = reader.ReadSubtree();
             while (dataReader.Read())
             {
                 if (dataReader.NodeType == XmlNodeType.Element && dataReader.Name == "value")
                 {
                     entries[key] = await dataReader.ReadElementContentAsStringAsync();
+                    hasValue = true;
                     break;
                 }
+            }
+
+            if (!hasValue)
+            {
+                throw new InvalidDataException($"Localization resource key '{key}' does not contain a value element.");
             }
         }
 
