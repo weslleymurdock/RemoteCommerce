@@ -1,7 +1,11 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using RemoteCommerce.Application.Identity;
+using RemoteCommerce.Application.Site;
 using RemoteCommerce.Components;
 using RemoteCommerce.Infrastructure.Persistence;
+using RemoteCommerce.Infrastructure.Persistence.Entities;
 using RemoteCommerce.Plugins;
 using Scalar.AspNetCore;
 
@@ -11,6 +15,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddControllers();
 builder.Services.AddMudServices();
@@ -18,6 +23,42 @@ builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
 builder.Services.AddDbContextFactory<CommerceDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
+
+builder.Services
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 12;
+        options.Password.RequireDigit = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
+    .AddRoles<ApplicationRole>()
+    .AddSignInManager()
+    .AddEntityFrameworkStores<CommerceDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(AuthorizationPolicies.Administrator, policy =>
+        policy.RequireRole("Administrator"));
+    options.AddPolicy(AuthorizationPolicies.ManageConfiguration, policy =>
+        policy.RequireClaim("permission", AuthorizationPolicies.ManageConfiguration));
+    options.AddPolicy(AuthorizationPolicies.ManageUsers, policy =>
+        policy.RequireClaim("permission", AuthorizationPolicies.ManageUsers));
+    options.AddPolicy(AuthorizationPolicies.ManageLocalization, policy =>
+        policy.RequireClaim("permission", AuthorizationPolicies.ManageLocalization));
+    options.AddPolicy(AuthorizationPolicies.ManagePlugins, policy =>
+        policy.RequireClaim("permission", AuthorizationPolicies.ManagePlugins));
+});
+
+builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
 
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
@@ -45,14 +86,11 @@ if (!app.Environment.IsProduction())
                 <script src=""_content/MudBlazor/MudBlazor.min.js""></script>
                 <script>
                     document.addEventListener('DOMContentLoaded', () => {
-                        // Adds mud-application class to body in order to activate MudBlazor escopes
                         document.body.classList.add('mud-application', 'mud-theme-primary');
-                        // Ensures that Scalar ThemeMode do Scalar reflects actual MudBlazor dark state
                         const updateScalarTheme = () => {
                             const isDark = document.body.classList.contains('mud-dark-theme');
                             document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
                         };
-                        // Monitor classes changes at body to real time alternate theme
                         const observer = new MutationObserver(updateScalarTheme);
                         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
                         updateScalarTheme();
@@ -100,6 +138,9 @@ if (!app.Environment.IsProduction())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapControllers();
