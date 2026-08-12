@@ -26,7 +26,7 @@ public sealed class Stage05FoundationTests
     public async Task SiteSettingsValidator_RejectsInvalidPublicUrl()
     {
         var validator = new UpdateSiteSettingsCommandValidator();
-        var result = await validator.ValidateAsync(new UpdateSiteSettingsCommand(new SiteSettingsModel { SiteName = "Store", PublicUrl = "javascript:alert(1)", Culture = "en-US", Locale = "en-US", TimeZone = "UTC" }));
+        var result = await validator.ValidateAsync(new UpdateSiteSettingsCommand(new SiteSettingsModel { SiteName = "Store", PublicUrl = "javascript:alert(1)", Culture = "fr-FR", Locale = "en-US", TimeZone = "UTC" }));
         Assert.False(result.IsValid);
     }
 
@@ -135,11 +135,14 @@ public sealed class Stage05FoundationTests
     }
 
     [Fact]
-    public void MediatorPackageVersion_IsPinnedToRequiredVersion()
+    public void RequiredPackageVersions_ArePinned()
     {
-        var version = typeof(IMediator).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        Assert.NotNull(version);
-        Assert.StartsWith("12.5.0", version, StringComparison.Ordinal);
+        var mediatR = typeof(IMediator).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        var fluentValidation = typeof(IValidator).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        Assert.NotNull(mediatR);
+        Assert.NotNull(fluentValidation);
+        Assert.StartsWith("12.5.0", mediatR, StringComparison.Ordinal);
+        Assert.StartsWith("11.12.0", fluentValidation, StringComparison.Ordinal);
     }
 
     private static CommerceDbContext CreateDbContext()
