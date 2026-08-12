@@ -15,14 +15,14 @@ public static class PluginServiceCollectionExtensions
     /// <param name="pluginsRoot">The root directory containing installed plugin packages.</param>
     /// <param name="configuration">The application configuration.</param>
     /// <remarks>
-    /// A short-lived bootstrap provider is intentionally used only to resolve the already-registered EF Core context factory and logger.
-    /// The provider is never used as the application's runtime service provider. This is required because plugin registrations must be added
-    /// to <paramref name="services"/> before <see cref="WebApplicationBuilder.Build"/> creates the final provider.
+    /// A short-lived bootstrap provider is used only to resolve the already-registered EF Core context factory and logger.
+    /// The provider is never used as the application's runtime service provider.
     /// </remarks>
     public static void AddInstalledRemoteCommercePlugins(this IServiceCollection services, string pluginsRoot, IConfiguration configuration)
     {
         services.AddScoped<PluginInstallationService>();
         services.AddScoped<PluginPackageInstaller>();
+        services.AddScoped<PluginManagementService>();
 
         using var bootstrapProvider = services.BuildServiceProvider(new ServiceProviderOptions
         {
@@ -31,15 +31,7 @@ public static class PluginServiceCollectionExtensions
         });
 
         using var loggerFactory = LoggerFactory.Create(logging => logging.AddConfiguration(configuration.GetSection("Logging")));
-        var logger = loggerFactory.CreateLogger<PluginLoader>();
-        var dbFactory = bootstrapProvider.GetRequiredService<IDbContextFactory<CommerceDbContext>>();
-
-        using (var db = dbFactory.CreateDbContext())
-        {
-            db.Database.EnsureCreated();
-        }
-
-        var loader = new PluginLoader(logger, dbFactory);
+        var loader = new PluginLoader(loggerFactory.CreateLogger<PluginLoader>(), bootstrapProvider.GetRequiredService<IDbContextFactory<CommerceDbContext>>());
         loader.Load(services, pluginsRoot);
     }
 }
