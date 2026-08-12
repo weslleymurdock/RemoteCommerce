@@ -6,10 +6,10 @@
     <base href="/" />
     <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
     <link rel="stylesheet" href="app.css" />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="@RenderMode.InteractiveServer" />
 </head>
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="@RenderMode.InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
 </body>
