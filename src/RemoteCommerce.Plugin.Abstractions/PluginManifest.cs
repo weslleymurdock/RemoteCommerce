@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Plugins.Abstractions;
 
 /// <summary>
-/// Describes a RemoteCommerce NuGet plugin package, its metadata, and its host compatibility requirements.
+/// Describes a RemoteCommerce NuGet plugin package, its metadata, dependencies, and host compatibility requirements.
 /// </summary>
 /// <param name="Id">The stable unique identifier of the plugin.</param>
 /// <param name="Name">The human-readable plugin name.</param>
@@ -21,6 +21,8 @@ namespace RemoteCommerce.Plugins.Abstractions;
 /// <param name="RepositoryType">The source repository type, such as git.</param>
 /// <param name="PackageRequireLicenseAcceptance">Indicates whether the package requires license acceptance.</param>
 /// <param name="PackageProjectUrl">The project homepage URL.</param>
+/// <param name="Dependencies">The plugins that must be installed and loadable before this plugin can be activated.</param>
+/// <param name="EfCoreVersion">The optional EF Core major/minor version required by the plugin persistence boundary.</param>
 public sealed record PluginManifest(
     string Id,
     string Name,
@@ -39,4 +41,20 @@ public sealed record PluginManifest(
     string RepositoryUrl,
     string RepositoryType,
     bool PackageRequireLicenseAcceptance,
-    string PackageProjectUrl);
+    string PackageProjectUrl,
+    IReadOnlyList<PluginDependencyDeclaration>? Dependencies = null,
+    string? EfCoreVersion = null)
+{
+    /// <summary>Gets the declared plugin dependencies, or an empty collection when the package has none.</summary>
+    /// <remarks>The collection is normalized to an empty array so callers do not need null checks.</remarks>
+    public IReadOnlyList<PluginDependencyDeclaration> DependencyDeclarations => Dependencies ?? [];
+}
+
+/// <summary>Declares a dependency on another RemoteCommerce plugin.</summary>
+/// <param name="PluginId">The stable identifier of the required plugin.</param>
+/// <param name="MinimumVersion">The minimum compatible version of the required plugin.</param>
+/// <param name="MaximumVersion">The optional exclusive upper version boundary.</param>
+public sealed record PluginDependencyDeclaration(
+    string PluginId,
+    string MinimumVersion,
+    string? MaximumVersion = null);
