@@ -9,26 +9,19 @@ public sealed class PluginsController(IMediator mediator, PluginManagementServic
 {
     /// <summary>Gets the plugins currently persisted by the host.</summary><param name="cancellationToken">The token used to cancel the query.</param><returns>The persisted plugin administration records.</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<PluginInformation>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<PluginInformation>>> List(CancellationToken cancellationToken) => Ok(await managementService.ListAsync(cancellationToken));
     /// <summary>Gets whether a host restart is required for a pending plugin lifecycle change.</summary><returns>The current restart requirement.</returns>
     [HttpGet("restart-status")]
-    [ProducesResponseType(typeof(ApplicationRestartStatus), StatusCodes.Status200OK)]
     public ActionResult<ApplicationRestartStatus> RestartStatus() => Ok(restartService.Status);
     /// <summary>Validates a RemoteCommerce plugin NuGet package without installing it.</summary><param name="package">The candidate <c>.nupkg</c> plugin package.</param><param name="cancellationToken">The token used to cancel validation.</param><returns>The package validation result.</returns>
-    [HttpPost("validate")]
-    [RequestSizeLimit(100_000_000)]
-    [ProducesResponseType(typeof(PluginPackageValidationResult), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [HttpPost("validate"), RequestSizeLimit(100_000_000)]
     public async Task<ActionResult<PluginPackageValidationResult>> Validate(IFormFile package, CancellationToken cancellationToken)
     {
         if (!IsPackage(package)) return InvalidPackage<PluginPackageValidationResult>();
         return await WithTemporaryPackageAsync(package, async path => Ok(await mediator.Send(new ValidatePluginPackageQuery(path), cancellationToken)), cancellationToken);
     }
     /// <summary>Installs a RemoteCommerce plugin from a NuGet package and schedules activation after restart.</summary><param name="package">The <c>.nupkg</c> plugin package.</param><param name="cancellationToken">The token used to cancel installation.</param><returns>The installed plugin manifest.</returns>
-    [HttpPost("install")]
-    [RequestSizeLimit(100_000_000)]
-    [ProducesResponseType(typeof(InstallPluginResponse), StatusCodes.Status201Created)]
+    [HttpPost("install"), RequestSizeLimit(100_000_000)]
     public async Task<ActionResult<InstallPluginResponse>> Install(IFormFile package, CancellationToken cancellationToken)
     {
         if (!IsPackage(package)) return InvalidPackage<InstallPluginResponse>();
@@ -36,9 +29,7 @@ public sealed class PluginsController(IMediator mediator, PluginManagementServic
         catch (InvalidOperationException exception) { return BadRequest(new ProblemDetails { Title = "Plugin installation failed.", Detail = exception.Message }); }
     }
     /// <summary>Updates an installed plugin with a newer compatible package while retaining the previous version.</summary><param name="pluginId">The stable plugin identifier.</param><param name="package">The newer <c>.nupkg</c> package.</param><param name="cancellationToken">The token used to cancel the update.</param><returns>The updated plugin manifest.</returns>
-    [HttpPost("{pluginId}/update")]
-    [RequestSizeLimit(100_000_000)]
-    [ProducesResponseType(typeof(UpdatePluginResponse), StatusCodes.Status200OK)]
+    [HttpPost("{pluginId}/update"), RequestSizeLimit(100_000_000)]
     public async Task<ActionResult<UpdatePluginResponse>> Update(string pluginId, IFormFile package, CancellationToken cancellationToken)
     {
         if (!IsPackage(package)) return InvalidPackage<UpdatePluginResponse>();
@@ -46,13 +37,13 @@ public sealed class PluginsController(IMediator mediator, PluginManagementServic
         catch (KeyNotFoundException exception) { return NotFound(new ProblemDetails { Title = "Plugin was not found.", Detail = exception.Message }); }
         catch (InvalidOperationException exception) { return BadRequest(new ProblemDetails { Title = "Plugin update failed.", Detail = exception.Message }); }
     }
-    /// <summary>Disables a plugin for the next application startup.</summary><param name="pluginId">The stable plugin identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>No content when the operation succeeds.</returns>
+    /// <summary>Disables a plugin for the next application startup.</summary><param name="pluginId">The stable plugin identifier.</param><param name="cancellationToken">The token used to cancel the operation.</param><returns>No content when the operation succeeds.</returns>
     [HttpPost("{pluginId}/disable")]
     public Task<IActionResult> Disable(string pluginId, CancellationToken cancellationToken) => ExecuteLifecycleOperation(() => mediator.Send(new DisablePluginCommand(pluginId), cancellationToken));
-    /// <summary>Enables a plugin for the next application startup.</summary><param name="pluginId">The stable plugin identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>No content when the operation succeeds.</returns>
+    /// <summary>Enables a plugin for the next application startup.</summary><param name="pluginId">The stable plugin identifier.</param><param name="cancellationToken">The token used to cancel the operation.</param><returns>No content when the operation succeeds.</returns>
     [HttpPost("{pluginId}/enable")]
     public Task<IActionResult> Enable(string pluginId, CancellationToken cancellationToken) => ExecuteLifecycleOperation(() => mediator.Send(new EnablePluginCommand(pluginId), cancellationToken));
-    /// <summary>Uninstalls a plugin when no installed plugin requires it.</summary><param name="pluginId">The stable plugin identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>No content when the operation succeeds.</returns>
+    /// <summary>Uninstalls a plugin when no installed plugin requires it.</summary><param name="pluginId">The stable plugin identifier.</param><param name="cancellationToken">The token used to cancel the operation.</param><returns>No content when the operation succeeds.</returns>
     [HttpDelete("{pluginId}")]
     public Task<IActionResult> Uninstall(string pluginId, CancellationToken cancellationToken) => ExecuteLifecycleOperation(() => mediator.Send(new UninstallPluginCommand(pluginId), cancellationToken));
 
@@ -61,8 +52,8 @@ public sealed class PluginsController(IMediator mediator, PluginManagementServic
     private static async Task<T> WithTemporaryPackageAsync<T>(IFormFile package, Func<string, Task<T>> operation, CancellationToken cancellationToken)
     {
         var directory = Path.Combine(Path.GetTempPath(), "RemoteCommerce", "plugins"); Directory.CreateDirectory(directory); var path = Path.Combine(directory, $"{Guid.NewGuid():N}.nupkg");
-        try { await using (var output = File.Create(path)) await package.CopyToAsync(output, cancellationToken); return await operation(path); }
-        finally { if (File.Exists(path)) File.Delete(path); }
+        try { await using (var output = System.IO.File.Create(path)) await package.CopyToAsync(output, cancellationToken); return await operation(path); }
+        finally { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
     }
     private static async Task<IActionResult> ExecuteLifecycleOperation(Func<Task<Unit>> operation)
     {
