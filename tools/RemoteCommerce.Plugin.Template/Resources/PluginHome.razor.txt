@@ -1,0 +1,4 @@
+@page "/plugins/{{PluginId}}/home"
+
+<MudText Typo="Typo.h4">{{Name}}</MudText>
+<MudText>{{Description}}</MudText>
