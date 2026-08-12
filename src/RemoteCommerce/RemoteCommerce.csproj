@@ -36,6 +36,7 @@
     <Using Include="RemoteCommerce.Application.Plugins" />
     <Using Include="RemoteCommerce.Application.Security" />
     <Using Include="RemoteCommerce.Application.Site" />
+    <Using Include="RemoteCommerce.Components" />
     <Using Include="RemoteCommerce.Infrastructure.Persistence" />
     <Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" />
     <Using Include="RemoteCommerce.Plugins" />
