@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RemoteCommerce.Infrastructure.Persistence;
 
 namespace RemoteCommerce.Plugins;
@@ -9,22 +9,42 @@ namespace RemoteCommerce.Plugins;
 public static class PluginServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the plugin installation service and creates the startup plugin loader from the configured host dependencies.
+    /// Registers plugin runtime services and loads installed plugins before the application host is built.
     /// </summary>
     /// <param name="services">The application service collection.</param>
     /// <param name="pluginsRoot">The root directory containing installed plugin packages.</param>
-    /// <param name="configuration">The application configuration used to configure plugin logging.</param>
+    /// <param name="configuration">The application configuration.</param>
     /// <remarks>
-    /// The loader executes before <see cref="WebApplicationBuilder.Build"/> so plugin registrations become part of the final service provider.
+    /// The plugin loader is constructed from the existing registration graph without replacing the application's final service provider.
     /// </remarks>
     public static void AddInstalledRemoteCommercePlugins(this IServiceCollection services, string pluginsRoot, IConfiguration configuration)
     {
         services.AddScoped<PluginInstallationService>();
+        services.AddScoped<PluginPackageInstaller>();
 
-        using var loggerFactory = LoggerFactory.Create(logging => logging.AddConfiguration(configuration.GetSection("Logging")));
-        var logger = loggerFactory.CreateLogger<PluginLoader>();
-        var dbFactory = services.BuildServiceProvider().GetRequiredService<IDbContextFactory<CommerceDbContext>>();
-        var loader = new PluginLoader(logger, dbFactory);
-        loader.Load(services, pluginsRoot);
+        services.TryAddSingleton<PluginStartupContext>(_ =>
+        {
+            var loggerFactory = LoggerFactory.Create(logging => logging.AddConfiguration(configuration.GetSection("Logging")));
+            return new PluginStartupContext(loggerFactory, pluginsRoot);
+        });
+    }
+
+    /// <summary>
+    /// Loads persisted plugins into the application service collection during startup.
+    /// </summary>
+    /// <param name="services">The application service collection.</param>
+    /// <param name="startupContext">The startup context containing plugin discovery settings.</param>
+    /// <param name="dbFactory">The EF Core context factory used to read installation state.</param>
+    public static void LoadInstalledRemoteCommercePlugins(this IServiceCollection services, PluginStartupContext startupContext, IDbContextFactory<CommerceDbContext> dbFactory)
+    {
+        var loader = new PluginLoader(startupContext.LoggerFactory.CreateLogger<PluginLoader>(), dbFactory);
+        loader.Load(services, startupContext.PluginsRoot);
     }
 }
+
+/// <summary>
+/// Contains immutable configuration captured for plugin startup discovery.
+/// </summary>
+/// <param name="LoggerFactory">The logger factory used by the plugin loader.</param>
+/// <param name="PluginsRoot">The root directory containing installed plugin packages.</param>
+public sealed record PluginStartupContext(ILoggerFactory LoggerFactory, string PluginsRoot);
