@@ -1,11 +1,11 @@
 @page "/admin/localization"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageLocalization)]
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
 @using RemoteCommerce.Application.Identity
 @using RemoteCommerce.Application.Localization
+@using MediatR
 @inject ILocalizationResourceService ResourceService
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IMediator Mediator
 @inject ISnackbar Snackbar
 
 <PageTitle>Localization | RemoteCommerce</PageTitle>
@@ -34,9 +34,7 @@
 <MudPaper Class="pa-5">
     <MudText Typo="Typo.h6">Imported resources</MudText>
     <MudTable Items="_resources" Dense="true" Hover="true" Class="mt-3">
-        <HeaderContent>
-            <MudTh>Culture</MudTh><MudTh>Resource type</MudTh><MudTh>Version</MudTh><MudTh>Imported</MudTh><MudTh>State</MudTh>
-        </HeaderContent>
+        <HeaderContent><MudTh>Culture</MudTh><MudTh>Resource type</MudTh><MudTh>Version</MudTh><MudTh>Imported</MudTh><MudTh>State</MudTh></HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Culture">@context.Culture</MudTd>
             <MudTd DataLabel="Resource type">@context.ResourceType</MudTd>
@@ -66,14 +64,15 @@
         _importing = true;
         try
         {
-            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var claim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userId = Guid.TryParse(claim, out var parsed) ? parsed : (Guid?)null;
             await using var stream = _file.OpenReadStream(1_000_000);
-            var result = await ResourceService.ImportAsync(stream, _culture, _resourceType.Trim(), userId);
+            var result = await Mediator.Send(new ImportLocalizationResourceCommand(stream, _culture, _resourceType.Trim()));
             Snackbar.Add($"Resource imported as version {result.Version} with {result.EntryCount} entries.", Severity.Success);
             _file = null;
             await LoadAsync();
+        }
+        catch (ValidationException exception)
+        {
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
         }
         catch (Exception exception)
         {
