@@ -3,4 +3,7 @@
     <Project Path="src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
     <Project Path="src/RemoteCommerce/RemoteCommerce.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RemoteCommerce.Tests/RemoteCommerce.Tests.csproj" />
+  </Folder>
 </Solution>
