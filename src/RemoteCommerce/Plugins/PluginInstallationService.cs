@@ -27,11 +27,7 @@ public sealed class PluginInstallationService(IDbContextFactory<CommerceDbContex
             db.PluginInstallations.Add(new PluginInstallation
             {
                 Id = Guid.NewGuid(), PluginId = manifest.Id, Version = manifest.Version, PackagePath = targetDirectory,
-                State = PluginInstallationState.Installed, InstalledAt = DateTimeOffset.UtcNow, Name = manifest.Name,
-                Description = manifest.Description, PackageId = manifest.PackageId, PackageTags = manifest.PackageTags,
-                Title = manifest.Title, Authors = manifest.Authors, Company = manifest.Company, RepositoryUrl = manifest.RepositoryUrl,
-                RepositoryType = manifest.RepositoryType, PackageProjectUrl = manifest.PackageProjectUrl,
-                PackageRequireLicenseAcceptance = manifest.PackageRequireLicenseAcceptance
+                State = PluginInstallationState.Installed, InstalledAt = DateTimeOffset.UtcNow
             });
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
