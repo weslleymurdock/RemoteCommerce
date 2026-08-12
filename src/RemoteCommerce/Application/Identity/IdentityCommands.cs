@@ -125,21 +125,20 @@ public sealed class LoginCommandHandler(UserManager<ApplicationUser> userManager
             await auditLog.WriteAsync("identity.login", "User", null, email, "Failed", "Reason=InvalidCredentials", cancellationToken);
             return new LoginResult(false, false);
         }
-
         var result = await signInManager.PasswordSignInAsync(user, request.Password, request.Persistent, lockoutOnFailure: true);
-        var success = result.Succeeded;
-        await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, success ? "Success" : "Failed", result.IsLockedOut ? "Reason=LockedOut" : "Reason=InvalidCredentials", cancellationToken);
-        return new LoginResult(success, result.IsLockedOut);
+        await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, result.Succeeded ? "Success" : "Failed", result.IsLockedOut ? "Reason=LockedOut" : "Reason=InvalidCredentials", cancellationToken);
+        return new LoginResult(result.Succeeded, result.IsLockedOut);
     }
 }
 
 /// <summary>Handles the first administrator bootstrap.</summary>
 /// <param name="userManager">The Identity user manager.</param>
 /// <param name="roleManager">The Identity role manager.</param>
+/// <param name="signInManager">The Identity sign-in manager.</param>
 /// <param name="auditLog">The transactional audit service.</param>
-public sealed class BootstrapAdministratorCommandHandler(UserManager<ApplicationUser> userManager, RoleManager<ApplicationRole> roleManager, IAuditLogService auditLog) : IRequestHandler<BootstrapAdministratorCommand, BootstrapAdministratorResult>
+public sealed class BootstrapAdministratorCommandHandler(UserManager<ApplicationUser> userManager, RoleManager<ApplicationRole> roleManager, SignInManager<ApplicationUser> signInManager, IAuditLogService auditLog) : IRequestHandler<BootstrapAdministratorCommand, BootstrapAdministratorResult>
 {
-    /// <summary>Creates the baseline administrator role, user, and permission claims.</summary>
+    /// <summary>Creates the baseline administrator role, user, permission claims, and authentication session.</summary>
     /// <param name="request">The bootstrap request.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The created administrator identifier.</returns>
@@ -147,14 +146,12 @@ public sealed class BootstrapAdministratorCommandHandler(UserManager<Application
     public async Task<BootstrapAdministratorResult> Handle(BootstrapAdministratorCommand request, CancellationToken cancellationToken)
     {
         if (await userManager.Users.AnyAsync(cancellationToken)) throw new InvalidOperationException("Initial administrator setup has already been completed.");
-
         const string roleName = "Administrator";
         if (!await roleManager.RoleExistsAsync(roleName))
         {
             var roleResult = await roleManager.CreateAsync(new ApplicationRole { Name = roleName, Description = "Full access to RemoteCommerce administration." });
             EnsureSucceeded(roleResult, "Administrator role creation failed.");
         }
-
         var user = new ApplicationUser { UserName = request.Email.Trim(), Email = request.Email.Trim(), DisplayName = request.DisplayName.Trim(), EmailConfirmed = true };
         EnsureSucceeded(await userManager.CreateAsync(user, request.Password), "Administrator creation failed.");
         EnsureSucceeded(await userManager.AddToRoleAsync(user, roleName), "Administrator role assignment failed.");
@@ -162,7 +159,7 @@ public sealed class BootstrapAdministratorCommandHandler(UserManager<Application
         {
             EnsureSucceeded(await userManager.AddClaimAsync(user, new Claim("permission", permission)), "Administrator permission assignment failed.");
         }
-
+        await signInManager.SignInAsync(user, isPersistent: false);
         await auditLog.WriteAsync("identity.bootstrap", "User", user.Id, user.DisplayName, "Success", cancellationToken: cancellationToken);
         return new BootstrapAdministratorResult(user.Id);
     }
