@@ -1,15 +1,12 @@
 @page "/admin/roles"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Application.Security
 @using RemoteCommerce.Infrastructure.Persistence.Entities
+@using MediatR
 @inject RoleManager<ApplicationRole> RoleManager
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject IAuditLogService AuditLog
+@inject IMediator Mediator
 @inject ISnackbar Snackbar
 
 <PageTitle>Roles | RemoteCommerce</PageTitle>
@@ -55,38 +52,25 @@
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private async Task LoadAsync()
-    {
-        _roles = await RoleManager.Roles.OrderBy(x => x.Name).ToListAsync();
-    }
+    private async Task LoadAsync() => _roles = await RoleManager.Roles.OrderBy(x => x.Name).ToListAsync();
 
     private async Task CreateAsync()
     {
-        if (string.IsNullOrWhiteSpace(_name))
+        try
         {
-            Snackbar.Add("Role name is required.", Severity.Warning);
-            return;
+            await Mediator.Send(new CreateRoleCommand(_name, _description));
+            _name = string.Empty;
+            _description = string.Empty;
+            Snackbar.Add("Role created.", Severity.Success);
+            await LoadAsync();
         }
-
-        var result = await RoleManager.CreateAsync(new ApplicationRole
+        catch (ValidationException exception)
         {
-            Name = _name.Trim(),
-            Description = _description.Trim(),
-        });
-        if (!result.Succeeded)
-        {
-            Snackbar.Add(string.Join(" ", result.Errors.Select(x => x.Description)), Severity.Error);
-            return;
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
         }
-
-        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var actor = state.User.Identity?.Name ?? "unknown";
-        var actorId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        await AuditLog.WriteAsync("identity.role.create", "Role", Guid.TryParse(actorId, out var id) ? id : null, actor, "Success", $"TargetRole={_name.Trim()}");
-
-        _name = string.Empty;
-        _description = string.Empty;
-        Snackbar.Add("Role created.", Severity.Success);
-        await LoadAsync();
+        catch (Exception exception)
+        {
+            Snackbar.Add(exception.Message, Severity.Error);
+        }
     }
 }
