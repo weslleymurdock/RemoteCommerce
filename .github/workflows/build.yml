@@ -16,5 +16,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet restore RemoteCommerce.sln
-      - run: dotnet build RemoteCommerce.sln --configuration Release --no-restore
+      - run: dotnet restore RemoteCommerce.slnx
+      - run: dotnet build RemoteCommerce.slnx --configuration Release --no-restore
+      - run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/RemoteCommerce.SamplePlugin.csproj --configuration Release --no-restore --output ./artifacts
+      - name: Validate plugin package
+        shell: bash
+        run: test -f ./artifacts/RemoteCommerce.SamplePlugin.1.0.0.nupkg
