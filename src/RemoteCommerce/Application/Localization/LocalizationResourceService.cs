@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Xml;
 using Microsoft.EntityFrameworkCore;
 using RemoteCommerce.Infrastructure.Persistence;
@@ -36,7 +35,12 @@ public sealed class LocalizationResourceService(
 
         var entries = await ParseAsync(content, cancellationToken);
         var hash = await ComputeHashAsync(content, cancellationToken);
-        await content.SeekAsync(0, cancellationToken);
+        if (!content.CanSeek)
+        {
+            throw new InvalidOperationException("Localization resource streams must support seeking for safe persistence.");
+        }
+
+        content.Seek(0, SeekOrigin.Begin);
 
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var latestVersion = await db.LocalizationResources
@@ -162,7 +166,7 @@ public sealed class LocalizationResourceService(
             {
                 if (dataReader.NodeType == XmlNodeType.Element && dataReader.Name == "value")
                 {
-                    entries[key] = await dataReader.ReadElementContentAsStringAsync(cancellationToken);
+                    entries[key] = await dataReader.ReadElementContentAsStringAsync();
                     break;
                 }
             }
