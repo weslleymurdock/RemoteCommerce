@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using RemoteCommerce.Infrastructure.Persistence;
 
 #nullable disable
 
@@ -45,7 +46,6 @@ public sealed class Stage04PluginAdministration : Migration
                 IF COL_LENGTH(N'commerce.PluginInstallations', N'UpdatedAt') IS NULL ALTER TABLE commerce.PluginInstallations ADD UpdatedAt datetimeoffset NOT NULL CONSTRAINT DF_PluginInstallations_UpdatedAt DEFAULT SYSUTCDATETIME();
                 UPDATE commerce.PluginInstallations SET State = CASE State WHEN 0 THEN 2 WHEN 1 THEN 4 ELSE State END;
                 UPDATE commerce.PluginInstallations SET DesiredState = CASE State WHEN 4 THEN 1 ELSE 0 END;
-                UPDATE commerce.PluginInstallations SET UpdatedAt = InstalledAt WHERE UpdatedAt IS NULL;
             END;
 
             IF OBJECT_ID(N'commerce.PluginVersions', N'U') IS NULL
