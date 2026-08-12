@@ -6,6 +6,8 @@ return await PluginTemplateGenerator.RunAsync(args);
 
 internal static class PluginTemplateGenerator
 {
+    private static readonly string[] RequiredResources = ["README.md", "LICENSE.md", "PluginEntry.cs", "PluginInfo.razor", "PluginHealthController.cs"];
+
     public static Task<int> RunAsync(string[] args)
     {
         if (args.Length == 0 || !string.Equals(args[0], "new", StringComparison.OrdinalIgnoreCase))
@@ -24,28 +26,36 @@ internal static class PluginTemplateGenerator
         manifest = manifest with { EntryAssembly = $"lib/net10.0/{manifest.PackageId}.dll", EntryType = $"{namespaceName}.PluginEntry" };
         var baseProject = FindBaseProject(Directory.GetCurrentDirectory());
         var baseReference = Path.GetRelativePath(outputDirectory, baseProject).Replace(Path.DirectorySeparatorChar, '/');
+        var resources = FindResources();
 
         File.WriteAllText(Path.Combine(outputDirectory, $"{manifest.PackageId}.csproj"), BuildProjectFile(manifest, baseReference));
         File.WriteAllText(Path.Combine(outputDirectory, "plugin.manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }));
-        File.WriteAllText(Path.Combine(outputDirectory, "README.md"), $"# {manifest.Name}\n\n{manifest.Description}\n");
-        File.WriteAllText(Path.Combine(outputDirectory, "LICENSE.md"), "Mozilla Public License Version 2.0\n\nReplace this file with the license terms applicable to your plugin.\n");
-        File.WriteAllText(Path.Combine(outputDirectory, "PluginEntry.cs"), BuildEntry(namespaceName));
-        File.WriteAllText(Path.Combine(outputDirectory, "_Imports.razor"), "@using Microsoft.AspNetCore.Components\n@using Microsoft.AspNetCore.Components.Routing\n@using Microsoft.AspNetCore.Components.Web\n");
+        foreach (var resourceName in RequiredResources)
+        {
+            var target = resourceName switch
+            {
+                "PluginEntry.cs" => Path.Combine(outputDirectory, resourceName),
+                "PluginInfo.razor" => Path.Combine(outputDirectory, "Pages", resourceName),
+                "PluginHealthController.cs" => Path.Combine(outputDirectory, "Controllers", resourceName),
+                _ => Path.Combine(outputDirectory, resourceName)
+            };
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.WriteAllText(target, Render(File.ReadAllText(Path.Combine(resources, resourceName)), manifest, namespaceName));
+        }
 
         var mode = Prompt("Extension type (page/controller/both)", "both").ToLowerInvariant();
         if (mode is "page" or "both")
         {
             Directory.CreateDirectory(Path.Combine(outputDirectory, "Pages"));
-            File.WriteAllText(Path.Combine(outputDirectory, "Pages", "PluginHome.razor"), $"@page \"/plugins/{manifest.Id}\"\n\n<h1>{EscapeRazor(manifest.Name)}</h1>\n<p>{EscapeRazor(manifest.Description)}</p>\n");
+            File.WriteAllText(Path.Combine(outputDirectory, "Pages", "PluginHome.razor"), Render("@page \"/plugins/{{PluginId}}/home\"\n\n<MudText Typo=\"Typo.h4\">{{Name}}</MudText>\n<MudText>{{Description}}</MudText>\n", manifest, namespaceName));
         }
         if (mode is "controller" or "both")
         {
             Directory.CreateDirectory(Path.Combine(outputDirectory, "Controllers"));
-            File.WriteAllText(Path.Combine(outputDirectory, "Controllers", "PluginController.cs"), BuildController(manifest, namespaceName));
+            File.WriteAllText(Path.Combine(outputDirectory, "Controllers", "PluginController.cs"), Render("using Microsoft.AspNetCore.Mvc;\n\nnamespace {{Namespace}}.Controllers;\n\n/// <summary>Provides the generated plugin API endpoint.</summary>\n[ApiController]\n[Route(\"api/rp/{{ApiVersion}}/{{ControllerName}}\")]\npublic sealed class PluginController : ControllerBase\n{\n    /// <summary>Returns basic plugin information.</summary>\n    /// <returns>The plugin identifier and version.</returns>\n    [HttpGet]\n    public object Get() => new { PluginId = \"{{PluginId}}\", Version = \"{{Version}}\" };\n}\n", manifest, namespaceName));
         }
 
         Console.WriteLine($"Created RemoteCommerce plugin '{manifest.Name}' at {outputDirectory}.");
-        Console.WriteLine("The generated project references RemoteCommerce.Plugin.Abstractions by project reference.");
         return Task.FromResult(0);
     }
 
@@ -65,8 +75,32 @@ internal static class PluginTemplateGenerator
         var projectUrl = PromptRequired("Project URL");
         var requireLicenseAcceptance = Prompt("Require license acceptance (true/false)", "true").Equals("true", StringComparison.OrdinalIgnoreCase);
         var minHostVersion = Prompt("Minimum RemoteCommerce host version", "1.0.0");
-        return new PluginManifestModel(id, name, "LICENSE.md", "README.md", version, "", "", minHostVersion, description, packageId, tags, title, authors, company, repositoryUrl, repositoryType, requireLicenseAcceptance, projectUrl);
+        var apiVersion = Prompt("RemoteCommerce plugin API version", "v1");
+        var controllerName = Prompt("Default plugin controller name", "plugin");
+        return new PluginManifestModel(id, name, "LICENSE.md", "README.md", version, "", "", minHostVersion, description, packageId, tags, title, authors, company, repositoryUrl, repositoryType, requireLicenseAcceptance, projectUrl, apiVersion, controllerName);
     }
+
+    private static string FindResources()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "Resources"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Resources")
+        };
+        var resources = candidates.FirstOrDefault(path => Directory.Exists(path) && RequiredResources.All(file => File.Exists(Path.Combine(path, file))));
+        return resources ?? throw new InvalidOperationException("The plugin template resources could not be found. The dotnet tool package must contain its Resources directory.");
+    }
+
+    private static string Render(string template, PluginManifestModel manifest, string ns) => template
+        .Replace("{{Namespace}}", ns, StringComparison.Ordinal)
+        .Replace("{{Name}}", manifest.Name, StringComparison.Ordinal)
+        .Replace("{{Description}}", manifest.Description, StringComparison.Ordinal)
+        .Replace("{{PluginId}}", manifest.Id, StringComparison.Ordinal)
+        .Replace("{{Version}}", manifest.Version, StringComparison.Ordinal)
+        .Replace("{{Company}}", manifest.Company, StringComparison.Ordinal)
+        .Replace("{{Year}}", DateTime.UtcNow.Year.ToString(), StringComparison.Ordinal)
+        .Replace("{{ApiVersion}}", manifest.ApiVersion, StringComparison.Ordinal)
+        .Replace("{{ControllerName}}", manifest.ControllerName, StringComparison.Ordinal);
 
     private static string BuildProjectFile(PluginManifestModel m, string baseReference) => $"""<Project Sdk=\"Microsoft.NET.Sdk.Razor\">
   <PropertyGroup>
@@ -101,51 +135,6 @@ internal static class PluginTemplateGenerator
 </Project>
 """;
 
-    private static string BuildEntry(string ns) => $"""using Microsoft.Extensions.DependencyInjection;
-using RemoteCommerce.Plugins.Abstractions;
-
-namespace {ns};
-
-/// <summary>Registers the generated RemoteCommerce plugin.</summary>
-public sealed class PluginEntry : IRemoteCommercePlugin
-{{
-    /// <summary>Registers plugin services and discovers plugin MVC and Razor components.</summary>
-    /// <param name=\"services\">The host service collection.</param>
-    /// <param name=\"manifest\">The installed plugin manifest.</param>
-    public void ConfigureServices(IServiceCollection services, PluginManifest manifest)
-    {{
-        services.AddControllers().AddApplicationPart(typeof(PluginEntry).Assembly);
-        services.AddRazorComponents().AddAdditionalAssemblies(typeof(PluginEntry).Assembly);
-    }}
-}}
-""";
-
-    private static string BuildController(PluginManifestModel m, string ns) => $"""using Microsoft.AspNetCore.Mvc;
-namespace {ns}.Controllers;
-/// <summary>Provides the generated plugin controller endpoint.</summary>
-[ApiController]
-[Route(\"api/plugins/{m.Id}\")]
-public sealed class PluginController : ControllerBase
-{{
-    /// <summary>Returns basic information about the plugin.</summary>
-    /// <returns>The plugin identifier and version.</returns>
-    [HttpGet]
-    public object Get() => new {{ PluginId = \"{m.Id}\", Version = \"{m.Version}\" }};
-}}
-""";
-
-    private static string FindBaseProject(string currentDirectory)
-    {
-        var directory = new DirectoryInfo(currentDirectory);
-        while (directory is not null)
-        {
-            var candidate = Path.Combine(directory.FullName, "src", "RemoteCommerce.Plugin.Abstractions", "RemoteCommerce.Plugin.Abstractions.csproj");
-            if (File.Exists(candidate)) return candidate;
-            directory = directory.Parent;
-        }
-        throw new InvalidOperationException("Could not locate src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj. Run the tool from the RemoteCommerce repository.");
-    }
-
     private static string PromptRequired(string label) => Prompt(label, null, true);
     private static string Prompt(string label, string? defaultValue = null, bool required = false)
     {
@@ -168,6 +157,5 @@ public sealed class PluginController : ControllerBase
     }
 
     private static string Xml(string value) => SecurityElement.Escape(value) ?? string.Empty;
-    private static string EscapeRazor(string value) => value.Replace("\"", "&quot;", StringComparison.Ordinal);
-    private sealed record PluginManifestModel(string Id, string Name, string License, string Readme, string Version, string EntryAssembly, string EntryType, string MinHostVersion, string Description, string PackageId, string PackageTags, string Title, string Authors, string Company, string RepositoryUrl, string RepositoryType, bool PackageRequireLicenseAcceptance, string PackageProjectUrl);
+    private sealed record PluginManifestModel(string Id, string Name, string License, string Readme, string Version, string EntryAssembly, string EntryType, string MinHostVersion, string Description, string PackageId, string PackageTags, string Title, string Authors, string Company, string RepositoryUrl, string RepositoryType, bool PackageRequireLicenseAcceptance, string PackageProjectUrl, string ApiVersion, string ControllerName);
 }
