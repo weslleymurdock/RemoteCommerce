@@ -14,6 +14,7 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddControllers();
 builder.Services.AddMudServices();
+builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
 builder.Services.AddDbContextFactory<CommerceDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
@@ -93,15 +94,13 @@ if (!app.Environment.IsProduction())
                     border-radius: var(--mud-default-borderradius, 4px) !important;
                     box-shadow: var(--mud-elevation-1, 0px 2px 1px -1px rgba(0,0,0,0.2)) !important;
                 }
-            "); 
-        
+            ");
     });
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
-
 
 app.MapControllers();
 app.MapRazorComponents<App>()
