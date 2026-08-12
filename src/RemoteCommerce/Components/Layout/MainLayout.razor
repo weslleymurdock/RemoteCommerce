@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@using RemoteCommerce.Application.Administration
+@inject IAdminNavigationRegistry AdminNavigation
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -14,13 +16,10 @@
 
     <MudDrawer Open="true" Elevation="2">
         <MudNavMenu Class="pa-3">
-            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-            <MudNavLink Href="/admin/settings" Icon="@Icons.Material.Filled.Settings">Site settings</MudNavLink>
-            <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.People">Users</MudNavLink>
-            <MudNavLink Href="/admin/roles" Icon="@Icons.Material.Filled.Security">Roles & permissions</MudNavLink>
-            <MudNavLink Href="/admin/localization" Icon="@Icons.Material.Filled.Translate">Localization</MudNavLink>
-            <MudNavLink Href="/admin/security" Icon="@Icons.Material.Filled.Lock">Security & configuration</MudNavLink>
-            <MudNavLink Href="/plugins" Icon="@Icons.Material.Filled.Extension">Plugins</MudNavLink>
+            @foreach (var item in AdminNavigation.GetItems())
+            {
+                <MudNavLink Href="@item.Href" Match="@(item.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)" Icon="@item.Icon">@item.Title</MudNavLink>
+            }
         </MudNavMenu>
     </MudDrawer>
 
