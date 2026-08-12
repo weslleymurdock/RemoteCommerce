@@ -3,6 +3,7 @@
 ## Code
 
 - Prefer clear, explicit .NET 10 APIs over clever abstractions.
+- Prefer file-scoped namespaces.
 - Public types, members, interfaces, controllers, services, extension methods, and DI contracts must have XML documentation in en-US.
 - XML documentation should include all applicable tags such as `<summary>`, `<param>`, `<returns>`, `<typeparam>`, `<exception>`, and `<remarks>`.
 - Use domain terminology consistently: RemoteCommerce, plugin, manifest, host, catalog, order, customer.

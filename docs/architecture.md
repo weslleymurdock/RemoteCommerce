@@ -1,5 +1,20 @@
 # Architecture
 
+```text
+RemoteCommerce host (single ASP.NET Core project)
+├── Blazor UI (Interactive Server)
+├── Controllers / OpenAPI + Scalar
+├── Application services
+├── EF Core + SQL Server
+└── Plugin runtime
+    ├── RemoteCommerce.Plugin.Abstractions SDK
+    ├── .nupkg package validation
+    ├── Installation state
+    └── Startup activation into DI
+```
+
+Every plugin is distributed as a `.nupkg` containing `plugin.manifest.json` at the package root and the entry assembly under `lib/net10.0/`. Installation persists the package state, while activation occurs only after the application restarts. The runtime never attempts to mutate the root DI container after `builder.Build()`.
+
 ## Product model
 
 RemoteCommerce is a .NET 10 server application intended to provide the core experience of a WordPress + WooCommerce installation while remaining modular through runtime-installable plugins.
