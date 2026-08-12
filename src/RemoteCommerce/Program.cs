@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using MudBlazor.Services;
+using RemoteCommerce.Application.Administration;
 using RemoteCommerce.Application.Identity;
 using RemoteCommerce.Application.Localization;
 using RemoteCommerce.Application.Security;
@@ -70,6 +71,16 @@ builder.Services.AddScoped<ILocalizationResourceService>(sp => sp.GetRequiredSer
 builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
 builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+
+var adminNavigation = new AdminNavigationRegistry();
+adminNavigation.Register(new AdminNavigationItem("Dashboard", "/", Icons.Material.Filled.Dashboard, 0));
+adminNavigation.Register(new AdminNavigationItem("Site settings", "/admin/settings", Icons.Material.Filled.Settings, 10));
+adminNavigation.Register(new AdminNavigationItem("Users", "/admin/users", Icons.Material.Filled.People, 20));
+adminNavigation.Register(new AdminNavigationItem("Roles & permissions", "/admin/roles", Icons.Material.Filled.Security, 30));
+adminNavigation.Register(new AdminNavigationItem("Localization", "/admin/localization", Icons.Material.Filled.Translate, 40));
+adminNavigation.Register(new AdminNavigationItem("Security & configuration", "/admin/security", Icons.Material.Filled.Lock, 50));
+adminNavigation.Register(new AdminNavigationItem("Plugins", "/plugins", Icons.Material.Filled.Extension, 60));
+builder.Services.AddSingleton<IAdminNavigationRegistry>(adminNavigation);
 
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
