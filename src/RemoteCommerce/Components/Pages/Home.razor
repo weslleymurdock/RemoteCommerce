@@ -1,12 +1,11 @@
 @page "/"
 @attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Authorization
 @using RemoteCommerce.Application.Identity
 @using RemoteCommerce.Application.Site
-@using RemoteCommerce.Infrastructure.Persistence.Entities
 @inject ISiteSettingsService SiteSettingsService
-@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Dashboard | RemoteCommerce</PageTitle>
 
@@ -31,7 +30,7 @@ else
         <MudItem xs="12" md="4">
             <MudPaper Class="pa-5" Elevation="2">
                 <MudText Typo="Typo.h6">Security</MudText>
-                <MudText Typo="Typo.body2">Authenticated administrator: @UserManager.GetUserName(User)</MudText>
+                <MudText Typo="Typo.body2">Authenticated administrator: @_userName</MudText>
                 <MudText Typo="Typo.body2">Identity password policy is enforced by ASP.NET Core Identity.</MudText>
             </MudPaper>
         </MudItem>
@@ -61,9 +60,12 @@ else
 
 @code {
     private SiteSettingsModel? _settings;
+    private string _userName = "unknown";
 
     protected override async Task OnInitializedAsync()
     {
         _settings = await SiteSettingsService.GetAsync();
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _userName = state.User.Identity?.Name ?? "unknown";
     }
 }
