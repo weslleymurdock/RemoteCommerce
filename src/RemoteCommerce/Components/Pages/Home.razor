@@ -1,29 +1,69 @@
 @page "/"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using RemoteCommerce.Application.Identity
+@using RemoteCommerce.Application.Site
+@using RemoteCommerce.Infrastructure.Persistence.Entities
+@inject ISiteSettingsService SiteSettingsService
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>Dashboard | RemoteCommerce</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Commerce Dashboard</MudText>
-<MudText Typo="Typo.body1" Class="mb-6">
-    Foundation ready: Blazor Server, controllers, EF Core/SQL Server and the plugin platform boundary are in place.
-</MudText>
+<MudText Typo="Typo.h4" GutterBottom="true">Administration Dashboard</MudText>
+<MudText Typo="Typo.body1" Class="mb-6">Manage the RemoteCommerce site, identity, plugins, and localization from one administrative surface.</MudText>
 
-<MudGrid>
-    <MudItem xs="12" md="4">
-        <MudPaper Class="pa-5" Elevation="2">
-            <MudText Typo="Typo.h6">Products</MudText>
-            <MudText Typo="Typo.body2">Commerce domain will be introduced in the next stages.</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="4">
-        <MudPaper Class="pa-5" Elevation="2">
-            <MudText Typo="Typo.h6">Orders</MudText>
-            <MudText Typo="Typo.body2">Order management will be plugin-driven.</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="4">
-        <MudPaper Class="pa-5" Elevation="2">
-            <MudText Typo="Typo.h6">Extensions</MudText>
-            <MudText Typo="Typo.body2">Installed extensions are discovered after application restart.</MudText>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+@if (_settings is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">@_settings.SiteName</MudText>
+                <MudText Typo="Typo.body2" Class="mb-3">@(_settings.SiteDescription.Length == 0 ? "No site description configured." : _settings.SiteDescription)</MudText>
+                <MudChip Color="Color.Primary">@_settings.Culture</MudChip>
+                <MudChip Color="Color.Secondary">@_settings.TimeZone</MudChip>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Security</MudText>
+                <MudText Typo="Typo.body2">Authenticated administrator: @UserManager.GetUserName(User)</MudText>
+                <MudText Typo="Typo.body2">Identity password policy is enforced by ASP.NET Core Identity.</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Site configuration</MudText>
+                <MudText Typo="Typo.body2">Update general site settings and culture defaults.</MudText>
+                <MudButton Href="/admin/settings" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">Open settings</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Users & roles</MudText>
+                <MudText Typo="Typo.body2">Manage administrative identities and permissions.</MudText>
+                <MudButton Href="/admin/users" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">Manage users</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Localization</MudText>
+                <MudText Typo="Typo.body2">Import validated en-US and pt-BR XML resources.</MudText>
+                <MudButton Href="/admin/localization" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">Manage localization</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private SiteSettingsModel? _settings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await SiteSettingsService.GetAsync();
+    }
+}
