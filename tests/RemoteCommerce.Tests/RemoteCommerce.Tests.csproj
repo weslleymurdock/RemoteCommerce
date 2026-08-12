@@ -9,6 +9,7 @@
     <Using Include="FluentValidation" />
     <Using Include="MediatR" />
     <Using Include="Microsoft.AspNetCore.Identity" />
+    <Using Include="Microsoft.Data.Sqlite" />
     <Using Include="Microsoft.EntityFrameworkCore" />
     <Using Include="Microsoft.Extensions.Configuration" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />
