@@ -6,6 +6,7 @@
     <RootNamespace>RemoteCommerce.Plugins.Abstractions</RootNamespace>
     <AssemblyName>RemoteCommerce.Plugin.Abstractions</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);1591</WarningsAsErrors>
     <PackageId>RemoteCommerce.Plugin.Abstractions</PackageId>
     <Version>1.0.0</Version>
     <Description>Stable plugin contracts for RemoteCommerce.</Description>
