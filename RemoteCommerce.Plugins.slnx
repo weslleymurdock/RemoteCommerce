@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/plugins/" />
+  <Folder Name="/plugins/Sample/">
+    <Project Path="plugins/Sample/RemoteCommerce.SamplePlugin/RemoteCommerce.SamplePlugin.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
+  </Folder>
+</Solution>
