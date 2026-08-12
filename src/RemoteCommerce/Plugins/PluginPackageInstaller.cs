@@ -19,7 +19,7 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
     /// <param name="cancellationToken">The token used to cancel package processing.</param>
     /// <returns>The validated manifest and installation directory.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the package file does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the package or manifest is invalid.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the package or manifest is invalid, or the plugin is already installed.</exception>
     public async Task<(PluginManifest Manifest, string TargetDirectory)> InstallAsync(string packagePath, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(packagePath))
@@ -38,19 +38,18 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
         ValidateManifest(manifest);
         var assemblyEntry = archive.GetEntry(manifest.EntryAssembly.Replace('\\', '/'))
             ?? throw new InvalidOperationException($"The plugin entry assembly '{manifest.EntryAssembly}' was not found in the package.");
-
         if (!assemblyEntry.FullName.StartsWith("lib/net10.0/", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The plugin entry assembly must be located under lib/net10.0 in the package.");
 
         var targetDirectory = Path.Combine(environment.ContentRootPath, "App_Data", "plugins", manifest.Id);
+        if (Directory.Exists(targetDirectory))
+            throw new InvalidOperationException($"Plugin '{manifest.Id}' is already installed. Uninstall it before installing another package.");
+
         var stagingDirectory = Path.Combine(environment.ContentRootPath, "App_Data", "plugins", ".staging", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stagingDirectory);
-
         try
         {
             ExtractSafely(archive, stagingDirectory);
-            if (Directory.Exists(targetDirectory))
-                Directory.Delete(targetDirectory, recursive: true);
             Directory.Move(stagingDirectory, targetDirectory);
         }
         catch
@@ -65,11 +64,9 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
 
     private static void ValidateManifest(PluginManifest manifest)
     {
-        if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.Name) ||
-            string.IsNullOrWhiteSpace(manifest.Version) || string.IsNullOrWhiteSpace(manifest.EntryAssembly) ||
-            string.IsNullOrWhiteSpace(manifest.EntryType) || string.IsNullOrWhiteSpace(manifest.MinHostVersion))
+        if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.Name) || string.IsNullOrWhiteSpace(manifest.Version) ||
+            string.IsNullOrWhiteSpace(manifest.EntryAssembly) || string.IsNullOrWhiteSpace(manifest.EntryType) || string.IsNullOrWhiteSpace(manifest.MinHostVersion))
             throw new InvalidOperationException("The plugin manifest requires Id, Name, Version, EntryAssembly, EntryType and MinHostVersion.");
-
         ValidateRelativePath(manifest.EntryAssembly);
     }
 
@@ -87,12 +84,10 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
             var normalized = entry.FullName.Replace('\\', '/');
             if (string.IsNullOrEmpty(normalized) || normalized.EndsWith('/'))
                 continue;
-
             ValidateRelativePath(normalized);
             var destination = Path.GetFullPath(Path.Combine(targetDirectory, normalized.Replace('/', Path.DirectorySeparatorChar)));
             if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The plugin package contains a path traversal entry.");
-
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             entry.ExtractToFile(destination, overwrite: true);
         }
