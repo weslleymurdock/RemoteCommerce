@@ -1,0 +1,9 @@
+{
+  "id": "remotecommerce.sample",
+  "name": "RemoteCommerce Sample Plugin",
+  "version": "1.0.0",
+  "entryAssembly": "lib/net10.0/RemoteCommerce.SamplePlugin.dll",
+  "entryType": "RemoteCommerce.SamplePlugin.PluginEntry",
+  "minHostVersion": "1.0.0",
+  "description": "Reference plugin used to validate nupkg installation and startup DI activation."
+}
