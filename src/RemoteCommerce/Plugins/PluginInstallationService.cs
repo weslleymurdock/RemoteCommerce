@@ -10,12 +10,14 @@ namespace RemoteCommerce.Plugins;
 /// <param name="packageInstaller">The service responsible for validated package extraction.</param>
 /// <param name="packageValidator">The service responsible for package validation before extraction.</param>
 /// <param name="dependencyValidator">The validator responsible for installed dependency compatibility.</param>
+/// <param name="packageSource">The explicitly trusted local package source.</param>
 /// <param name="restartService">The service used to report that activation requires a restart.</param>
 public sealed class PluginInstallationService(
     IDbContextFactory<CommerceDbContext> dbFactory,
     PluginPackageInstaller packageInstaller,
     IPluginPackageValidator packageValidator,
     PluginDependencyValidator dependencyValidator,
+    IPluginPackageSource packageSource,
     IApplicationRestartService restartService)
 {
     /// <summary>Validates, installs, and persists a plugin package as pending activation.</summary>
@@ -43,33 +45,22 @@ public sealed class PluginInstallationService(
             var now = DateTimeOffset.UtcNow;
             db.PluginInstallations.Add(new PluginInstallation
             {
-                Id = Guid.NewGuid(),
-                PluginId = installed.Manifest.Id,
-                Version = installed.Manifest.Version,
-                PackagePath = installed.TargetDirectory,
-                PackageHash = installed.PackageHash,
-                State = PluginInstallationState.ActivationPending,
-                DesiredState = PluginDesiredState.Enabled,
-                InstalledAt = now,
-                UpdatedAt = now
+                Id = Guid.NewGuid(), PluginId = installed.Manifest.Id, Version = installed.Manifest.Version,
+                PackagePath = installed.TargetDirectory, PackageHash = installed.PackageHash,
+                State = PluginInstallationState.ActivationPending, DesiredState = PluginDesiredState.Enabled,
+                InstalledAt = now, UpdatedAt = now
             });
             db.PluginVersions.Add(new PluginVersion
             {
-                Id = Guid.NewGuid(),
-                PluginId = installed.Manifest.Id,
-                Version = installed.Manifest.Version,
-                PackagePath = installed.TargetDirectory,
-                PackageHash = installed.PackageHash,
-                InstalledAt = now,
-                IsCurrent = true
+                Id = Guid.NewGuid(), PluginId = installed.Manifest.Id, Version = installed.Manifest.Version,
+                PackagePath = installed.TargetDirectory, PackageHash = installed.PackageHash,
+                InstalledAt = now, IsCurrent = true
             });
             foreach (var dependency in installed.Manifest.DependencyDeclarations)
                 db.PluginDependencies.Add(new PluginDependency
                 {
-                    Id = Guid.NewGuid(),
-                    PluginId = installed.Manifest.Id,
-                    DependencyPluginId = dependency.PluginId,
-                    MinimumVersion = dependency.MinimumVersion,
+                    Id = Guid.NewGuid(), PluginId = installed.Manifest.Id,
+                    DependencyPluginId = dependency.PluginId, MinimumVersion = dependency.MinimumVersion,
                     MaximumVersion = dependency.MaximumVersion
                 });
 
@@ -84,6 +75,20 @@ public sealed class PluginInstallationService(
 
         restartService.RequestRestart($"Plugin '{installed.Manifest.Id}' was installed and is pending activation.");
         return installed.Manifest;
+    }
+
+    /// <summary>Installs a package selected from the explicitly trusted local package source.</summary>
+    /// <param name="fileName">The package file name as exposed by the trusted source.</param>
+    /// <param name="cancellationToken">The token used to cancel the operation.</param>
+    /// <returns>The installed plugin manifest.</returns>
+    /// <exception cref="FileNotFoundException">Thrown when the package is not available from the trusted source.</exception>
+    public async Task<PluginManifest> InstallFromTrustedSourceAsync(string fileName, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        var packages = await packageSource.ListAsync(cancellationToken);
+        var path = packages.SingleOrDefault(x => string.Equals(Path.GetFileName(x), fileName, StringComparison.OrdinalIgnoreCase));
+        if (path is null) throw new FileNotFoundException("The requested package is not available from the trusted package source.", fileName);
+        return await InstallAsync(path, cancellationToken);
     }
 
     /// <summary>Validates a candidate plugin package without installing or activating it.</summary>
@@ -127,28 +132,20 @@ public sealed class PluginInstallationService(
             installation.State = PluginInstallationState.ActivationPending;
             installation.UpdatedAt = now;
 
-            foreach (var version in db.PluginVersions.Where(x => x.PluginId == pluginId))
-                version.IsCurrent = false;
+            foreach (var version in db.PluginVersions.Where(x => x.PluginId == pluginId)) version.IsCurrent = false;
             db.PluginVersions.Add(new PluginVersion
             {
-                Id = Guid.NewGuid(),
-                PluginId = pluginId,
-                Version = installed.Manifest.Version,
-                PackagePath = installed.TargetDirectory,
-                PackageHash = installed.PackageHash,
-                InstalledAt = now,
-                IsCurrent = true
+                Id = Guid.NewGuid(), PluginId = pluginId, Version = installed.Manifest.Version,
+                PackagePath = installed.TargetDirectory, PackageHash = installed.PackageHash,
+                InstalledAt = now, IsCurrent = true
             });
 
             db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
             foreach (var dependency in installed.Manifest.DependencyDeclarations)
                 db.PluginDependencies.Add(new PluginDependency
                 {
-                    Id = Guid.NewGuid(),
-                    PluginId = pluginId,
-                    DependencyPluginId = dependency.PluginId,
-                    MinimumVersion = dependency.MinimumVersion,
-                    MaximumVersion = dependency.MaximumVersion
+                    Id = Guid.NewGuid(), PluginId = pluginId, DependencyPluginId = dependency.PluginId,
+                    MinimumVersion = dependency.MinimumVersion, MaximumVersion = dependency.MaximumVersion
                 });
 
             await db.SaveChangesAsync(cancellationToken);
