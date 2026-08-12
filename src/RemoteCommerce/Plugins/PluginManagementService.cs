@@ -73,12 +73,10 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
         var dependents = await db.PluginDependencies.AsNoTracking().Where(x => x.DependencyPluginId == pluginId && x.PluginId != pluginId).Select(x => x.PluginId).Distinct().ToListAsync(cancellationToken);
         if (dependents.Count > 0) throw new InvalidOperationException($"Plugin '{pluginId}' cannot be uninstalled because it is required by: {string.Join(", ", dependents)}.");
-
-        foreach (var dependency in db.PluginDependencies.Where(x => x.PluginId == pluginId)) dependency.IsDeleted = true;
-        foreach (var setting in db.PluginSettings.Where(x => x.PluginId == pluginId)) setting.IsDeleted = true;
-        foreach (var version in db.PluginVersions.Where(x => x.PluginId == pluginId)) version.IsDeleted = true;
-        installation.IsDeleted = true;
-        installation.DeletedAt = DateTimeOffset.UtcNow;
+        db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
+        db.PluginSettings.RemoveRange(db.PluginSettings.Where(x => x.PluginId == pluginId));
+        db.PluginVersions.RemoveRange(db.PluginVersions.Where(x => x.PluginId == pluginId));
+        db.PluginInstallations.Remove(installation);
         await db.SaveChangesAsync(cancellationToken);
         MovePackageToPendingDelete(installation.PackagePath);
         restartService.RequestRestart($"Plugin '{pluginId}' was uninstalled and its loaded assembly requires restart removal.");
@@ -103,10 +101,9 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
         installation.State = PluginInstallationState.ActivationPending;
         installation.UpdatedAt = DateTimeOffset.UtcNow;
         foreach (var item in db.PluginVersions.Where(x => x.PluginId == pluginId)) item.IsCurrent = item.Id == retained.Id;
-        foreach (var dependency in db.PluginDependencies.Where(x => x.PluginId == pluginId)) dependency.IsDeleted = true;
+        db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
         if (manifest is not null)
-            foreach (var dependency in manifest.DependencyDeclarations)
-                db.PluginDependencies.Add(new PluginDependency { Id = Guid.NewGuid(), PluginId = pluginId, DependencyPluginId = dependency.PluginId, MinimumVersion = dependency.MinimumVersion, MaximumVersion = dependency.MaximumVersion });
+            foreach (var dependency in manifest.DependencyDeclarations) db.PluginDependencies.Add(new PluginDependency { Id = Guid.NewGuid(), PluginId = pluginId, DependencyPluginId = dependency.PluginId, MinimumVersion = dependency.MinimumVersion, MaximumVersion = dependency.MaximumVersion });
         await db.SaveChangesAsync(cancellationToken);
         restartService.RequestRestart($"Plugin '{pluginId}' rollback to {version} is pending activation.");
     }
