@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RemoteCommerce.Application.Identity;
+using RemoteCommerce.Application.Security;
 using RemoteCommerce.Infrastructure.Persistence.Entities;
 
 namespace RemoteCommerce.Controllers;
@@ -14,7 +15,8 @@ public sealed class AccountController(
     UserManager<ApplicationUser> userManager,
     RoleManager<ApplicationRole> roleManager,
     SignInManager<ApplicationUser> signInManager,
-    IAntiforgery antiforgery) : ControllerBase
+    IAntiforgery antiforgery,
+    IAuditLogService auditLog) : ControllerBase
 {
     /// <summary>Renders the sign-in form.</summary>
     /// <param name="returnUrl">The optional local URL to return to after authentication.</param>
@@ -49,18 +51,22 @@ public sealed class AccountController(
         [FromForm] string password,
         [FromForm] string? returnUrl)
     {
-        var user = await userManager.FindByEmailAsync(email.Trim());
+        var normalizedEmail = email.Trim();
+        var user = await userManager.FindByEmailAsync(normalizedEmail);
         if (user is null)
         {
+            await auditLog.WriteAsync("identity.login", "User", null, normalizedEmail, "Failed", "Reason=InvalidCredentials");
             return Unauthorized("Invalid credentials.");
         }
 
         var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: false, lockoutOnFailure: true);
         if (!result.Succeeded)
         {
+            await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, "Failed", result.IsLockedOut ? "Reason=LockedOut" : "Reason=InvalidCredentials");
             return Unauthorized(result.IsLockedOut ? "Account temporarily locked." : "Invalid credentials.");
         }
 
+        await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, "Success");
         return Redirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : "/");
     }
 
@@ -71,7 +77,11 @@ public sealed class AccountController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var parsedId = Guid.TryParse(userId, out var id) ? id : (Guid?)null;
+        var actor = User.Identity?.Name ?? "unknown";
         await signInManager.SignOutAsync();
+        await auditLog.WriteAsync("identity.logout", "User", parsedId, actor, "Success");
         return Redirect("/login");
     }
 
@@ -164,6 +174,7 @@ public sealed class AccountController(
         }
 
         await signInManager.SignInAsync(user, isPersistent: false);
+        await auditLog.WriteAsync("identity.bootstrap", "User", user.Id, user.DisplayName, "Success");
         return Redirect("/");
     }
 
