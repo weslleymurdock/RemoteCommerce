@@ -84,20 +84,63 @@ Intentionally deferred from this stage:
 
 **Exit condition:** an administrator can install and manage plugins from the RemoteCommerce UI without manually editing application files, with build/test/package validation passing in CI.
 
-## Stage 05 — Site, User, and Localization Administration
+## Stage 05 — Site, Identity, Configuration, Secrets, and Localization Foundation
 
-Goal: establish the WordPress-like application administration core and localization infrastructure.
+Goal: establish the application-level foundation required by every subsequent store capability, without prematurely introducing a DDD project split, container orchestration, or database-provider abstraction.
 
-- Site identity, URL, locale, timezone, culture, and general settings.
-- Users, roles, claims, permissions, sessions, and authorization.
-- Admin navigation and dashboard.
-- Media library foundation.
-- Audit logging and configuration validation.
-- `ILocalizer` abstraction/wrapper over `IStringLocalizer<T>` with resource-type-aware resolution.
-- Initial `en-US` and `pt-BR` cultures.
-- Resource XML loading, validation, versioning, replacement, and fallback through the administration UI.
+### Site and application configuration
 
-**Exit condition:** a fresh installation can be configured and administered without code changes, and application UI can resolve localized strings through the RemoteCommerce localization abstraction.
+- Site identity, name, public URL/base URL, locale, timezone, culture, and general settings.
+- Persistent application/store settings with a clear distinction between deployment configuration and editable application configuration.
+- Typed configuration boundaries for settings consumed by application services.
+- Configuration validation and safe defaults.
+- A configuration model that can later host provider settings, media settings, payment settings, shipping settings, and federation settings without coupling those features into the current stage.
+
+### Identity and authorization
+
+- Users, authentication/session foundation, roles, claims, and permissions.
+- Administrative authorization policies.
+- Seed/bootstrap path for the initial administrator.
+- Explicit separation between authentication, authorization, and application/site settings.
+
+### Administration foundation
+
+- Admin dashboard foundation.
+- Consistent admin navigation and settings organization.
+- Configuration status/validation feedback.
+- Audit logging foundation for administrative configuration/security changes.
+
+### Secrets boundary
+
+- Introduce an application-level `ISecretProvider` abstraction (or an equivalent existing abstraction if the repository already provides one).
+- Initial implementation must integrate with ASP.NET Core configuration/environment mechanisms rather than inventing a proprietary secret store.
+- Do not persist plaintext secrets in the application database.
+- Keep the abstraction compatible with future Docker secrets, Swarm/Kubernetes secrets, Azure Key Vault, environment variables, or other external providers.
+- Clearly distinguish secrets from normal editable application settings.
+
+### Localization
+
+- Introduce the RemoteCommerce `ILocalizer` abstraction/wrapper over the ASP.NET Core `IStringLocalizer<T>` infrastructure.
+- Resource resolution must support resource-type-aware localization.
+- Initial cultures: `en-US` and `pt-BR`.
+- Define culture fallback behavior.
+- Support resource XML files as an administrable resource format.
+- Resource XML upload/import through the UI.
+- Validate resource structure, culture, keys, duplicates, and malformed files before activation.
+- Version/track imported resources and provide safe replacement semantics.
+- Do not require code changes to add or replace localized resource content.
+
+### Architectural constraints
+
+- Do not split the application into Domain/Application/Infrastructure projects merely for organizational purposes in this stage.
+- Keep boundaries explicit through contracts and services so a later DDD/modular refactoring can be performed when actual bounded contexts emerge.
+- Do not introduce `TenantId` into all entities.
+- Do not implement multi-store federation in this stage.
+- Do not implement the database strategy/provider pattern in this stage; it remains Stage 06.
+- Do not implement MongoDB/GridFS in this stage; it remains Stage 06.
+- Do not make Docker/Swarm/Kubernetes the application's deployment abstraction in this stage. The secret abstraction must merely remain compatible with those environments.
+
+**Exit condition:** a fresh installation can be configured and administered through the UI, an initial administrator can authenticate and use authorized administration features, secrets are consumed through an abstraction without plaintext persistence, and application UI/services resolve localized strings through `ILocalizer` for `en-US` and `pt-BR` with validated resource XML imports.
 
 ## Stage 06 — Database Provider Strategy and Media Storage
 
@@ -234,3 +277,24 @@ Goal: investigate and, where technically safe, enable plugin installation/activa
 - Safe unload verification and assembly leak detection.
 - Atomic activation/update and rollback.
 - Explicit capability matrix for plugins that cannot be hot reloaded.
+
+The restart-based model remains the safe fallback. Hot reload must not compromise DI lifetime correctness, routing, memory safety, security, or in-flight requests.
+
+**Exit condition:** compatible plugins can be installed, enabled, disabled, updated, and unloaded without process restart; unsupported plugins clearly require restart.
+
+## Stage 16 — Production Readiness
+
+Goal: make the platform suitable for production deployment.
+
+- Database migrations and upgrade strategy.
+- Secrets/configuration guidance.
+- Structured logging, metrics, health checks, and tracing.
+- Caching and performance baselines.
+- Concurrency/idempotency safeguards.
+- Security hardening.
+- Backup/restore guidance.
+- Automated integration/end-to-end tests.
+- Upgrade compatibility and plugin API compatibility policy.
+- Disaster recovery and multi-store federation operational guidance.
+
+**Final exit condition:** a fresh RemoteCommerce installation can be configured and operated as a functional WordPress + WooCommerce-equivalent application, with plugins installed and managed through the application UI and supported commerce workflows available end to end.
