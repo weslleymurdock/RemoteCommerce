@@ -1,0 +1,143 @@
+@page "/plugins"
+@using RemoteCommerce.Infrastructure.Persistence.Entities
+@using RemoteCommerce.Plugins
+@inject PluginManagementService PluginManagement
+@inject PluginInstallationService PluginInstallation
+@inject ISnackbar Snackbar
+
+<PageTitle>Plugins - RemoteCommerce</PageTitle>
+
+<MudStack Spacing="3">
+    <MudText Typo="Typo.h4">Plugins</MudText>
+    <MudText Typo="Typo.body2">Install .nupkg extensions, manage their persisted state, and restart the application to apply DI changes.</MudText>
+
+    <MudPaper Class="pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <InputFile OnChange="OnPackageSelected" accept=".nupkg" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_selectedFile is null || _busy)" OnClick="InstallAsync">
+                Install plugin
+            </MudButton>
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+            }
+        </MudStack>
+        <MudText Typo="Typo.caption" Class="mt-2">Selected: @(_selectedFile?.Name ?? "No package selected")</MudText>
+    </MudPaper>
+
+    <MudTable Items="_plugins" Hover="true" Dense="true" Loading="@_loading">
+        <HeaderContent>
+            <MudTh>Plugin</MudTh>
+            <MudTh>Version</MudTh>
+            <MudTh>State</MudTh>
+            <MudTh>Installed</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Plugin">@context.PluginId</MudTd>
+            <MudTd DataLabel="Version">@context.Version</MudTd>
+            <MudTd DataLabel="State">
+                <MudChip Color="@(context.State == PluginInstallationState.Installed ? Color.Success : Color.Default)" Size="Size.Small">
+                    @context.State
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Installed">@context.InstalledAt.ToLocalTime()</MudTd>
+            <MudTd DataLabel="Actions">
+                <MudStack Row="true" Spacing="1">
+                    @if (context.State == PluginInstallationState.Installed)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DisableAsync(context.PluginId))">Disable</MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => EnableAsync(context.PluginId))">Enable</MudButton>
+                    }
+                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text" OnClick="@(() => UninstallAsync(context.PluginId))">Uninstall</MudButton>
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No plugins are installed.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    <MudAlert Severity="Severity.Info">
+        Plugin installation, enable/disable, and uninstall operations are persisted immediately. Restart the application before expecting plugin services to change in the dependency injection container.
+    </MudAlert>
+</MudStack>
+
+@code {
+    private IReadOnlyList<PluginInstallation> _plugins = [];
+    private IBrowserFile? _selectedFile;
+    private bool _loading;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    private void OnPackageSelected(InputFileChangeEventArgs args) => _selectedFile = args.File;
+
+    private async Task InstallAsync()
+    {
+        if (_selectedFile is null)
+            return;
+
+        _busy = true;
+        try
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "RemoteCommerce", "plugins-ui");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, $"{Guid.NewGuid():N}.nupkg");
+            await using (var input = _selectedFile.OpenReadStream(100_000_000))
+            await using (var output = File.Create(path))
+                await input.CopyToAsync(output);
+
+            await PluginInstallation.InstallAsync(path);
+            Snackbar.Add("Plugin installed. Restart the application to activate it.", Severity.Success);
+            File.Delete(path);
+            _selectedFile = null;
+            await RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add(exception.Message, Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DisableAsync(string pluginId)
+    {
+        await PluginManagement.DisableAsync(pluginId);
+        Snackbar.Add("Plugin disabled for the next restart.", Severity.Info);
+        await RefreshAsync();
+    }
+
+    private async Task EnableAsync(string pluginId)
+    {
+        await PluginManagement.EnableAsync(pluginId);
+        Snackbar.Add("Plugin enabled for the next restart.", Severity.Success);
+        await RefreshAsync();
+    }
+
+    private async Task UninstallAsync(string pluginId)
+    {
+        await PluginManagement.UninstallAsync(pluginId);
+        Snackbar.Add("Plugin uninstalled. Restart the application to remove its loaded assembly.", Severity.Success);
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        try
+        {
+            _plugins = await PluginManagement.ListAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
