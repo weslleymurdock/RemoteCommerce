@@ -8,11 +8,13 @@ namespace RemoteCommerce.Plugins;
 /// <summary>Coordinates transactional plugin installation and update operations.</summary>
 /// <param name="dbFactory">The factory used to create persistence contexts.</param>
 /// <param name="packageInstaller">The service responsible for validated package extraction.</param>
+/// <param name="packageValidator">The service responsible for package validation before extraction.</param>
 /// <param name="dependencyValidator">The validator responsible for installed dependency compatibility.</param>
 /// <param name="restartService">The service used to report that activation requires a restart.</param>
 public sealed class PluginInstallationService(
     IDbContextFactory<CommerceDbContext> dbFactory,
     PluginPackageInstaller packageInstaller,
+    IPluginPackageValidator packageValidator,
     PluginDependencyValidator dependencyValidator,
     IApplicationRestartService restartService)
 {
