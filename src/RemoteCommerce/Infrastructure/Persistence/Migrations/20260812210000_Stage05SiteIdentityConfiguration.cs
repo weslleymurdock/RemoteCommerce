@@ -1,4 +1,5 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace RemoteCommerce.Infrastructure.Persistence.Migrations;
 
 /// <summary>Creates the Stage 05 site, identity, audit, and localization persistence.</summary>
+[Migration("20260812210000_Stage05SiteIdentityConfiguration")]
 public partial class Stage05SiteIdentityConfiguration : Migration
 {
     /// <inheritdoc />
@@ -53,8 +55,7 @@ public partial class Stage05SiteIdentityConfiguration : Migration
             schema: "commerce",
             columns: table => new
             {
-                Id = table.Column<long>(type: "bigint", nullable: false)
-                    .Annotation("SqlServer:Identity", "1, 1"),
+                Id = table.Column<long>(type: "bigint", nullable: false).Annotation("SqlServer:Identity", "1, 1"),
                 UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                 Actor = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                 Operation = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
@@ -70,8 +71,7 @@ public partial class Stage05SiteIdentityConfiguration : Migration
             schema: "commerce",
             columns: table => new
             {
-                Id = table.Column<long>(type: "bigint", nullable: false)
-                    .Annotation("SqlServer:Identity", "1, 1"),
+                Id = table.Column<long>(type: "bigint", nullable: false).Annotation("SqlServer:Identity", "1, 1"),
                 Culture = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                 ResourceType = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                 ContentHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
@@ -103,8 +103,7 @@ public partial class Stage05SiteIdentityConfiguration : Migration
             schema: "commerce",
             columns: table => new
             {
-                Id = table.Column<int>(type: "int", nullable: false)
-                    .Annotation("SqlServer:Identity", "1, 1"),
+                Id = table.Column<int>(type: "int", nullable: false).Annotation("SqlServer:Identity", "1, 1"),
                 RoleId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                 ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
                 ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -120,8 +119,7 @@ public partial class Stage05SiteIdentityConfiguration : Migration
             schema: "commerce",
             columns: table => new
             {
-                Id = table.Column<int>(type: "int", nullable: false)
-                    .Annotation("SqlServer:Identity", "1, 1"),
+                Id = table.Column<int>(type: "int", nullable: false).Annotation("SqlServer:Identity", "1, 1"),
                 UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                 ClaimType = table.Column<string>(type: "nvarchar(max)", nullable: true),
                 ClaimValue = table.Column<string>(type: "nvarchar(max)", nullable: true),
