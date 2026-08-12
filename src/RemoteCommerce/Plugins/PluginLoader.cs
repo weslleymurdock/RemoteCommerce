@@ -10,11 +10,7 @@ namespace RemoteCommerce.Plugins;
 /// <summary>Discovers and registers installed RemoteCommerce plugins before the application host is built.</summary>
 /// <param name="logger">The logger used to report plugin discovery failures.</param>
 /// <param name="dbFactory">The factory used to read persisted plugin activation state.</param>
-/// <param name="configuration">The host application configuration exposed to plugins during startup.</param>
-public sealed class PluginLoader(
-    ILogger<PluginLoader> logger,
-    IDbContextFactory<CommerceDbContext> dbFactory,
-    IConfiguration configuration)
+public sealed class PluginLoader(ILogger<PluginLoader> logger, IDbContextFactory<CommerceDbContext> dbFactory)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -26,6 +22,10 @@ public sealed class PluginLoader(
     {
         CleanupPendingDeletes(pluginsRoot);
         if (!Directory.Exists(pluginsRoot)) return [];
+
+        var configuration = services.LastOrDefault(x => x.ServiceType == typeof(IConfiguration))?.ImplementationInstance as IConfiguration
+            ?? throw new InvalidOperationException("IConfiguration must be registered in the host service collection before loading RemoteCommerce plugins.");
+
         using var db = dbFactory.CreateDbContext();
         var installed = db.PluginInstallations.AsNoTracking().Where(x => x.State == PluginInstallationState.Installed).ToDictionary(x => x.PluginId, StringComparer.OrdinalIgnoreCase);
         var loaded = new List<PluginManifest>();
