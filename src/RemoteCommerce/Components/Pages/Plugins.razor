@@ -1,4 +1,7 @@
 @page "/plugins"
+@attribute [Authorize(Policy = AuthorizationPolicies.ManagePlugins)]
+@using Microsoft.AspNetCore.Authorization
+@using RemoteCommerce.Application.Identity
 @using RemoteCommerce.Plugins
 @inject PluginManagementService PluginManagement
 @inject PluginInstallationService PluginInstallation
