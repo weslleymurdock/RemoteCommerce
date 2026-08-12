@@ -9,9 +9,10 @@ RemoteCommerce host (single ASP.NET Core project)
 ├── Plugin runtime
 |   ├── RemoteCommerce.Plugin.Abstractions SDK
 |   ├── .nupkg package validation
-|   ├── Installation state
+|   ├── Installation/version/dependency state
+|   ├── Restart-required orchestration
 |   └── Startup activation into DI
-└── Tools runtime 
+└── Tools runtime
 ```
 
 Every plugin is distributed as a `.nupkg` containing `plugin.manifest.json` at the package root and the entry assembly under `lib/net10.0/`. Installation persists the package state, while activation occurs only after the application restarts. The runtime never attempts to mutate the root DI container after `builder.Build()`.
@@ -65,9 +66,15 @@ RemoteCommerce should not introduce a mandatory `TenantId` into every domain ent
 
 A plugin is distributed as a `.nupkg`. During development the generated plugin may reference `RemoteCommerce.Plugin.Abstractions` by project reference; released plugins consume the abstraction as a NuGet package.
 
-Plugins may consume compatible third-party libraries, including SQL/EF Core libraries when their feature requires persistence. Plugin templates should pin the EF Core version to the backend-compatible version and provide a placeholder plugin `DbContext`/registration boundary so persistence can be added without coupling the plugin to an arbitrary EF version.
+The manifest is the package metadata source of truth. It declares identity, version, entry point, host compatibility, optional EF Core compatibility, required README/LICENSE files, and plugin dependencies. Static package metadata is not duplicated into the relational database; the database stores administrative state, integrity hashes, retained versions, dependencies, settings, and lifecycle diagnostics.
 
-The plugin manifest describes identity, package metadata, compatibility, entry point, README, and LICENSE information. Installation is persisted and the plugin becomes active after the host is restarted. The entry point receives the host `IConfiguration` so plugins can consume host defaults without duplicating configuration sources.
+Package administration is separated into explicit validation and lifecycle boundaries. `IPluginManifestValidator` checks manifest semantics, `IPluginCompatibilityValidator` checks host/EF compatibility, and `IPluginPackageValidator` inspects the `.nupkg` structure and SHA-256 integrity before extraction. Validation never instantiates or activates the plugin entry point. Entry assemblies are inspected only for assembly metadata during package validation; executable activation occurs only during startup.
+
+The persisted lifecycle distinguishes administrative intent from runtime reality. `PluginDesiredState` records whether the administrator wants a plugin enabled or disabled, while `PluginInstallationState` records states such as `Discovered`, `Validated`, `Installed`, `ActivationPending`, `Disabled`, `Loaded`, and `Failed`. Enable, disable, install, update, rollback, and uninstall operations persist their requested changes and use `IApplicationRestartService` to report that the current DI container remains unchanged until restart.
+
+Plugin dependencies are version-ranged and persisted separately. Installation and update validation rejects missing, disabled, incompatible, duplicate, or circular dependencies. Uninstall rejects a plugin that is still required by another installed plugin. Previous package versions are retained as explicit `PluginVersion` records so rollback can be scheduled without deleting the previous artifact immediately.
+
+The package administration UI is implemented with MudBlazor and provides plugin metadata, version/state, README/LICENSE content, dependency information, validation diagnostics, activation errors, install/update, enable/disable, and uninstall operations. A trusted local package source may also be configured through `PluginAdministration:TrustedPackageDirectory`.
 
 Plugin controllers are registered as MVC application parts. Plugin Razor components are registered with the Blazor router as additional assemblies.
 
@@ -92,6 +99,8 @@ Initial cultures are `en-US` and `pt-BR`. The localization system must support l
 - `/api/rp/v1/...` is the RemoteCommerce plugin API namespace.
 - `/api/rc/v1/...` is reserved for APIs ported from WooCommerce.
 - Future versions increment the version segment rather than changing an existing contract.
+
+Plugin administration is a host administration API and currently uses `/api/v1/plugins`; it is not part of either plugin `/api/rp` or WooCommerce `/api/rc` namespace.
 
 ## Target domain boundaries
 
