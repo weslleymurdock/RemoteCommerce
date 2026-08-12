@@ -25,12 +25,12 @@ else
             <MudTextField @bind-Value="_model.SiteDescription" Label="Site description" Lines="4" MaxLength="2000" Class="mt-4" />
             <MudTextField @bind-Value="_model.PublicUrl" Label="Public/base URL" Required="true" HelperText="Use an absolute HTTP or HTTPS URL." Class="mt-4" />
             <MudSelect @bind-Value="_model.Culture" Label="Default culture" Required="true" Class="mt-4">
-                <MudSelectItem Value="en-US">English (United States)</MudSelectItem>
-                <MudSelectItem Value="pt-BR">Português (Brasil)</MudSelectItem>
+                <MudSelectItem Value="@("en-US")">English (United States)</MudSelectItem>
+                <MudSelectItem Value="@("pt-BR")">Português (Brasil)</MudSelectItem>
             </MudSelect>
             <MudSelect @bind-Value="_model.Locale" Label="Locale" Required="true" Class="mt-4">
-                <MudSelectItem Value="en-US">en-US</MudSelectItem>
-                <MudSelectItem Value="pt-BR">pt-BR</MudSelectItem>
+                <MudSelectItem Value="@("en-US")">en-US</MudSelectItem>
+                <MudSelectItem Value="@("pt-BR")">pt-BR</MudSelectItem>
             </MudSelect>
             <MudSelect @bind-Value="_model.TimeZone" Label="Time zone" Required="true" Class="mt-4">
                 @foreach (var timeZone in TimeZoneInfo.GetSystemTimeZones().OrderBy(x => x.Id))
@@ -58,7 +58,7 @@ else
     private async Task SaveAsync()
     {
         if (_model is null) return;
-        await _form!.Validate();
+        await _form!.ValidateAsync();
         if (!_form.IsValid) return;
 
         _saving = true;
