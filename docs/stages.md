@@ -68,19 +68,49 @@ Goal: make plugin management operationally equivalent to WordPress plugin admini
 
 **Exit condition:** an administrator can install and manage plugins from the RemoteCommerce UI without manually editing application files.
 
-## Stage 05 — Site and User Administration
+## Stage 05 — Site, User, and Localization Administration
 
-Goal: establish the WordPress-like application administration core.
+Goal: establish the WordPress-like application administration core and localization infrastructure.
 
 - Site identity, URL, locale, timezone, culture, and general settings.
 - Users, roles, claims, permissions, sessions, and authorization.
 - Admin navigation and dashboard.
 - Media library foundation.
 - Audit logging and configuration validation.
+- `ILocalizer` abstraction/wrapper over `IStringLocalizer<T>` with resource-type-aware resolution.
+- Initial `en-US` and `pt-BR` cultures.
+- Resource XML loading, validation, versioning, replacement, and fallback through the administration UI.
 
-**Exit condition:** a fresh installation can be configured and administered without code changes.
+**Exit condition:** a fresh installation can be configured and administered without code changes, and application UI can resolve localized strings through the RemoteCommerce localization abstraction.
 
-## Stage 06 — Product Catalog
+## Stage 06 — Database Provider Strategy and Media Storage
+
+Goal: establish provider boundaries before commerce features create hard dependencies on a single persistence technology.
+
+- Database provider strategy selected from `IConfiguration` with a documented default.
+- Provider registration and startup validation.
+- SQL Server as the initial/default relational provider.
+- Provider-aware EF Core migrations and schema management.
+- Application contracts that prevent provider-specific APIs from leaking into domain services.
+- Document/blob storage abstraction for media and other large assets.
+- MongoDB/GridFS provider for media and optional virtual-product payloads, consumed through application services rather than MongoDB-specific domain types.
+
+**Exit condition:** the host can select a supported database provider through configuration, relational persistence remains isolated behind contracts, and media can be stored through a provider abstraction with SQL Server and MongoDB/GridFS support where applicable.
+
+## Stage 07 — Plugin Persistence Compatibility
+
+Goal: make generated and installed plugins safe to build against the host persistence stack.
+
+- Pin the EF Core version used by plugin templates to the backend-compatible version.
+- Add `Microsoft.EntityFrameworkCore` and related required abstractions/packages explicitly to generated plugins where required.
+- Generate a placeholder plugin `DbContext` and registration boundary without imposing a database schema on every plugin.
+- Define plugin migration ownership and database naming/isolation rules.
+- Validate plugin EF versions against host compatibility metadata.
+- Permit plugins to use other third-party SQL/EF libraries when their feature requires them, while preventing incompatible runtime dependency graphs.
+
+**Exit condition:** a generated plugin with persistence compiles independently and can opt into a supported plugin `DbContext` without taking ownership of the host's domain DbContext.
+
+## Stage 08 — Product Catalog
 
 Goal: reach the WooCommerce catalog baseline.
 
@@ -88,12 +118,12 @@ Goal: reach the WooCommerce catalog baseline.
 - Simple and variable products.
 - Categories, tags, attributes, and variations.
 - SKU, pricing, sale pricing, tax class, stock status, and inventory quantities.
-- Product media/gallery.
+- Product media/gallery using the configured storage provider.
 - Catalog search/filtering and admin CRUD.
 
 **Exit condition:** administrators can create and manage a usable store catalog.
 
-## Stage 07 — Customers, Cart, and Checkout
+## Stage 09 — Customers, Cart, and Checkout
 
 Goal: implement the core commerce transaction flow.
 
@@ -108,7 +138,7 @@ Goal: implement the core commerce transaction flow.
 
 **Exit condition:** a customer can progress from catalog to a valid checkout/order request.
 
-## Stage 08 — Orders and Payments
+## Stage 10 — Orders and Payments
 
 Goal: implement WooCommerce-equivalent order management.
 
@@ -121,7 +151,7 @@ Goal: implement WooCommerce-equivalent order management.
 
 **Exit condition:** a complete order can be created, paid through a provider, fulfilled, refunded, and audited.
 
-## Stage 09 — Shipping, Taxes, and Store Operations
+## Stage 11 — Shipping, Taxes, and Store Operations
 
 Goal: complete the operational commerce layer.
 
@@ -133,7 +163,7 @@ Goal: complete the operational commerce layer.
 
 **Exit condition:** the system supports real store operations rather than only checkout simulation.
 
-## Stage 10 — WooCommerce-Compatible REST API
+## Stage 12 — WooCommerce-Compatible REST API
 
 Goal: provide the API surface required for WooCommerce-compatible integrations.
 
@@ -145,7 +175,7 @@ Goal: provide the API surface required for WooCommerce-compatible integrations.
 
 **Exit condition:** supported WooCommerce integrations can communicate with RemoteCommerce through the documented compatibility API.
 
-## Stage 11 — Storefront and Theme/Extension Model
+## Stage 13 — Storefront and Theme/Extension Model
 
 Goal: provide a complete customer-facing store experience.
 
@@ -158,7 +188,42 @@ Goal: provide a complete customer-facing store experience.
 
 **Exit condition:** a fresh RemoteCommerce installation can present a functional store without custom development.
 
-## Stage 12 — Production Readiness
+## Stage 14 — Multi-Store Federation
+
+Goal: allow independently deployed RemoteCommerce stores to operate as one logical multi-store organization without sacrificing database isolation.
+
+- Organization/store identity and federation contracts.
+- Federation plugin distributed independently from the host.
+- Explicit API/event/command synchronization between stores.
+- Shared catalog policies.
+- Shared inventory reservations, transfers, and stock synchronization.
+- Shared configuration with clear ownership and override rules.
+- Idempotency, conflict detection, retries, ordering, and eventual-consistency semantics.
+- Secure store-to-store authentication and authorization.
+- Optional control-plane metadata that does not contain transactional store data.
+- Docker Compose/Swarm deployment guidance for multiple independent store stacks.
+
+**Exit condition:** two or more stores with exclusive databases can be operated independently while exposing a controlled logical multi-store experience for supported shared capabilities.
+
+## Stage 15 — Runtime Plugin Hot Reload
+
+Goal: investigate and, where technically safe, enable plugin installation/activation/deactivation/update without restarting the host process.
+
+- Collectible `AssemblyLoadContext` for plugin assemblies.
+- Plugin service registry and isolated service scopes.
+- Dynamic controller/application-part refresh.
+- Dynamic Blazor additional-assembly routing strategy.
+- Background service lifecycle cancellation.
+- Endpoint and cache invalidation.
+- Safe unload verification and assembly leak detection.
+- Atomic activation/update and rollback.
+- Explicit capability matrix for plugins that cannot be hot reloaded.
+
+The restart-based model remains the safe fallback. Hot reload must not compromise DI lifetime correctness, routing, memory safety, security, or in-flight requests.
+
+**Exit condition:** compatible plugins can be installed, enabled, disabled, updated, and unloaded without process restart; unsupported plugins clearly require restart.
+
+## Stage 16 — Production Readiness
 
 Goal: make the platform suitable for production deployment.
 
@@ -171,5 +236,6 @@ Goal: make the platform suitable for production deployment.
 - Backup/restore guidance.
 - Automated integration/end-to-end tests.
 - Upgrade compatibility and plugin API compatibility policy.
+- Disaster recovery and multi-store federation operational guidance.
 
 **Final exit condition:** a fresh RemoteCommerce installation can be configured and operated as a functional WordPress + WooCommerce-equivalent application, with plugins installed and managed through the application UI and supported commerce workflows available end to end.
