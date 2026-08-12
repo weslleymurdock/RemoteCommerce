@@ -2,7 +2,7 @@
 
 ## Stack
 - .NET 10 / ASP.NET Core / Blazor Web App using Interactive Server.
-- Controllers are hosted by the same single project as the Blazor UI.
+- Controllers are hosted in the same project as the Blazor UI.
 - EF Core + SQL Server is the persistence boundary.
 - MudBlazor is the UI component library.
 - Plugins are distributed as `.nupkg` packages and loaded before the application host is built.
@@ -22,7 +22,12 @@
 - Controllers are thin HTTP adapters; application behavior belongs in DI services.
 - Never load arbitrary assemblies from uploaded files without validating the package manifest, path boundaries, target framework location, and plugin contract.
 - The `remotecommerce-plugin` dotnet tool generates one Razor SDK plugin project that can contain Razor pages, controllers, or both. During repository development it uses a ProjectReference to the SDK; released templates use the SDK NuGet package.
-- The template tool must request all package metadata represented by the plugin manifest and generate matching `.csproj` properties.
+- Template source files must live under the tool's `Resources` directory. The generator must not embed generated source files as C# string literals. Placeholders are rendered into resource templates.
+- Every generated plugin includes the plugin information Razor page and plugin health controller by default, regardless of the selected optional extension type.
+- The default plugin API prefix is `/api/rp/v1`; future plugin API versions must use the newest supported `vX` prefix, starting from `v1`.
+- Plugin-specific REST controllers use `/api/rp/vX/<plugin_controller>`.
+- Controllers ported from WooCommerce use `/api/rc/vX`; these are distinct namespaces and must not use the plugin `/api/rp` prefix.
+- Do not merge pull requests unless the user explicitly requests a merge. PRs remain open for user validation by default.
 
 ## Public API documentation rule
 - Every public API introduced by RemoteCommerce must have XML documentation comments written in en-US.
