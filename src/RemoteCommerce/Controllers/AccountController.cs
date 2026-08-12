@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using RemoteCommerce.Application.Identity;
 using RemoteCommerce.Infrastructure.Persistence.Entities;
 
@@ -11,7 +13,8 @@ namespace RemoteCommerce.Controllers;
 public sealed class AccountController(
     UserManager<ApplicationUser> userManager,
     RoleManager<ApplicationRole> roleManager,
-    SignInManager<ApplicationUser> signInManager) : ControllerBase
+    SignInManager<ApplicationUser> signInManager,
+    IAntiforgery antiforgery) : ControllerBase
 {
     /// <summary>Renders the sign-in form.</summary>
     /// <param name="returnUrl">The optional local URL to return to after authentication.</param>
@@ -21,10 +24,11 @@ public sealed class AccountController(
     public ContentResult Login([FromQuery] string? returnUrl = null)
     {
         var safeReturnUrl = Url.IsLocalUrl(returnUrl) ? returnUrl : "/";
+        var token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
         return Html($"""
             <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RemoteCommerce Sign in</title>
             <style>body{{font-family:system-ui;max-width:420px;margin:10vh auto;padding:24px}}label{{display:block;margin-top:16px}}input{{width:100%;padding:10px;box-sizing:border-box}}button{{margin-top:20px;padding:10px 18px}}.error{{color:#b00020}}</style></head>
-            <body><h1>RemoteCommerce</h1><h2>Sign in</h2><form method="post" action="/login"><input type="hidden" name="returnUrl" value="{HtmlEncode(safeReturnUrl)}">
+            <body><h1>RemoteCommerce</h1><h2>Sign in</h2><form method="post" action="/login"><input type="hidden" name="__RequestVerificationToken" value="{HtmlEncode(token ?? string.Empty)}"><input type="hidden" name="returnUrl" value="{HtmlEncode(safeReturnUrl)}">
             <label>Email<input name="email" type="email" autocomplete="username" required></label>
             <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
             <button type="submit">Sign in</button></form></body></html>
@@ -42,8 +46,7 @@ public sealed class AccountController(
     public async Task<IActionResult> LoginPost(
         [FromForm] string email,
         [FromForm] string password,
-        [FromForm] string? returnUrl,
-        CancellationToken cancellationToken)
+        [FromForm] string? returnUrl)
     {
         var user = await userManager.FindByEmailAsync(email.Trim());
         if (user is null)
@@ -82,11 +85,12 @@ public sealed class AccountController(
             return Html("<html><body><h1>Setup already completed</h1><a href='/login'>Sign in</a></body></html>");
         }
 
-        return Html("""
+        var token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+        return Html($"""
             <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RemoteCommerce Setup</title>
-            <style>body{font-family:system-ui;max-width:520px;margin:10vh auto;padding:24px}label{display:block;margin-top:16px}input{width:100%;padding:10px;box-sizing:border-box}button{margin-top:20px;padding:10px 18px}</style></head>
+            <style>body{{font-family:system-ui;max-width:520px;margin:10vh auto;padding:24px}}label{{display:block;margin-top:16px}}input{{width:100%;padding:10px;box-sizing:border-box}}button{{margin-top:20px;padding:10px 18px}}</style></head>
             <body><h1>Initial administrator</h1><p>Create the first administrator. The password is processed by ASP.NET Core Identity and is never stored in plaintext.</p>
-            <form method="post" action="/admin/setup"><label>Name<input name="displayName" maxlength="200" required></label><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" required></label><button type="submit">Create administrator</button></form></body></html>
+            <form method="post" action="/admin/setup"><input type="hidden" name="__RequestVerificationToken" value="{HtmlEncode(token ?? string.Empty)}"><label>Name<input name="displayName" maxlength="200" required></label><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" required></label><button type="submit">Create administrator</button></form></body></html>
             """);
     }
 
@@ -136,7 +140,12 @@ public sealed class AccountController(
             return BadRequest(createResult.Errors.Select(x => x.Description));
         }
 
-        await userManager.AddToRoleAsync(user, roleName);
+        var roleResultAfterCreation = await userManager.AddToRoleAsync(user, roleName);
+        if (!roleResultAfterCreation.Succeeded)
+        {
+            return BadRequest(roleResultAfterCreation.Errors.Select(x => x.Description));
+        }
+
         foreach (var permission in new[]
         {
             AuthorizationPolicies.ManageConfiguration,
@@ -145,7 +154,11 @@ public sealed class AccountController(
             AuthorizationPolicies.ManagePlugins,
         })
         {
-            await userManager.AddClaimAsync(user, new System.Security.Claims.Claim("permission", permission));
+            var claimResult = await userManager.AddClaimAsync(user, new System.Security.Claims.Claim("permission", permission));
+            if (!claimResult.Succeeded)
+            {
+                return BadRequest(claimResult.Errors.Select(x => x.Description));
+            }
         }
 
         await signInManager.SignInAsync(user, isPersistent: false);
