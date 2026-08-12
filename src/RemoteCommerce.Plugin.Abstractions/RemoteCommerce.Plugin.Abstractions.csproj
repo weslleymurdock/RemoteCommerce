@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>RemoteCommerce.Plugins.Abstractions</RootNamespace>
+    <AssemblyName>RemoteCommerce.Plugin.Abstractions</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>RemoteCommerce.Plugin.Abstractions</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Stable plugin contracts for RemoteCommerce.</Description>
+  </PropertyGroup>
+</Project>
