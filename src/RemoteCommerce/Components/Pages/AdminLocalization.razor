@@ -1,0 +1,86 @@
+@page "/admin/localization"
+@attribute [Authorize(Policy = AuthorizationPolicies.ManageLocalization)]
+@using Microsoft.AspNetCore.Authorization
+@using RemoteCommerce.Application.Identity
+@using RemoteCommerce.Application.Localization
+@inject ILocalizationResourceService ResourceService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Localization | RemoteCommerce</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Localization</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">Import .resx-compatible XML resources without changing application code. Invalid XML, unsupported cultures, duplicate keys and external entities are rejected before activation.</MudText>
+
+<MudPaper Class="pa-5 mb-5">
+    <MudText Typo="Typo.h6">Import resource</MudText>
+    <MudStack Spacing="2" Class="mt-3">
+        <MudTextField @bind-Value="_resourceType" Label="Resource type" Required="true" HelperText="Use the full name of the resource marker type, for example RemoteCommerce.Application.Localization.SharedResource." />
+        <MudSelect @bind-Value="_culture" Label="Culture" Required="true">
+            <MudSelectItem Value="en-US">en-US</MudSelectItem>
+            <MudSelectItem Value="pt-BR">pt-BR</MudSelectItem>
+        </MudSelect>
+        <InputFile OnChange="SelectFile" accept=".xml" />
+        <MudText Typo="Typo.caption">Selected: @(_file?.Name ?? "No XML selected")</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_file is null || _importing)" OnClick="ImportAsync">Validate and activate</MudButton>
+        @if (_importing)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+    </MudStack>
+</MudPaper>
+
+<MudPaper Class="pa-5">
+    <MudText Typo="Typo.h6">Imported resources</MudText>
+    <MudTable Items="_resources" Dense="true" Hover="true" Class="mt-3">
+        <HeaderContent>
+            <MudTh>Culture</MudTh><MudTh>Resource type</MudTh><MudTh>Version</MudTh><MudTh>Imported</MudTh><MudTh>State</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Culture">@context.Culture</MudTd>
+            <MudTd DataLabel="Resource type">@context.ResourceType</MudTd>
+            <MudTd DataLabel="Version">@context.Version</MudTd>
+            <MudTd DataLabel="Imported">@context.ImportedAt.ToLocalTime()</MudTd>
+            <MudTd DataLabel="State">@(context.IsActive ? "Active" : "Retained")</MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private IReadOnlyList<LocalizationResourceSummary> _resources = [];
+    private string _resourceType = "RemoteCommerce.Application.Localization.SharedResource";
+    private string _culture = "en-US";
+    private IBrowserFile? _file;
+    private bool _importing;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private void SelectFile(InputFileChangeEventArgs args) => _file = args.File;
+
+    private async Task LoadAsync() => _resources = await ResourceService.ListAsync();
+
+    private async Task ImportAsync()
+    {
+        if (_file is null) return;
+        _importing = true;
+        try
+        {
+            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var claim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userId = Guid.TryParse(claim, out var parsed) ? parsed : (Guid?)null;
+            await using var stream = _file.OpenReadStream(1_000_000);
+            var result = await ResourceService.ImportAsync(stream, _culture, _resourceType.Trim(), userId);
+            Snackbar.Add($"Resource imported as version {result.Version} with {result.EntryCount} entries.", Severity.Success);
+            _file = null;
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add(exception.Message, Severity.Error);
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+}
