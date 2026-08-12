@@ -19,6 +19,10 @@ jobs:
       - run: dotnet restore RemoteCommerce.slnx
       - run: dotnet build RemoteCommerce.slnx --configuration Release --no-restore
       - run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/RemoteCommerce.SamplePlugin.csproj --configuration Release --no-restore --output ./artifacts
+      - run: dotnet pack tools/RemoteCommerce.Plugin.Template/RemoteCommerce.Plugin.Template.csproj --configuration Release --no-restore --output ./artifacts
       - name: Validate plugin package
         shell: bash
         run: test -f ./artifacts/RemoteCommerce.SamplePlugin.1.0.0.nupkg
+      - name: Validate dotnet tool package
+        shell: bash
+        run: test -f ./artifacts/RemoteCommerce.Plugin.Template.1.0.0.nupkg
