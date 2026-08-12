@@ -56,7 +56,7 @@ Implemented distributable plugin packaging and generation tooling.
 
 ## Stage 04 — Host Installation and Administration
 
-Implementation in progress in the single Stage 04 PR. The administration model now includes the following implemented scope:
+Implemented and validated in the single Stage 04 PR.
 
 - MudBlazor plugin administration list and details.
 - `.nupkg` upload, package validation, install, update, enable, disable, uninstall, and retained-version rollback.
@@ -73,7 +73,7 @@ Implementation in progress in the single Stage 04 PR. The administration model n
 - README.md and LICENSE.md remain package files and are read from the installed artifact rather than duplicated into database columns.
 - Host administration API at `/api/v1/plugins` with OpenAPI/Scalar metadata.
 - Automated tests covering package validation, missing required files, entry point/framework/host compatibility, integrity, dependency rules, lifecycle state transitions, uninstall dependency protection, and rollback.
-- CI builds the main solution, runs tests, builds tooling/plugin solutions, and packs a generated sample plugin and template tool.
+- CI builds the main solution, runs tests, builds tooling/plugin solutions, and packs a generated sample plugin and template tool successfully.
 
 Intentionally deferred from this stage:
 
@@ -82,7 +82,7 @@ Intentionally deferred from this stage:
 - Plugin navigation/menu contributions; this remains part of Stage 13 storefront/admin extension work.
 - Runtime hot reload; lifecycle changes continue to require host restart.
 
-**Exit condition:** pending CI/build/test validation must pass before Stage 04 is marked implemented. Once validated, an administrator must be able to install and manage plugins from the RemoteCommerce UI without manually editing application files.
+**Exit condition:** an administrator can install and manage plugins from the RemoteCommerce UI without manually editing application files, with build/test/package validation passing in CI.
 
 ## Stage 05 — Site, User, and Localization Administration
 
