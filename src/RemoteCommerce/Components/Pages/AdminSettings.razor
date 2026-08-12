@@ -1,12 +1,11 @@
 @page "/admin/settings"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using RemoteCommerce.Application.Identity
 @using RemoteCommerce.Application.Site
-@using System.Globalization
 @inject ISiteSettingsService SiteSettingsService
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
 <PageTitle>Site Settings | RemoteCommerce</PageTitle>
@@ -54,10 +53,7 @@ else
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private async Task LoadAsync()
-    {
-        _model = await SiteSettingsService.GetAsync();
-    }
+    private async Task LoadAsync() => _model = await SiteSettingsService.GetAsync();
 
     private async Task SaveAsync()
     {
