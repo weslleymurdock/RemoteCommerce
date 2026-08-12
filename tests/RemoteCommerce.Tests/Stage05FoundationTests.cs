@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using RemoteCommerce.Application.Security;
 using RemoteCommerce.Application.Site;
 using RemoteCommerce.Infrastructure.Persistence;
 using RemoteCommerce.Infrastructure.Persistence.Entities;
+using Xunit;
 
 namespace RemoteCommerce.Tests;
 
@@ -13,9 +13,7 @@ public sealed class Stage05FoundationTests
     [Fact]
     public async Task SiteSettingsService_CreatesSafeDefaults()
     {
-        var factory = CreateFactory();
-        var service = new SiteSettingsService(factory);
-
+        var service = new SiteSettingsService(CreateFactory());
         var settings = await service.GetAsync();
 
         Assert.Equal("RemoteCommerce", settings.SiteName);
@@ -57,7 +55,7 @@ public sealed class Stage05FoundationTests
     }
 
     [Fact]
-    public void ConfigurationSecretProvider_RedactsByContract()
+    public void ConfigurationSecretProvider_ReportsConfigurationWithoutExposingIt()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Secrets:Test"] = "top-secret" })
