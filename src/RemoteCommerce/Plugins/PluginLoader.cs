@@ -51,7 +51,7 @@ public sealed class PluginLoader(
 
             try
             {
-                LoadPlugin(installation.PluginId, installations, db, services, configuration, loading, loadedIds, loaded);
+                LoadPlugin(installation.PluginId, installations, services, configuration, loading, loadedIds, loaded);
             }
             catch (Exception exception)
             {
@@ -67,7 +67,6 @@ public sealed class PluginLoader(
     private void LoadPlugin(
         string pluginId,
         Dictionary<string, PluginInstallation> installations,
-        CommerceDbContext db,
         IServiceCollection services,
         IConfiguration configuration,
         HashSet<string> loading,
@@ -77,39 +76,45 @@ public sealed class PluginLoader(
         if (loadedIds.Contains(pluginId)) return;
         if (!loading.Add(pluginId)) throw new InvalidOperationException($"Circular plugin dependency detected at '{pluginId}'.");
 
-        if (!installations.TryGetValue(pluginId, out var installation))
-            throw new InvalidOperationException($"Plugin '{pluginId}' is not installed.");
-        if (installation.DesiredState == PluginDesiredState.Disabled)
-            throw new InvalidOperationException($"Plugin '{pluginId}' is disabled but is required by another enabled plugin.");
+        try
+        {
+            if (!installations.TryGetValue(pluginId, out var installation))
+                throw new InvalidOperationException($"Plugin '{pluginId}' is not installed.");
+            if (installation.DesiredState == PluginDesiredState.Disabled)
+                throw new InvalidOperationException($"Plugin '{pluginId}' is disabled but is required by another enabled plugin.");
 
-        var manifestPath = Path.Combine(installation.PackagePath, "plugin.manifest.json");
-        if (!File.Exists(manifestPath)) throw new FileNotFoundException("Plugin manifest was not found.", manifestPath);
-        var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath), JsonOptions) ?? throw new InvalidOperationException("Plugin manifest is empty.");
-        var manifestIssues = manifestValidator.Validate(manifest).Concat(compatibilityValidator.Validate(manifest)).Where(x => x.Severity == PluginValidationSeverity.Error).ToArray();
-        if (manifestIssues.Length > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, manifestIssues.Select(x => $"[{x.Code}] {x.Message}")));
+            var manifestPath = Path.Combine(installation.PackagePath, "plugin.manifest.json");
+            if (!File.Exists(manifestPath)) throw new FileNotFoundException("Plugin manifest was not found.", manifestPath);
+            var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath), JsonOptions) ?? throw new InvalidOperationException("Plugin manifest is empty.");
+            var manifestIssues = manifestValidator.Validate(manifest).Concat(compatibilityValidator.Validate(manifest)).Where(x => x.Severity == PluginValidationSeverity.Error).ToArray();
+            if (manifestIssues.Length > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, manifestIssues.Select(x => $"[{x.Code}] {x.Message}")));
 
-        foreach (var dependency in manifest.DependencyDeclarations)
-            LoadPlugin(dependency.PluginId, installations, db, services, configuration, loading, loadedIds, loaded);
+            foreach (var dependency in manifest.DependencyDeclarations)
+                LoadPlugin(dependency.PluginId, installations, services, configuration, loading, loadedIds, loaded);
 
-        var assemblyPath = Path.GetFullPath(Path.Combine(installation.PackagePath, manifest.EntryAssembly));
-        if (!assemblyPath.StartsWith(Path.GetFullPath(installation.PackagePath) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"Plugin entry assembly '{manifest.EntryAssembly}' escapes the installation directory.");
-        if (!File.Exists(assemblyPath)) throw new FileNotFoundException("Plugin entry assembly was not found.", assemblyPath);
+            var assemblyPath = Path.GetFullPath(Path.Combine(installation.PackagePath, manifest.EntryAssembly));
+            if (!assemblyPath.StartsWith(Path.GetFullPath(installation.PackagePath) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Plugin entry assembly '{manifest.EntryAssembly}' escapes the installation directory.");
+            if (!File.Exists(assemblyPath)) throw new FileNotFoundException("Plugin entry assembly was not found.", assemblyPath);
 
-        var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
-        var pluginType = assembly.GetType(manifest.EntryType, true, false) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' was not found.");
-        if (!typeof(IRemoteCommercePlugin).IsAssignableFrom(pluginType)) throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' must implement IRemoteCommercePlugin.");
-        var plugin = (IRemoteCommercePlugin?)Activator.CreateInstance(pluginType) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' could not be instantiated.");
-        plugin.ConfigureServices(services, manifest, configuration);
-        PluginAssemblyRegistry.Add(assembly);
-        installation.State = PluginInstallationState.Loaded;
-        installation.PendingVersion = null;
-        installation.LastError = null;
-        installation.UpdatedAt = DateTimeOffset.UtcNow;
-        loadedIds.Add(pluginId);
-        loading.Remove(pluginId);
-        loaded.Add(manifest);
-        logger.LogInformation("Loaded plugin {PluginId} version {PluginVersion}.", manifest.Id, manifest.Version);
+            var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+            var pluginType = assembly.GetType(manifest.EntryType, true, false) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' was not found.");
+            if (!typeof(IRemoteCommercePlugin).IsAssignableFrom(pluginType)) throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' must implement IRemoteCommercePlugin.");
+            var plugin = (IRemoteCommercePlugin?)Activator.CreateInstance(pluginType) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' could not be instantiated.");
+            plugin.ConfigureServices(services, manifest, configuration);
+            PluginAssemblyRegistry.Add(assembly);
+            installation.State = PluginInstallationState.Loaded;
+            installation.PendingVersion = null;
+            installation.LastError = null;
+            installation.UpdatedAt = DateTimeOffset.UtcNow;
+            loadedIds.Add(pluginId);
+            loaded.Add(manifest);
+            logger.LogInformation("Loaded plugin {PluginId} version {PluginVersion}.", manifest.Id, manifest.Version);
+        }
+        finally
+        {
+            loading.Remove(pluginId);
+        }
     }
 
     private static void MarkFailed(CommerceDbContext db, PluginInstallation installation, string operation, string category, Exception exception)
@@ -132,22 +137,17 @@ public sealed class PluginLoader(
     private static void CleanupPendingDeletes(string pluginsRoot)
     {
         var pendingRoot = Path.Combine(pluginsRoot, ".pending-delete");
-        if (!Directory.Exists(pendingRoot)) return;
-        foreach (var directory in Directory.EnumerateDirectories(pendingRoot))
-        {
-            try { Directory.Delete(directory, true); }
-            catch { }
-        }
+        if (Directory.Exists(pendingRoot))
+            foreach (var directory in Directory.EnumerateDirectories(pendingRoot))
+                try { Directory.Delete(directory, true); } catch { }
 
+        if (!Directory.Exists(pluginsRoot)) return;
         foreach (var pluginRoot in Directory.EnumerateDirectories(pluginsRoot))
         {
             var pluginPendingRoot = Path.Combine(pluginRoot, ".pending-delete");
             if (!Directory.Exists(pluginPendingRoot)) continue;
             foreach (var directory in Directory.EnumerateDirectories(pluginPendingRoot))
-            {
-                try { Directory.Delete(directory, true); }
-                catch { }
-            }
+                try { Directory.Delete(directory, true); } catch { }
         }
     }
 }
