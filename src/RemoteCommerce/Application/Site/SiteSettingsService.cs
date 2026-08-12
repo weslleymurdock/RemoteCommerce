@@ -37,7 +37,9 @@ public sealed class SiteSettingsService(IDbContextFactory<CommerceDbContext> dbF
         Validate(settings);
 
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await db.SiteSettings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken) ?? new SiteSettings();
+        var entity = await db.SiteSettings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+        var isNew = entity is null;
+        entity ??= new SiteSettings();
 
         entity.SiteName = settings.SiteName.Trim();
         entity.SiteDescription = settings.SiteDescription.Trim();
@@ -47,9 +49,8 @@ public sealed class SiteSettingsService(IDbContextFactory<CommerceDbContext> dbF
         entity.Locale = settings.Locale.Trim();
         entity.UpdatedAt = DateTime.UtcNow;
 
-        if (entity.Id == 0)
+        if (isNew)
         {
-            entity.Id = 1;
             db.SiteSettings.Add(entity);
         }
 
