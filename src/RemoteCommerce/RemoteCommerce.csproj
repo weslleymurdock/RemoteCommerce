@@ -9,7 +9,6 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>$(WarningsAsErrors);1591</WarningsAsErrors>
   </PropertyGroup>
-
   <ItemGroup>
     <Using Include="FluentValidation" />
     <Using Include="MediatR" />
@@ -36,6 +35,7 @@
     <Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" />
     <Using Include="RemoteCommerce.Plugins" />
     <Using Include="Scalar.AspNetCore" />
+    <Using Include="System.Collections.Concurrent" />
     <Using Include="System.Diagnostics" />
     <Using Include="System.Globalization" />
     <Using Include="System.Net" />
@@ -44,7 +44,6 @@
     <Using Include="System.Text.Json" />
     <Using Include="System.Xml" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="MudBlazor" />
     <ProjectReference Include="../RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
