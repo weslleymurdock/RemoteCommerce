@@ -50,6 +50,27 @@ public sealed class Stage05FoundationTests
     }
 
     [Fact]
+    public async Task MediatorRegistration_ExecutesLoggingAndValidationBehaviors()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMediatR(configuration =>
+        {
+            configuration.RegisterServicesFromAssembly(typeof(Stage05FoundationTests).Assembly);
+            configuration.AddOpenBehavior(typeof(LoggingBehavior<,>));
+            configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            configuration.AddOpenBehavior(typeof(TransactionalBehavior<,>));
+        });
+        services.AddValidatorsFromAssembly(typeof(Stage05FoundationTests).Assembly);
+        await using var provider = services.BuildServiceProvider();
+        var mediator = provider.GetRequiredService<IMediator>();
+
+        var result = await mediator.Send(new PingQuery("valid"));
+        Assert.Equal("valid", result);
+        await Assert.ThrowsAsync<ValidationException>(() => mediator.Send(new PingQuery(string.Empty)));
+    }
+
+    [Fact]
     public async Task TransactionalBehavior_RollsBackHandlerMutationOnFailure()
     {
         await using var database = await CreateRelationalDatabaseAsync();
@@ -142,11 +163,7 @@ public sealed class Stage05FoundationTests
     private sealed class TestDatabase(CommerceDbContext db, SqliteConnection connection) : IAsyncDisposable
     {
         public CommerceDbContext Db { get; } = db;
-        public async ValueTask DisposeAsync()
-        {
-            await Db.DisposeAsync();
-            await connection.DisposeAsync();
-        }
+        public async ValueTask DisposeAsync() { await Db.DisposeAsync(); await connection.DisposeAsync(); }
     }
 
     private sealed class TestDbContextFactory(CommerceDbContext db) : IDbContextFactory<CommerceDbContext>
@@ -162,6 +179,18 @@ public sealed class Stage05FoundationTests
         public string CorrelationId => "test-correlation";
         public string? IpAddress => "127.0.0.1";
     }
-
-    private sealed record FailingCommand : ITransactionalCommand;
 }
+
+internal sealed record PingQuery(string Value) : IQuery<string>;
+
+internal sealed class PingQueryValidator : AbstractValidator<PingQuery>
+{
+    public PingQueryValidator() => RuleFor(x => x.Value).NotEmpty();
+}
+
+internal sealed class PingQueryHandler : IRequestHandler<PingQuery, string>
+{
+    public Task<string> Handle(PingQuery request, CancellationToken cancellationToken) => Task.FromResult(request.Value);
+}
+
+internal sealed record FailingCommand : ITransactionalCommand;
