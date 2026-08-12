@@ -19,7 +19,7 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
     /// <param name="cancellationToken">The token used to cancel package processing.</param>
     /// <returns>The validated manifest and installation directory.</returns>
     /// <exception cref="FileNotFoundException">Thrown when the package file does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the package or manifest is invalid, or the plugin is already installed.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the package or manifest is invalid.</exception>
     public async Task<(PluginManifest Manifest, string TargetDirectory)> InstallAsync(string packagePath, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(packagePath))
@@ -35,6 +35,9 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
             ?? throw new InvalidOperationException("The plugin manifest is empty or invalid.");
 
         ValidateManifest(manifest);
+        RequireDocumentationEntry(archive, manifest.License, "LICENSE.md");
+        RequireDocumentationEntry(archive, manifest.Readme, "README.md");
+
         var assemblyEntry = archive.GetEntry(manifest.EntryAssembly.Replace('\\', '/'))
             ?? throw new InvalidOperationException($"The plugin entry assembly '{manifest.EntryAssembly}' was not found in the package.");
         if (!assemblyEntry.FullName.StartsWith("lib/net10.0/", StringComparison.OrdinalIgnoreCase))
@@ -53,26 +56,36 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
         }
         catch
         {
-            if (Directory.Exists(stagingDirectory))
-                Directory.Delete(stagingDirectory, recursive: true);
+            if (Directory.Exists(stagingDirectory)) Directory.Delete(stagingDirectory, recursive: true);
             throw;
         }
 
         return (manifest, targetDirectory);
     }
 
+    private static void RequireDocumentationEntry(ZipArchive archive, string manifestPath, string requiredFileName)
+    {
+        if (!string.Equals(manifestPath, requiredFileName, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Plugin manifest {requiredFileName.Replace(".md", "")} must be '{requiredFileName}'.");
+
+        var entry = archive.GetEntry(requiredFileName);
+        if (entry is null || entry.Length == 0)
+            throw new InvalidOperationException($"The plugin package must contain a non-empty {requiredFileName} at its root.");
+    }
+
     private static void ValidateManifest(PluginManifest manifest)
     {
-        if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.Name) || string.IsNullOrWhiteSpace(manifest.Version) ||
-            string.IsNullOrWhiteSpace(manifest.EntryAssembly) || string.IsNullOrWhiteSpace(manifest.EntryType) || string.IsNullOrWhiteSpace(manifest.MinHostVersion))
-            throw new InvalidOperationException("The plugin manifest requires Id, Name, Version, EntryAssembly, EntryType and MinHostVersion.");
+        if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.Name) ||
+            string.IsNullOrWhiteSpace(manifest.License) || string.IsNullOrWhiteSpace(manifest.Readme) ||
+            string.IsNullOrWhiteSpace(manifest.Version) || string.IsNullOrWhiteSpace(manifest.EntryAssembly) ||
+            string.IsNullOrWhiteSpace(manifest.EntryType) || string.IsNullOrWhiteSpace(manifest.MinHostVersion))
+            throw new InvalidOperationException("The plugin manifest requires Id, Name, License, Readme, Version, EntryAssembly, EntryType and MinHostVersion.");
 
-        if (manifest.Id.Contains("..", StringComparison.Ordinal) || manifest.Id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-            manifest.Id.Contains('/') || manifest.Id.Contains('\\'))
+        if (manifest.Id.Contains("..", StringComparison.Ordinal) || manifest.Id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || manifest.Id.Contains('/') || manifest.Id.Contains('\\'))
             throw new InvalidOperationException("The plugin manifest Id is not a safe directory name.");
 
         if (!Version.TryParse(manifest.Version, out _) || !Version.TryParse(manifest.MinHostVersion, out var minimumHostVersion))
-            throw new InvalidOperationException("Plugin Version and MinHostVersion must be valid semantic version-compatible values.");
+            throw new InvalidOperationException("Plugin Version and MinHostVersion must be valid version values.");
 
         var hostVersion = typeof(PluginPackageInstaller).Assembly.GetName().Version ?? new Version(0, 0);
         if (hostVersion < minimumHostVersion)
@@ -83,7 +96,7 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
 
     private static void ValidateRelativePath(string path)
     {
-        if (Path.IsPathRooted(path) || path.Contains("..", StringComparison.Ordinal) || path.StartsWith("/", StringComparison.Ordinal) || path.StartsWith("\\", StringComparison.Ordinal))
+        if (Path.IsPathRooted(path) || path.Contains("..", StringComparison.Ordinal) || path.StartsWith('/', StringComparison.Ordinal) || path.StartsWith('\\', StringComparison.Ordinal))
             throw new InvalidOperationException($"Plugin path '{path}' is not a safe package-relative path.");
     }
 
@@ -93,8 +106,7 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
         foreach (var entry in archive.Entries)
         {
             var normalized = entry.FullName.Replace('\\', '/');
-            if (string.IsNullOrEmpty(normalized) || normalized.EndsWith('/'))
-                continue;
+            if (string.IsNullOrEmpty(normalized) || normalized.EndsWith('/')) continue;
             ValidateRelativePath(normalized);
             var destination = Path.GetFullPath(Path.Combine(targetDirectory, normalized.Replace('/', Path.DirectorySeparatorChar)));
             if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
