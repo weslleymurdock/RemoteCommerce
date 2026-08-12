@@ -32,7 +32,8 @@ public sealed class PluginLoader(
             return [];
         }
 
-        var installed = dbFactory.CreateDbContext().PluginInstallations
+        using var db = dbFactory.CreateDbContext();
+        var installed = db.PluginInstallations
             .AsNoTracking()
             .Where(x => x.State == PluginInstallationState.Installed)
             .ToDictionary(x => x.PluginId, StringComparer.OrdinalIgnoreCase);
