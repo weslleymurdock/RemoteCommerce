@@ -1,7 +1,12 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using MudBlazor.Services;
 using RemoteCommerce.Application.Identity;
+using RemoteCommerce.Application.Localization;
+using RemoteCommerce.Application.Security;
 using RemoteCommerce.Application.Site;
 using RemoteCommerce.Components;
 using RemoteCommerce.Infrastructure.Persistence;
@@ -12,6 +17,7 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddLocalization();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -59,6 +65,10 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
+builder.Services.AddScoped<LocalizationResourceService>();
+builder.Services.AddScoped<ILocalizationResourceService>(sp => sp.GetRequiredService<LocalizationResourceService>());
+builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
+builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
 
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
@@ -139,6 +149,28 @@ if (!app.Environment.IsProduction())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture("en-US"),
+    SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
+    SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
+    RequestCultureProviders =
+    [
+        new QueryStringRequestCultureProvider(),
+        new CookieRequestCultureProvider(),
+        new AcceptLanguageHeaderRequestCultureProvider(),
+        new CustomRequestCultureProvider(async context =>
+        {
+            var factory = context.RequestServices.GetRequiredService<IDbContextFactory<CommerceDbContext>>();
+            var db = await factory.CreateDbContextAsync(context.RequestAborted);
+            await using (db)
+            {
+                var settings = await db.SiteSettings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, context.RequestAborted);
+                return settings is null ? null : new ProviderCultureResult(settings.Culture, settings.Culture);
+            }
+        }),
+    ],
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
