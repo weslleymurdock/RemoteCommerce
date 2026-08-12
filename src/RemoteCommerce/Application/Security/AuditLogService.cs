@@ -1,12 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Infrastructure.Persistence;
-using RemoteCommerce.Infrastructure.Persistence.Entities;
-
 namespace RemoteCommerce.Application.Security;
 
 /// <summary>Persists security-sensitive administrative audit events without secret values.</summary>
-/// <param name="dbFactory">The factory used to persist audit records.</param>
-public sealed class AuditLogService(IDbContextFactory<CommerceDbContext> dbFactory) : IAuditLogService
+/// <param name="db">The scoped persistence context used by the current application operation.</param>
+public sealed class AuditLogService(CommerceDbContext db) : IAuditLogService
 {
     /// <inheritdoc />
     public async Task WriteAsync(
@@ -18,7 +14,6 @@ public sealed class AuditLogService(IDbContextFactory<CommerceDbContext> dbFacto
         string? context = null,
         CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         db.AuditLogs.Add(new AuditLog
         {
             UserId = userId,
