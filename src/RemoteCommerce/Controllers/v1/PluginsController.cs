@@ -40,7 +40,7 @@ public sealed class PluginsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PluginPackageValidationResult>> Validate(IFormFile package, CancellationToken cancellationToken)
     {
-        if (!IsPackage(package)) return InvalidPackage();
+        if (!IsPackage(package)) return InvalidPackage<PluginPackageValidationResult>();
         return await WithTemporaryPackageAsync(package, async path => Ok(await installationService.ValidatePackageAsync(path, cancellationToken)), cancellationToken);
     }
 
@@ -56,7 +56,7 @@ public sealed class PluginsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<InstallPluginResponse>> Install(IFormFile package, CancellationToken cancellationToken)
     {
-        if (!IsPackage(package)) return InvalidPackage();
+        if (!IsPackage(package)) return InvalidPackage<InstallPluginResponse>();
         try
         {
             return await WithTemporaryPackageAsync(package, async path =>
@@ -86,7 +86,7 @@ public sealed class PluginsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UpdatePluginResponse>> Update(string pluginId, IFormFile package, CancellationToken cancellationToken)
     {
-        if (!IsPackage(package)) return InvalidPackage();
+        if (!IsPackage(package)) return InvalidPackage<UpdatePluginResponse>();
         try
         {
             return await WithTemporaryPackageAsync(package, async path =>
@@ -153,8 +153,8 @@ public sealed class PluginsController(
     private static bool IsPackage(IFormFile package)
         => package is not null && package.Length > 0 && package.FileName.EndsWith(".nupkg", StringComparison.OrdinalIgnoreCase);
 
-    private static ActionResult InvalidPackage()
-        => new BadRequestObjectResult(new ProblemDetails { Title = "Invalid plugin package.", Detail = "The uploaded file must be a non-empty .nupkg file." });
+    private static ActionResult<T> InvalidPackage<T>()
+        => new(new BadRequestObjectResult(new ProblemDetails { Title = "Invalid plugin package.", Detail = "The uploaded file must be a non-empty .nupkg file." }));
 
     private static async Task<T> WithTemporaryPackageAsync<T>(IFormFile package, Func<string, Task<T>> operation, CancellationToken cancellationToken)
     {
