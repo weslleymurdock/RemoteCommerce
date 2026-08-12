@@ -4,16 +4,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddLocalization();
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddCascadingAuthenticationState();
-
 builder.Services.AddControllers();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
-builder.Services.AddDbContextFactory<CommerceDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
+builder.Services.AddDbContextFactory<CommerceDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
 
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
@@ -32,24 +29,17 @@ builder.Services
     .AddEntityFrameworkStores<CommerceDbContext>()
     .AddDefaultTokenProviders();
 
-builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
-    .AddIdentityCookies();
-
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(AuthorizationPolicies.Administrator, policy =>
-        policy.RequireRole("Administrator"));
-    options.AddPolicy(AuthorizationPolicies.ManageConfiguration, policy =>
-        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageConfiguration)));
-    options.AddPolicy(AuthorizationPolicies.ManageUsers, policy =>
-        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageUsers)));
-    options.AddPolicy(AuthorizationPolicies.ManageLocalization, policy =>
-        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageLocalization)));
-    options.AddPolicy(AuthorizationPolicies.ManagePlugins, policy =>
-        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManagePlugins)));
+    options.AddPolicy(AuthorizationPolicies.Administrator, policy => policy.RequireRole("Administrator"));
+    options.AddPolicy(AuthorizationPolicies.ManageConfiguration, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageConfiguration)));
+    options.AddPolicy(AuthorizationPolicies.ManageUsers, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageUsers)));
+    options.AddPolicy(AuthorizationPolicies.ManageLocalization, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageLocalization)));
+    options.AddPolicy(AuthorizationPolicies.ManagePlugins, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManagePlugins)));
 });
 
-builder.Services.AddScoped<IApplicationContext, HttpApplicationContext>();
+builder.Services.AddSingleton<IApplicationContext, HttpApplicationContext>();
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
 builder.Services.AddScoped<LocalizationResourceService>();
 builder.Services.AddScoped<ILocalizationResourceService>(sp => sp.GetRequiredService<LocalizationResourceService>());
@@ -80,7 +70,6 @@ var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", 
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
 
 var app = builder.Build();
-
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/error", createScopeForErrors: true);
@@ -88,7 +77,6 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.MapOpenApi("o/{v1}.json");
-
 if (!app.Environment.IsProduction())
 {
     app.MapScalarApiReference("s/rc", configuration =>
@@ -100,54 +88,10 @@ if (!app.Environment.IsProduction())
                 <link href=""https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"" rel=""stylesheet"" />
                 <link href=""_content/MudBlazor/MudBlazor.min.css"" rel=""stylesheet"" />
                 <script src=""_content/MudBlazor/MudBlazor.min.js""></script>
-                <script>
-                    document.addEventListener('DOMContentLoaded', () => {
-                        document.body.classList.add('mud-application', 'mud-theme-primary');
-                        const updateScalarTheme = () => {
-                            const isDark = document.body.classList.contains('mud-dark-theme');
-                            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-                        };
-                        const observer = new MutationObserver(updateScalarTheme);
-                        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-                        updateScalarTheme();
-                    });
-                </script>
+                <script>document.addEventListener('DOMContentLoaded',()=>{document.body.classList.add('mud-application','mud-theme-primary');const update=()=>document.documentElement.setAttribute('data-theme',document.body.classList.contains('mud-dark-theme')?'dark':'light');new MutationObserver(update).observe(document.body,{attributes:true,attributeFilter:['class']});update();});</script>
             ")
             .WithCustomCss(@"
-                :root {
-                    --scalar-background-1: var(--mud-palette-surface, #ffffff);
-                    --scalar-background-2: var(--mud-palette-background, #f5f5f5);
-                    --scalar-background-3: var(--mud-palette-background-gray, #e0e0e0);
-                    --scalar-background-accent: var(--mud-palette-action-default-hover, rgba(0,0,0,0.04));
-                    --scalar-color-1: var(--mud-palette-text-primary, #424242);
-                    --scalar-color-2: var(--mud-palette-text-secondary, #616161);
-                    --scalar-color-3: var(--mud-palette-text-disabled, #9e9e9e);
-                    --scalar-color-accent: var(--mud-palette-primary, #594ae2);
-                    --scalar-button-1: var(--mud-palette-primary, #594ae2);
-                    --scalar-button-1-color: var(--mud-palette-primary-text, #ffffff);
-                    --scalar-button-1-hover: var(--mud-palette-primary-darken, #3d2cc4);
-                    --scalar-border-color: var(--mud-palette-lines-default, #e0e0e0);
-                    --scalar-radius: var(--mud-default-borderradius, 4px);
-                    --scalar-font: 'Roboto', sans-serif;
-                    --scalar-font-code: 'Roboto Mono', monospace;
-                }
-                .mud-dark-theme, [data-theme='dark'] {
-                    --scalar-background-1: var(--mud-palette-surface, #1e1e2d);
-                    --scalar-background-2: var(--mud-palette-background, #151521);
-                    --scalar-background-3: var(--mud-palette-background-gray, #27273a);
-                    --scalar-color-1: var(--mud-palette-text-primary, #ffffff);
-                    --scalar-color-2: var(--mud-palette-text-secondary, #a1a5b7);
-                    --scalar-border-color: var(--mud-palette-lines-default, #2b2b40);
-                }
-                .scalar-api-reference {
-                    font-family: var(--scalar-font);
-                    background-color: var(--scalar-background-1);
-                    color: var(--scalar-color-1);
-                }
-                .scalar-card, .section {
-                    border-radius: var(--mud-default-borderradius, 4px) !important;
-                    box-shadow: var(--mud-elevation-1, 0px 2px 1px -1px rgba(0,0,0,0.2)) !important;
-                }
+                :root{--scalar-background-1:var(--mud-palette-surface,#fff);--scalar-background-2:var(--mud-palette-background,#f5f5f5);--scalar-background-3:var(--mud-palette-background-gray,#e0e0e0);--scalar-background-accent:var(--mud-palette-action-default-hover,rgba(0,0,0,.04));--scalar-color-1:var(--mud-palette-text-primary,#424242);--scalar-color-2:var(--mud-palette-text-secondary,#616161);--scalar-color-3:var(--mud-palette-text-disabled,#9e9e9e);--scalar-color-accent:var(--mud-palette-primary,#594ae2);--scalar-button-1:var(--mud-palette-primary,#594ae2);--scalar-button-1-color:var(--mud-palette-primary-text,#fff);--scalar-button-1-hover:var(--mud-palette-primary-darken,#3d2cc4);--scalar-border-color:var(--mud-palette-lines-default,#e0e0e0);--scalar-radius:var(--mud-default-borderradius,4px);--scalar-font:'Roboto',sans-serif;--scalar-font-code:'Roboto Mono',monospace}.mud-dark-theme,[data-theme='dark']{--scalar-background-1:var(--mud-palette-surface,#1e1e2d);--scalar-background-2:var(--mud-palette-background,#151521);--scalar-background-3:var(--mud-palette-background-gray,#27273a);--scalar-color-1:var(--mud-palette-text-primary,#fff);--scalar-color-2:var(--mud-palette-text-secondary,#a1a5b7);--scalar-border-color:var(--mud-palette-lines-default,#2b2b40)}.scalar-api-reference{font-family:var(--scalar-font);background-color:var(--scalar-background-1);color:var(--scalar-color-1)}.scalar-card,.section{border-radius:var(--mud-default-borderradius,4px)!important;box-shadow:var(--mud-elevation-1,0 2px 1px -1px rgba(0,0,0,.2))!important}
             ");
     });
 }
@@ -160,29 +104,11 @@ app.UseRequestLocalization(new RequestLocalizationOptions
     DefaultRequestCulture = new RequestCulture("en-US"),
     SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
     SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
-    RequestCultureProviders =
-    [
-        new QueryStringRequestCultureProvider(),
-        new CookieRequestCultureProvider(),
-        new AcceptLanguageHeaderRequestCultureProvider(),
-        new CustomRequestCultureProvider(async context =>
-        {
-            var factory = context.RequestServices.GetRequiredService<IDbContextFactory<CommerceDbContext>>();
-            var db = await factory.CreateDbContextAsync(context.RequestAborted);
-            await using (db)
-            {
-                var settings = await db.SiteSettings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, context.RequestAborted);
-                return settings is null ? null : new ProviderCultureResult(settings.Culture, settings.Culture);
-            }
-        }),
-    ],
+    RequestCultureProviders = [new QueryStringRequestCultureProvider(), new CookieRequestCultureProvider(), new AcceptLanguageHeaderRequestCultureProvider(), new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())],
 });
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
-
 app.MapControllers();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 await app.RunAsync();
