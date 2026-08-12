@@ -24,17 +24,6 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
             entity.Property(x => x.PackagePath).HasMaxLength(1024).IsRequired();
             entity.Property(x => x.State).IsRequired();
             entity.Property(x => x.InstalledAt).IsRequired();
-            entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.Description).HasMaxLength(4000).IsRequired();
-            entity.Property(x => x.PackageId).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.PackageTags).HasMaxLength(2000).IsRequired();
-            entity.Property(x => x.Title).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.Authors).HasMaxLength(1000).IsRequired();
-            entity.Property(x => x.Company).HasMaxLength(500).IsRequired();
-            entity.Property(x => x.RepositoryUrl).HasMaxLength(2048).IsRequired();
-            entity.Property(x => x.RepositoryType).HasMaxLength(100).IsRequired();
-            entity.Property(x => x.PackageProjectUrl).HasMaxLength(2048).IsRequired();
-            entity.Property(x => x.PackageRequireLicenseAcceptance).IsRequired();
         });
         base.OnModelCreating(modelBuilder);
     }
