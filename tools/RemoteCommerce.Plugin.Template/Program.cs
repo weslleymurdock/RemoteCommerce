@@ -26,13 +26,14 @@ internal static class PluginTemplateGenerator
         var baseReference = Path.GetRelativePath(outputDirectory, baseProject).Replace(Path.DirectorySeparatorChar, '/');
 
         File.WriteAllText(Path.Combine(outputDirectory, $"{manifest.PackageId}.csproj"), BuildProjectFile(manifest, baseReference));
-        File.WriteAllText(Path.Combine(outputDirectory, "plugin.manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(outputDirectory, "plugin.manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }));
         File.WriteAllText(Path.Combine(outputDirectory, "README.md"), $"# {manifest.Name}\n\n{manifest.Description}\n");
         File.WriteAllText(Path.Combine(outputDirectory, "LICENSE.md"), "Mozilla Public License Version 2.0\n\nReplace this file with the license terms applicable to your plugin.\n");
         File.WriteAllText(Path.Combine(outputDirectory, "PluginEntry.cs"), BuildEntry(namespaceName));
         File.WriteAllText(Path.Combine(outputDirectory, "_Imports.razor"), "@using Microsoft.AspNetCore.Components\n@using Microsoft.AspNetCore.Components.Routing\n@using Microsoft.AspNetCore.Components.Web\n");
 
         var mode = Prompt("Extension type (page/controller/both)", "both").ToLowerInvariant();
+        if (mode is page: true) { }
         if (mode is "page" or "both")
         {
             Directory.CreateDirectory(Path.Combine(outputDirectory, "Pages"));
