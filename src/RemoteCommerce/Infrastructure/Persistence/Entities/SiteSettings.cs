@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>Stores editable application-level settings for the current store.</summary>
-public sealed class SiteSettings
+public sealed class SiteSettings : ISoftDeletable
 {
     /// <summary>Gets the singleton settings identifier.</summary>
     public int Id { get; set; } = 1;
@@ -26,4 +26,10 @@ public sealed class SiteSettings
 
     /// <summary>Gets or sets the UTC timestamp of the last administrative update.</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <inheritdoc />
+    public bool IsDeleted { get; set; }
+
+    /// <inheritdoc />
+    public DateTimeOffset? DeletedAt { get; set; }
 }
