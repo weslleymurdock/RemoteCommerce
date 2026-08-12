@@ -15,7 +15,13 @@ public sealed class PluginsController(PluginInstallationService installationServ
     /// </summary>
     /// <param name="sourceDirectory">The directory containing the plugin package.</param>
     /// <param name="cancellationToken">The token used to cancel the installation.</param>
-    /// <returns>The manifest of the installed plugin.</returns>
+    /// <returns>The manifest of the installed plugin. The plugin becomes active after the next application restart.</returns>
+    /// <response code="201">The plugin package was installed successfully.</response>
+    /// <response code="400">The package could not be validated or installed.</response>
+    /// <remarks>
+    /// Installation persists the plugin as active, but does not mutate the currently running dependency injection container.
+    /// A process restart is required before the plugin assembly is loaded and its services are registered.
+    /// </remarks>
     [HttpPost("install")]
     [ProducesResponseType(typeof(InstallPluginResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
