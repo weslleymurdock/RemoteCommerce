@@ -8,7 +8,6 @@ public sealed class Stage05FoundationTests
         await using var db = CreateDbContext();
         var service = CreateSiteSettingsService(db);
         var settings = await service.GetAsync();
-
         Assert.Equal("RemoteCommerce", settings.SiteName);
         Assert.Equal("en-US", settings.Culture);
         Assert.Equal("en-US", settings.Locale);
@@ -53,17 +52,15 @@ public sealed class Stage05FoundationTests
     [Fact]
     public async Task TransactionalBehavior_RollsBackHandlerMutationOnFailure()
     {
-        await using var db = CreateDbContext();
+        await using var database = await CreateRelationalDatabaseAsync();
+        var db = database.Db;
         var behavior = new TransactionalBehavior<FailingCommand, Unit>(db);
-        var command = new FailingCommand();
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.Handle(command, async _ =>
+        await Assert.ThrowsAsync<InvalidOperationException>(() => behavior.Handle(new FailingCommand(), async _ =>
         {
             db.SiteSettings.Add(new SiteSettings { SiteName = "Should Roll Back" });
             await db.SaveChangesAsync();
             throw new InvalidOperationException("boom");
         }, CancellationToken.None));
-
         Assert.Empty(await db.SiteSettings.IgnoreQueryFilters().ToListAsync());
     }
 
@@ -73,13 +70,11 @@ public sealed class Stage05FoundationTests
         var behavior = new ValidationBehavior<UpdateSiteSettingsCommand, SiteSettingsModel>(new[] { new UpdateSiteSettingsCommandValidator() });
         var invoked = false;
         var command = new UpdateSiteSettingsCommand(new SiteSettingsModel { SiteName = string.Empty, PublicUrl = "bad", Culture = "fr-FR", Locale = "en-US", TimeZone = "UTC" });
-
         await Assert.ThrowsAsync<ValidationException>(() => behavior.Handle(command, _ =>
         {
             invoked = true;
             return Task.FromResult(command.Settings);
         }, CancellationToken.None));
-
         Assert.False(invoked);
     }
 
@@ -94,14 +89,13 @@ public sealed class Stage05FoundationTests
         await db.SaveChangesAsync();
         db.SiteSettings.Remove(settings);
         await db.SaveChangesAsync();
-
         Assert.Empty(await db.SiteSettings.ToListAsync());
         Assert.Single(await db.SiteSettings.IgnoreQueryFilters().ToListAsync());
         var history = await db.OperationHistories.OrderBy(x => x.Id).ToListAsync();
         Assert.Equal(2, history.Count);
         Assert.Equal("SoftDelete", history[^1].OperationType);
         Assert.Contains("Before", history[0].PreviousState);
-        Assert.Contains("After", history[0].NewState);
+        Assert.Contains("After", history[0].NewState ?? string.Empty);
     }
 
     [Fact]
@@ -114,7 +108,6 @@ public sealed class Stage05FoundationTests
         user.DisplayName = "Changed";
         user.PasswordHash = "new-secret-hash";
         await db.SaveChangesAsync();
-
         var history = await db.OperationHistories.OrderByDescending(x => x.Id).FirstAsync();
         Assert.Contains("[REDACTED]", history.PreviousState);
         Assert.DoesNotContain("new-secret-hash", history.NewState ?? string.Empty);
@@ -123,9 +116,9 @@ public sealed class Stage05FoundationTests
     [Fact]
     public void MediatorPackageVersion_IsPinnedToRequiredVersion()
     {
-        var version = typeof(IMediator).Assembly.GetName().Version;
+        var version = typeof(IMediator).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         Assert.NotNull(version);
-        Assert.Equal(new Version(12, 5, 0), version);
+        Assert.StartsWith("12.5.0", version, StringComparison.Ordinal);
     }
 
     private static CommerceDbContext CreateDbContext()
@@ -134,7 +127,27 @@ public sealed class Stage05FoundationTests
         return new CommerceDbContext(options, new TestApplicationContext());
     }
 
+    private static async Task<TestDatabase> CreateRelationalDatabaseAsync()
+    {
+        var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<CommerceDbContext>().UseSqlite(connection).Options;
+        var db = new CommerceDbContext(options, new TestApplicationContext());
+        await db.Database.EnsureCreatedAsync();
+        return new TestDatabase(db, connection);
+    }
+
     private static SiteSettingsService CreateSiteSettingsService(CommerceDbContext db) => new(new TestDbContextFactory(db), db);
+
+    private sealed class TestDatabase(CommerceDbContext db, SqliteConnection connection) : IAsyncDisposable
+    {
+        public CommerceDbContext Db { get; } = db;
+        public async ValueTask DisposeAsync()
+        {
+            await Db.DisposeAsync();
+            await connection.DisposeAsync();
+        }
+    }
 
     private sealed class TestDbContextFactory(CommerceDbContext db) : IDbContextFactory<CommerceDbContext>
     {
