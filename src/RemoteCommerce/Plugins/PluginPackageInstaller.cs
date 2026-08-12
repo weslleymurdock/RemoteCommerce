@@ -30,7 +30,6 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
         using var archive = ZipFile.OpenRead(packagePath);
         var manifestEntry = archive.GetEntry("plugin.manifest.json")
             ?? throw new InvalidOperationException("The plugin package must contain plugin.manifest.json at its root.");
-
         await using var manifestStream = manifestEntry.Open();
         var manifest = await JsonSerializer.DeserializeAsync<PluginManifest>(manifestStream, JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("The plugin manifest is empty or invalid.");
@@ -67,6 +66,18 @@ public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
         if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.Name) || string.IsNullOrWhiteSpace(manifest.Version) ||
             string.IsNullOrWhiteSpace(manifest.EntryAssembly) || string.IsNullOrWhiteSpace(manifest.EntryType) || string.IsNullOrWhiteSpace(manifest.MinHostVersion))
             throw new InvalidOperationException("The plugin manifest requires Id, Name, Version, EntryAssembly, EntryType and MinHostVersion.");
+
+        if (manifest.Id.Contains("..", StringComparison.Ordinal) || manifest.Id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+            manifest.Id.Contains('/') || manifest.Id.Contains('\\'))
+            throw new InvalidOperationException("The plugin manifest Id is not a safe directory name.");
+
+        if (!Version.TryParse(manifest.Version, out _) || !Version.TryParse(manifest.MinHostVersion, out var minimumHostVersion))
+            throw new InvalidOperationException("Plugin Version and MinHostVersion must be valid semantic version-compatible values.");
+
+        var hostVersion = typeof(PluginPackageInstaller).Assembly.GetName().Version ?? new Version(0, 0);
+        if (hostVersion < minimumHostVersion)
+            throw new InvalidOperationException($"Plugin requires host version {minimumHostVersion}, but the current host is {hostVersion}.");
+
         ValidateRelativePath(manifest.EntryAssembly);
     }
 
