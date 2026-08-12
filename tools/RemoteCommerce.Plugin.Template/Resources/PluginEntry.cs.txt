@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RemoteCommerce.Plugins.Abstractions;
 
@@ -9,13 +10,16 @@ namespace {{Namespace}};
 public sealed class PluginEntry : IRemoteCommercePlugin
 {
     /// <summary>
-    /// Registers the generated plugin services, controllers, and Razor components.
+    /// Registers the generated plugin services and MVC controllers.
     /// </summary>
     /// <param name="services">The host service collection.</param>
     /// <param name="manifest">The installed plugin manifest.</param>
-    public void ConfigureServices(IServiceCollection services, PluginManifest manifest)
+    /// <param name="configuration">The host application configuration.</param>
+    public void ConfigureServices(IServiceCollection services, PluginManifest manifest, IConfiguration configuration)
     {
         services.AddControllers().AddApplicationPart(typeof(PluginEntry).Assembly);
-        services.AddRazorComponents().AddAdditionalAssemblies(typeof(PluginEntry).Assembly);
+
+        // Use configuration here to read host defaults or plugin-specific settings.
+        _ = configuration;
     }
 }
