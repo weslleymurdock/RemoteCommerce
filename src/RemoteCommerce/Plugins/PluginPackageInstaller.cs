@@ -1,81 +1,100 @@
+using System.IO.Compression;
 using System.Text.Json;
 using RemoteCommerce.Plugins.Abstractions;
 
 namespace RemoteCommerce.Plugins;
 
 /// <summary>
-/// Validates and copies a plugin package into the application plugin directory.
+/// Validates and installs RemoteCommerce plugin NuGet packages.
 /// </summary>
-/// <param name="environment">The host environment used to resolve the installation root.</param>
+/// <param name="environment">The host environment used to resolve the plugin installation root.</param>
 public sealed class PluginPackageInstaller(IWebHostEnvironment environment)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>
-    /// Validates and installs a plugin package into its stable plugin directory.
+    /// Validates a plugin NuGet package and extracts it into its stable installation directory.
     /// </summary>
-    /// <param name="sourceDirectory">The directory containing the plugin package.</param>
-    /// <param name="cancellationToken">The token used to cancel the copy operation.</param>
-    /// <returns>The validated manifest and target package directory.</returns>
-    /// <exception cref="DirectoryNotFoundException">Thrown when <paramref name="sourceDirectory"/> does not exist.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the package does not contain a valid manifest or entry assembly.</exception>
-    public async Task<(PluginManifest Manifest, string TargetDirectory)> InstallAsync(string sourceDirectory, CancellationToken cancellationToken = default)
+    /// <param name="packagePath">The path to the <c>.nupkg</c> file to install.</param>
+    /// <param name="cancellationToken">The token used to cancel package processing.</param>
+    /// <returns>The validated manifest and installation directory.</returns>
+    /// <exception cref="FileNotFoundException">Thrown when the package file does not exist.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the package or manifest is invalid.</exception>
+    public async Task<(PluginManifest Manifest, string TargetDirectory)> InstallAsync(string packagePath, CancellationToken cancellationToken = default)
     {
-        if (!Directory.Exists(sourceDirectory))
-        {
-            throw new DirectoryNotFoundException(sourceDirectory);
-        }
+        if (!File.Exists(packagePath))
+            throw new FileNotFoundException("The plugin package was not found.", packagePath);
+        if (!string.Equals(Path.GetExtension(packagePath), ".nupkg", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("RemoteCommerce plugins must be distributed as .nupkg files.");
 
-        var manifestPath = Path.Combine(sourceDirectory, "plugin.manifest.json");
-        if (!File.Exists(manifestPath))
-        {
-            throw new InvalidOperationException("The plugin package must contain plugin.manifest.json.");
-        }
+        using var archive = ZipFile.OpenRead(packagePath);
+        var manifestEntry = archive.GetEntry("plugin.manifest.json")
+            ?? throw new InvalidOperationException("The plugin package must contain plugin.manifest.json at its root.");
 
-        var manifest = JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions)
-            ?? throw new InvalidOperationException("Plugin manifest is empty.");
+        await using var manifestStream = manifestEntry.Open();
+        var manifest = await JsonSerializer.DeserializeAsync<PluginManifest>(manifestStream, JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("The plugin manifest is empty or invalid.");
 
         ValidateManifest(manifest);
+        var assemblyEntry = archive.GetEntry(manifest.EntryAssembly.Replace('\\', '/'))
+            ?? throw new InvalidOperationException($"The plugin entry assembly '{manifest.EntryAssembly}' was not found in the package.");
 
-        var assemblyPath = Path.GetFullPath(Path.Combine(sourceDirectory, manifest.EntryAssembly));
-        if (!File.Exists(assemblyPath))
-        {
-            throw new InvalidOperationException("The plugin entry assembly does not exist.");
-        }
+        if (!assemblyEntry.FullName.StartsWith("lib/net10.0/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The plugin entry assembly must be located under lib/net10.0 in the package.");
 
         var targetDirectory = Path.Combine(environment.ContentRootPath, "App_Data", "plugins", manifest.Id);
-        Directory.CreateDirectory(targetDirectory);
+        var stagingDirectory = Path.Combine(environment.ContentRootPath, "App_Data", "plugins", ".staging", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDirectory);
 
-        await CopyDirectoryAsync(sourceDirectory, targetDirectory, cancellationToken);
+        try
+        {
+            ExtractSafely(archive, stagingDirectory);
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+            Directory.Move(stagingDirectory, targetDirectory);
+        }
+        catch
+        {
+            if (Directory.Exists(stagingDirectory))
+                Directory.Delete(stagingDirectory, recursive: true);
+            throw;
+        }
+
         return (manifest, targetDirectory);
     }
 
     private static void ValidateManifest(PluginManifest manifest)
     {
-        if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.EntryAssembly) || string.IsNullOrWhiteSpace(manifest.EntryType))
-        {
-            throw new InvalidOperationException("Plugin manifest requires Id, EntryAssembly and EntryType.");
-        }
+        if (string.IsNullOrWhiteSpace(manifest.Id) || string.IsNullOrWhiteSpace(manifest.Name) ||
+            string.IsNullOrWhiteSpace(manifest.Version) || string.IsNullOrWhiteSpace(manifest.EntryAssembly) ||
+            string.IsNullOrWhiteSpace(manifest.EntryType) || string.IsNullOrWhiteSpace(manifest.MinHostVersion))
+            throw new InvalidOperationException("The plugin manifest requires Id, Name, Version, EntryAssembly, EntryType and MinHostVersion.");
 
-        if (Path.IsPathRooted(manifest.EntryAssembly) || manifest.EntryAssembly.Contains("..", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Plugin EntryAssembly must be a relative path inside the package.");
-        }
+        ValidateRelativePath(manifest.EntryAssembly);
     }
 
-    private static async Task CopyDirectoryAsync(string source, string target, CancellationToken cancellationToken)
+    private static void ValidateRelativePath(string path)
     {
-        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
-        {
-            Directory.CreateDirectory(Path.Combine(target, Path.GetRelativePath(source, directory)));
-        }
+        if (Path.IsPathRooted(path) || path.Contains("..", StringComparison.Ordinal) || path.StartsWith('/', StringComparison.Ordinal) || path.StartsWith('\\', StringComparison.Ordinal))
+            throw new InvalidOperationException($"Plugin path '{path}' is not a safe package-relative path.");
+    }
 
-        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+    private static void ExtractSafely(ZipArchive archive, string targetDirectory)
+    {
+        var root = Path.GetFullPath(targetDirectory) + Path.DirectorySeparatorChar;
+        foreach (var entry in archive.Entries)
         {
-            var destination = Path.Combine(target, Path.GetRelativePath(source, file));
-            await using var input = File.OpenRead(file);
-            await using var output = File.Create(destination);
-            await input.CopyToAsync(output, cancellationToken);
+            var normalized = entry.FullName.Replace('\\', '/');
+            if (string.IsNullOrEmpty(normalized) || normalized.EndsWith('/'))
+                continue;
+
+            ValidateRelativePath(normalized);
+            var destination = Path.GetFullPath(Path.Combine(targetDirectory, normalized.Replace('/', Path.DirectorySeparatorChar)));
+            if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The plugin package contains a path traversal entry.");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            entry.ExtractToFile(destination, overwrite: true);
         }
     }
 }
