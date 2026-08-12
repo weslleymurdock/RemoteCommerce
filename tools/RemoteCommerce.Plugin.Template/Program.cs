@@ -33,7 +33,6 @@ internal static class PluginTemplateGenerator
         File.WriteAllText(Path.Combine(outputDirectory, "_Imports.razor"), "@using Microsoft.AspNetCore.Components\n@using Microsoft.AspNetCore.Components.Routing\n@using Microsoft.AspNetCore.Components.Web\n");
 
         var mode = Prompt("Extension type (page/controller/both)", "both").ToLowerInvariant();
-        if (mode is page: true) { }
         if (mode is "page" or "both")
         {
             Directory.CreateDirectory(Path.Combine(outputDirectory, "Pages"));
