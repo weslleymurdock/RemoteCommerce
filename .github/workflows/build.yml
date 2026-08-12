@@ -28,6 +28,7 @@ jobs:
       - run: dotnet restore RemoteCommerce.Tools.slnx
       - run: dotnet restore RemoteCommerce.Plugins.slnx
       - run: dotnet build RemoteCommerce.slnx --configuration Release --no-restore
+      - run: dotnet test RemoteCommerce.slnx --configuration Release --no-build --no-restore
       - run: dotnet build RemoteCommerce.Tools.slnx --configuration Release --no-restore
       - run: dotnet build RemoteCommerce.Plugins.slnx --configuration Release --no-restore
       - run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/Plugin.csproj --configuration Release --no-restore --output ./artifacts
