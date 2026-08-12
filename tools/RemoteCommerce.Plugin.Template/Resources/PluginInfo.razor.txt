@@ -1,0 +1,10 @@
+@page "/plugins/{{PluginId}}"
+
+<PageTitle>{{Name}}</PageTitle>
+
+<MudStack Spacing="2">
+    <MudText Typo="Typo.h4">{{Name}}</MudText>
+    <MudText Typo="Typo.body1">{{Description}}</MudText>
+    <MudText Typo="Typo.body2">Version: {{Version}}</MudText>
+    <MudText Typo="Typo.body2">API prefix: /api/rp/{{ApiVersion}}</MudText>
+</MudStack>
