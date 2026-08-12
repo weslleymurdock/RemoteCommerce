@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace RemoteCommerce.Plugins.Abstractions;
@@ -12,9 +13,11 @@ public interface IRemoteCommercePlugin
     /// </summary>
     /// <param name="services">The application service collection that the plugin may extend.</param>
     /// <param name="manifest">The manifest describing the plugin package being loaded.</param>
+    /// <param name="configuration">The host application configuration, including the host's configured default values.</param>
     /// <remarks>
     /// This method is called during application startup before the final dependency injection container is built.
     /// Implementations should register only services owned by the plugin and should not build a service provider.
+    /// The supplied configuration is the host configuration and can be used to read existing application settings.
     /// </remarks>
-    void ConfigureServices(IServiceCollection services, PluginManifest manifest);
+    void ConfigureServices(IServiceCollection services, PluginManifest manifest, IConfiguration configuration);
 }
