@@ -15,9 +15,9 @@ public static class PluginServiceCollectionExtensions
     {
         services.AddSingleton<IApplicationRestartService, ApplicationRestartService>();
         services.AddSingleton<IPluginPackageSource, TrustedPluginPackageSource>();
-        services.AddScoped<IPluginManifestValidator, PluginManifestValidator>();
-        services.AddScoped<IPluginCompatibilityValidator, PluginCompatibilityValidator>();
-        services.AddScoped<IPluginPackageValidator, PluginPackageValidator>();
+        services.AddSingleton<IPluginManifestValidator, PluginManifestValidator>();
+        services.AddSingleton<IPluginCompatibilityValidator, PluginCompatibilityValidator>();
+        services.AddSingleton<IPluginPackageValidator, PluginPackageValidator>();
         services.AddScoped<PluginPackageInstaller>();
         services.AddScoped<PluginDependencyValidator>();
         services.AddScoped<PluginInstallationService>();
