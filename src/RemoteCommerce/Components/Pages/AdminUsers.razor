@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using RemoteCommerce.Application.Identity
 @using RemoteCommerce.Infrastructure.Persistence.Entities
 @inject UserManager<ApplicationUser> UserManager
