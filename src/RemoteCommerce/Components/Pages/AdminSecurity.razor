@@ -21,7 +21,7 @@
     <MudItem xs="12" md="6">
         <MudPaper Class="pa-5">
             <MudText Typo="Typo.h6">Database deployment setting</MudText>
-            <MudChip Color="@(SecretProvider.IsConfigured("ConnectionStrings:Commerce") ? Color.Success : Color.Error)">
+            <MudChip T="string" Color="@(SecretProvider.IsConfigured("ConnectionStrings:Commerce") ? Color.Success : Color.Error)">
                 @(SecretProvider.IsConfigured("ConnectionStrings:Commerce") ? "Configured" : "Not configured")
             </MudChip>
             <MudText Typo="Typo.caption" Class="d-block mt-2">The connection string value is never displayed by this page.</MudText>
