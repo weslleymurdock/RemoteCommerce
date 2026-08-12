@@ -20,6 +20,7 @@
     <Using Include="Microsoft.AspNetCore.Localization" />
     <Using Include="Microsoft.AspNetCore.Mvc" />
     <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.EntityFrameworkCore.Infrastructure" />
     <Using Include="Microsoft.EntityFrameworkCore.Migrations" />
     <Using Include="Microsoft.Extensions.Configuration" />
     <Using Include="Microsoft.Extensions.Localization" />
@@ -30,6 +31,7 @@
     <Using Include="RemoteCommerce.Application.Identity" />
     <Using Include="RemoteCommerce.Application.Localization" />
     <Using Include="RemoteCommerce.Application.Pipeline" />
+    <Using Include="RemoteCommerce.Application.Plugins" />
     <Using Include="RemoteCommerce.Application.Security" />
     <Using Include="RemoteCommerce.Application.Site" />
     <Using Include="RemoteCommerce.Infrastructure.Persistence" />
