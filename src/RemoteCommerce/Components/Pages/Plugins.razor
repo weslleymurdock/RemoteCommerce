@@ -40,7 +40,7 @@
                 <MudText Typo="Typo.subtitle2">Package validation: @(_validation.IsValid ? "passed" : "failed")</MudText>
                 @if (_validation.Manifest is not null)
                 {
-                    <MudText Typo="Typo.body2">@_validation.Manifest.Name @ _validation.Manifest.Version — SHA-256 @_validation.PackageHash</MudText>
+                    <MudText Typo="Typo.body2">@_validation.Manifest.Name @_validation.Manifest.Version — SHA-256 @_validation.PackageHash</MudText>
                 }
                 @foreach (var issue in _validation.Issues)
                 {
