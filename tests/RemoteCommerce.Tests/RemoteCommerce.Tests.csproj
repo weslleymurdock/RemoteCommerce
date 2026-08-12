@@ -6,6 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="FluentValidation" />
+    <Using Include="MediatR" />
+    <Using Include="Microsoft.AspNetCore.Identity" />
+    <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="RemoteCommerce.Application.Identity" />
+    <Using Include="RemoteCommerce.Application.Security" />
+    <Using Include="RemoteCommerce.Application.Site" />
+    <Using Include="RemoteCommerce.Infrastructure.Persistence" />
+    <Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/RemoteCommerce/RemoteCommerce.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
