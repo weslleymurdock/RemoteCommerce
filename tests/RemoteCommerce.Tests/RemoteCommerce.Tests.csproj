@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/RemoteCommerce/RemoteCommerce.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="MediatR" />
     <PackageReference Include="FluentValidation" />
