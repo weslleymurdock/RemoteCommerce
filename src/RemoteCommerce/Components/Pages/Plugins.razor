@@ -1,5 +1,4 @@
 @page "/plugins"
-@using RemoteCommerce.Infrastructure.Persistence.Entities
 @using RemoteCommerce.Plugins
 @inject PluginManagementService PluginManagement
 @inject PluginInstallationService PluginInstallation
@@ -10,7 +9,6 @@
 <MudStack Spacing="3">
     <MudText Typo="Typo.h4">Plugins</MudText>
     <MudText Typo="Typo.body2">Install .nupkg extensions, inspect package information, manage persisted state, and restart the application to apply DI changes.</MudText>
-
     <MudPaper Class="pa-4">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
             <InputFile OnChange="OnPackageSelected" accept=".nupkg" />
@@ -19,15 +17,8 @@
         </MudStack>
         <MudText Typo="Typo.caption" Class="mt-2">Selected: @(_selectedFile?.Name ?? "No package selected")</MudText>
     </MudPaper>
-
-    @if (_loading)
-    {
-        <MudProgressLinear Indeterminate="true" />
-    }
-    else if (_plugins.Count == 0)
-    {
-        <MudAlert Severity="Severity.Info">No plugins are installed.</MudAlert>
-    }
+    @if (_loading) { <MudProgressLinear Indeterminate="true" /> }
+    else if (_plugins.Count == 0) { <MudAlert Severity="Severity.Info">No plugins are installed.</MudAlert> }
     else
     {
         @foreach (var plugin in _plugins)
@@ -62,22 +53,15 @@
                                 <MudText Typo="Typo.h6">LICENSE.md</MudText>
                                 <MudPaper Class="pa-3" Outlined="true" Style="white-space: pre-wrap; max-height: 320px; overflow-y: auto;">@documentation.License</MudPaper>
                             }
-                            else
-                            {
-                                <MudProgressCircular Indeterminate="true" />
-                            }
+                            else { <MudProgressCircular Indeterminate="true" /> }
                         </MudItem>
                         <MudItem xs="12">
                             <MudDivider Class="my-2" />
                             <MudStack Row="true" Spacing="1">
                                 @if (plugin.State == PluginInstallationState.Installed)
-                                {
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DisableAsync(plugin.PluginId))">Disable</MudButton>
-                                }
+                                { <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DisableAsync(plugin.PluginId))">Disable</MudButton> }
                                 else
-                                {
-                                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => EnableAsync(plugin.PluginId))">Enable</MudButton>
-                                }
+                                { <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => EnableAsync(plugin.PluginId))">Enable</MudButton> }
                                 <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text" OnClick="@(() => UninstallAsync(plugin.PluginId))">Uninstall</MudButton>
                             </MudStack>
                         </MudItem>
@@ -86,12 +70,11 @@
             </MudExpansionPanel>
         }
     }
-
     <MudAlert Severity="Severity.Info">Plugin installation, enable/disable, and uninstall operations are persisted immediately. Restart the application before expecting plugin services to change in the dependency injection container.</MudAlert>
 </MudStack>
 
 @code {
-    private IReadOnlyList<PluginInstallation> _plugins = [];
+    private IReadOnlyList<PluginInformation> _plugins = [];
     private readonly Dictionary<string, PluginDocumentation> _documentation = new(StringComparer.OrdinalIgnoreCase);
     private IBrowserFile? _selectedFile;
     private string? _expandedPluginId;
@@ -99,7 +82,6 @@
     private bool _busy;
 
     protected override async Task OnInitializedAsync() => await RefreshAsync();
-
     private void OnPackageSelected(InputFileChangeEventArgs args) => _selectedFile = args.File;
 
     private async Task OnExpandedChangedAsync(string pluginId, bool expanded)
@@ -125,9 +107,7 @@
             await using (var output = File.Create(path)) await input.CopyToAsync(output);
             await PluginInstallation.InstallAsync(path);
             Snackbar.Add("Plugin installed. Restart the application to activate it.", Severity.Success);
-            File.Delete(path);
-            _selectedFile = null;
-            await RefreshAsync();
+            File.Delete(path); _selectedFile = null; await RefreshAsync();
         }
         catch (Exception exception) { Snackbar.Add(exception.Message, Severity.Error); }
         finally { _busy = false; }
@@ -136,11 +116,5 @@
     private async Task DisableAsync(string pluginId) { await PluginManagement.DisableAsync(pluginId); Snackbar.Add("Plugin disabled for the next restart.", Severity.Info); await RefreshAsync(); }
     private async Task EnableAsync(string pluginId) { await PluginManagement.EnableAsync(pluginId); Snackbar.Add("Plugin enabled for the next restart.", Severity.Success); await RefreshAsync(); }
     private async Task UninstallAsync(string pluginId) { await PluginManagement.UninstallAsync(pluginId); _documentation.Remove(pluginId); Snackbar.Add("Plugin uninstalled. Restart the application to remove its loaded assembly.", Severity.Success); await RefreshAsync(); }
-
-    private async Task RefreshAsync()
-    {
-        _loading = true;
-        try { _plugins = await PluginManagement.ListAsync(); }
-        finally { _loading = false; }
-    }
+    private async Task RefreshAsync() { _loading = true; try { _plugins = await PluginManagement.ListAsync(); } finally { _loading = false; } }
 }
