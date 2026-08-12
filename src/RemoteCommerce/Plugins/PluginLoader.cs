@@ -1,15 +1,30 @@
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using RemoteCommerce.Infrastructure.Persistence;
 using RemoteCommerce.Plugins.Abstractions;
 
 namespace RemoteCommerce.Plugins;
 
-public sealed class PluginLoader(ILogger<PluginLoader> logger)
+/// <summary>
+/// Discovers and registers installed RemoteCommerce plugins before the application host is built.
+/// </summary>
+/// <param name="logger">The logger used to report plugin discovery failures.</param>
+/// <param name="dbFactory">The factory used to read persisted plugin activation state.</param>
+public sealed class PluginLoader(
+    ILogger<PluginLoader> logger,
+    IDbContextFactory<CommerceDbContext> dbFactory)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>
+    /// Loads all persisted active plugin packages into the supplied service collection.
+    /// </summary>
+    /// <param name="services">The application service collection that plugins may extend.</param>
+    /// <param name="pluginsRoot">The root directory containing installed plugin packages.</param>
+    /// <returns>The manifests of successfully loaded plugins.</returns>
     public IReadOnlyList<PluginManifest> Load(IServiceCollection services, string pluginsRoot)
     {
         if (!Directory.Exists(pluginsRoot))
@@ -17,9 +32,14 @@ public sealed class PluginLoader(ILogger<PluginLoader> logger)
             return [];
         }
 
+        var installed = dbFactory.CreateDbContext().PluginInstallations
+            .AsNoTracking()
+            .Where(x => x.State == PluginInstallationState.Installed)
+            .ToDictionary(x => x.PluginId, StringComparer.OrdinalIgnoreCase);
+
         var loaded = new List<PluginManifest>();
 
-        foreach (var manifestPath in Directory.EnumerateFiles(pluginsRoot, "plugin.manifest.json", SearchOption.AllDirectories))
+        foreach (var manifestPath in Directory.EnumerateFiles(pluginsRoot, "plugin.manifest.json", SearchOption.AllDirectories).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
         {
             try
             {
@@ -27,6 +47,11 @@ public sealed class PluginLoader(ILogger<PluginLoader> logger)
                     ?? throw new InvalidOperationException("Manifest is empty.");
 
                 ValidateManifest(manifest);
+
+                if (!installed.ContainsKey(manifest.Id))
+                {
+                    continue;
+                }
 
                 var pluginDirectory = Path.GetDirectoryName(manifestPath)!;
                 var assemblyPath = Path.GetFullPath(Path.Combine(pluginDirectory, manifest.EntryAssembly));
