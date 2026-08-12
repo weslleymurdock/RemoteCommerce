@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using RemoteCommerce.Infrastructure.Persistence.Entities;
 
@@ -5,7 +6,8 @@ namespace RemoteCommerce.Infrastructure.Persistence;
 
 /// <summary>Provides the EF Core persistence boundary for RemoteCommerce.</summary>
 /// <param name="options">The options configured for the database context.</param>
-public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> options) : DbContext(options)
+public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> options)
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
     /// <summary>Gets the installed plugin records.</summary>
     public DbSet<PluginInstallation> PluginInstallations => Set<PluginInstallation>();
@@ -22,11 +24,31 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
     /// <summary>Gets the plugin configuration values.</summary>
     public DbSet<PluginSetting> PluginSettings => Set<PluginSetting>();
 
+    /// <summary>Gets the editable site settings.</summary>
+    public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
+
+    /// <summary>Gets the administrative audit records.</summary>
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    /// <summary>Gets imported localization resource metadata.</summary>
+    public DbSet<LocalizationResource> LocalizationResources => Set<LocalizationResource>();
+
     /// <summary>Configures the relational model used by the commerce host.</summary>
     /// <param name="modelBuilder">The model builder used to configure entities.</param>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("commerce");
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+        });
+
+        modelBuilder.Entity<ApplicationRole>(entity =>
+        {
+            entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+        });
 
         modelBuilder.Entity<PluginInstallation>(entity =>
         {
@@ -85,6 +107,37 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
             entity.Property(x => x.Metadata).HasColumnType("nvarchar(max)");
         });
 
-        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<SiteSettings>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.SiteName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SiteDescription).HasMaxLength(2000).IsRequired();
+            entity.Property(x => x.PublicUrl).HasMaxLength(2048).IsRequired();
+            entity.Property(x => x.TimeZone).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Culture).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Locale).HasMaxLength(20).IsRequired();
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.CreatedAt);
+            entity.HasIndex(x => x.UserId);
+            entity.Property(x => x.Actor).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.Operation).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Resource).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.Result).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Context).HasColumnType("nvarchar(max)");
+        });
+
+        modelBuilder.Entity<LocalizationResource>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Culture, x.ResourceType, x.Version }).IsUnique();
+            entity.HasIndex(x => new { x.Culture, x.ResourceType, x.IsActive });
+            entity.Property(x => x.Culture).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.ResourceType).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
+        });
     }
 }
