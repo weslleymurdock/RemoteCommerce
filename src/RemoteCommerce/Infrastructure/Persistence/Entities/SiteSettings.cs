@@ -28,8 +28,5 @@ public sealed class SiteSettings : ISoftDeletable
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }

@@ -14,7 +14,5 @@ public sealed class PluginDependency : ISoftDeletable
     /// <summary>Gets or sets the optional exclusive maximum dependency version.</summary>
     public string? MaximumVersion { get; set; }
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }

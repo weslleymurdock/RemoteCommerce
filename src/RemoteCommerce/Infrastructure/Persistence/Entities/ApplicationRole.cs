@@ -7,8 +7,5 @@ public sealed class ApplicationRole : IdentityRole<Guid>, ISoftDeletable
     public string Description { get; set; } = string.Empty;
 
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }

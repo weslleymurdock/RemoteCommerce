@@ -18,7 +18,5 @@ public sealed class PluginVersion : ISoftDeletable
     /// <summary>Gets or sets whether this version is currently selected for activation.</summary>
     public bool IsCurrent { get; set; }
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }

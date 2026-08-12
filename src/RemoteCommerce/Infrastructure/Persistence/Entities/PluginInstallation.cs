@@ -26,7 +26,5 @@ public sealed class PluginInstallation : ISoftDeletable
     /// <summary>Gets or sets the UTC timestamp of the most recent lifecycle state transition.</summary>
     public DateTimeOffset UpdatedAt { get; set; }
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }

@@ -1,11 +1,8 @@
 namespace RemoteCommerce.Infrastructure.Persistence;
 
-/// <summary>Defines the persistence contract for records that are removed without physical deletion.</summary>
+/// <summary>Defines the persistence contract for records that are excluded from normal queries instead of being physically deleted.</summary>
 public interface ISoftDeletable
 {
-    /// <summary>Gets or sets whether the record is excluded from normal application queries.</summary>
-    bool IsDeleted { get; set; }
-
-    /// <summary>Gets or sets the UTC timestamp at which the record was soft-deleted.</summary>
-    DateTimeOffset? DeletedAt { get; set; }
+    /// <summary>Gets or sets whether the record has been soft-deleted.</summary>
+    bool IsDisabled { get; set; }
 }

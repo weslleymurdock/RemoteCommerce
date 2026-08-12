@@ -51,17 +51,15 @@ public sealed class CommerceDbContext(
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
             entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.Property(x => x.DeletedAt);
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<ApplicationRole>(entity =>
         {
             entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.Property(x => x.DeletedAt);
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<PluginInstallation>(entity =>
@@ -78,8 +76,8 @@ public sealed class CommerceDbContext(
             entity.Property(x => x.LastError).HasMaxLength(4000);
             entity.Property(x => x.InstalledAt).IsRequired();
             entity.Property(x => x.UpdatedAt).IsRequired();
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<PluginVersion>(entity =>
@@ -90,8 +88,8 @@ public sealed class CommerceDbContext(
             entity.Property(x => x.Version).HasMaxLength(50).IsRequired();
             entity.Property(x => x.PackagePath).HasMaxLength(2048).IsRequired();
             entity.Property(x => x.PackageHash).HasMaxLength(64).IsRequired();
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<PluginDependency>(entity =>
@@ -102,8 +100,8 @@ public sealed class CommerceDbContext(
             entity.Property(x => x.DependencyPluginId).HasMaxLength(200).IsRequired();
             entity.Property(x => x.MinimumVersion).HasMaxLength(50).IsRequired();
             entity.Property(x => x.MaximumVersion).HasMaxLength(50);
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<PluginLifecycleError>(entity =>
@@ -125,8 +123,8 @@ public sealed class CommerceDbContext(
             entity.Property(x => x.Key).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Value).HasColumnType("nvarchar(max)").IsRequired();
             entity.Property(x => x.Metadata).HasColumnType("nvarchar(max)");
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<SiteSettings>(entity =>
@@ -138,8 +136,8 @@ public sealed class CommerceDbContext(
             entity.Property(x => x.TimeZone).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Culture).HasMaxLength(20).IsRequired();
             entity.Property(x => x.Locale).HasMaxLength(20).IsRequired();
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<AuditLog>(entity =>
@@ -162,8 +160,8 @@ public sealed class CommerceDbContext(
             entity.Property(x => x.Culture).HasMaxLength(20).IsRequired();
             entity.Property(x => x.ResourceType).HasMaxLength(500).IsRequired();
             entity.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
-            entity.Property(x => x.IsDeleted).IsRequired();
-            entity.HasQueryFilter(x => !x.IsDeleted);
+            entity.Property(x => x.IsDisabled).IsRequired();
+            entity.HasQueryFilter(x => !x.IsDisabled);
         });
 
         modelBuilder.Entity<OperationHistory>(entity =>
@@ -190,12 +188,12 @@ public sealed class CommerceDbContext(
         foreach (var entry in entries)
         {
             var previousState = SerializeState(entry.OriginalValues.Properties.ToDictionary(property => property.Name, property => entry.OriginalValues[property]));
-            var operationType = entry.State == EntityState.Deleted ? "Delete" : "Update";
+            var wasDeleted = entry.State == EntityState.Deleted;
+            var operationType = wasDeleted ? "Delete" : "Update";
 
-            if (entry.Entity is ISoftDeletable softDeletable && entry.State == EntityState.Deleted)
+            if (entry.Entity is ISoftDeletable softDeletable && wasDeleted)
             {
-                softDeletable.IsDeleted = true;
-                softDeletable.DeletedAt = DateTimeOffset.UtcNow;
+                softDeletable.IsDisabled = true;
                 entry.State = EntityState.Modified;
                 operationType = "SoftDelete";
             }

@@ -14,7 +14,5 @@ public sealed class PluginSetting : ISoftDeletable
     /// <summary>Gets or sets optional JSON metadata describing the setting.</summary>
     public string? Metadata { get; set; }
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }

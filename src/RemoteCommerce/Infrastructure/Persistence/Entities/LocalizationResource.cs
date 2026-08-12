@@ -28,8 +28,5 @@ public sealed class LocalizationResource : ISoftDeletable
     public bool IsActive { get; set; }
 
     /// <inheritdoc />
-    public bool IsDeleted { get; set; }
-
-    /// <inheritdoc />
-    public DateTimeOffset? DeletedAt { get; set; }
+    public bool IsDisabled { get; set; }
 }
