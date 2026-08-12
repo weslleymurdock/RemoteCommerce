@@ -17,5 +17,12 @@
 - EF Core entities and DbContexts belong under `Infrastructure/Persistence` or a domain-specific extension boundary.
 - Controllers are thin HTTP adapters; application behavior belongs in DI services.
 
+## Public API documentation rule
+- Every public API introduced by RemoteCommerce must have XML documentation comments written in en-US.
+- Document every possible XML documentation element applicable to the API: `summary`, `remarks`, `param`, `returns`, `value`, `typeparam`, `exception`, `example`, `see`, `seealso`, and `inheritdoc` where applicable.
+- Public types, constructors, methods, properties, fields, events, delegates, interfaces, enum members, and public extension methods are included in this rule.
+- XML documentation must describe behavior and contracts rather than restating identifiers.
+- Configure the compiler to generate XML documentation and treat missing public documentation as a build error.
+
 ## Validation
 Every stage must build from a clean checkout. Add automated tests before introducing non-trivial business behavior.
