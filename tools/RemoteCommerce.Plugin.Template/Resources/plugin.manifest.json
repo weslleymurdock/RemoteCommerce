@@ -1,0 +1,20 @@
+{
+  "id": "{{PluginId}}",
+  "name": "{{Name}}",
+  "license": "LICENSE.md",
+  "readme": "README.md",
+  "version": "{{Version}}",
+  "entryAssembly": "lib/net10.0/{{PackageId}}.dll",
+  "entryType": "{{Namespace}}.PluginEntry",
+  "minHostVersion": "{{MinHostVersion}}",
+  "description": "{{Description}}",
+  "packageId": "{{PackageId}}",
+  "packageTags": "{{PackageTags}}",
+  "title": "{{Title}}",
+  "authors": "{{Authors}}",
+  "company": "{{Company}}",
+  "repositoryUrl": "{{RepositoryUrl}}",
+  "repositoryType": "{{RepositoryType}}",
+  "packageRequireLicenseAcceptance": {{PackageRequireLicenseAcceptance}},
+  "packageProjectUrl": "{{PackageProjectUrl}}"
+}
