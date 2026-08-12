@@ -37,7 +37,7 @@
             <MudTd DataLabel="Plugin">@context.PluginId</MudTd>
             <MudTd DataLabel="Version">@context.Version</MudTd>
             <MudTd DataLabel="State">
-                <MudChip Color="@(context.State == PluginInstallationState.Installed ? Color.Success : Color.Default)" Size="Size.Small">
+                <MudChip T=PluginInstallationState Color="@(context.State == PluginInstallationState.Installed ? Color.Success : Color.Default)" Size="Size.Small">
                     @context.State
                 </MudChip>
             </MudTd>
