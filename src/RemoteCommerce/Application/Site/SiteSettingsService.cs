@@ -1,27 +1,25 @@
-using System.Globalization;
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Infrastructure.Persistence;
-using RemoteCommerce.Infrastructure.Persistence.Entities;
-
 namespace RemoteCommerce.Application.Site;
 
 /// <summary>Implements validated persistent site configuration.</summary>
-/// <param name="dbFactory">The factory used to create persistence contexts.</param>
-public sealed class SiteSettingsService(IDbContextFactory<CommerceDbContext> dbFactory) : ISiteSettingsService
+/// <param name="dbFactory">The factory used to create read contexts.</param>
+/// <param name="db">The scoped context used by transactional mutations.</param>
+public sealed class SiteSettingsService(
+    IDbContextFactory<CommerceDbContext> dbFactory,
+    CommerceDbContext db) : ISiteSettingsService
 {
     private static readonly HashSet<string> SupportedCultures = ["en-US", "pt-BR"];
 
     /// <inheritdoc />
     public async Task<SiteSettingsModel> GetAsync(CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await db.SiteSettings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+        await using var readDb = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await readDb.SiteSettings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
 
         if (entity is null)
         {
             entity = new SiteSettings();
-            db.SiteSettings.Add(entity);
-            await db.SaveChangesAsync(cancellationToken);
+            readDb.SiteSettings.Add(entity);
+            await readDb.SaveChangesAsync(cancellationToken);
         }
 
         return ToModel(entity);
@@ -36,7 +34,6 @@ public sealed class SiteSettingsService(IDbContextFactory<CommerceDbContext> dbF
     {
         Validate(settings);
 
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.SiteSettings.SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
         var isNew = entity is null;
         entity ??= new SiteSettings();
