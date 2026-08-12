@@ -1,25 +1,8 @@
-using System.Globalization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Localization;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Localization;
-using MudBlazor;
-using MudBlazor.Services;
-using RemoteCommerce.Application.Administration;
-using RemoteCommerce.Application.Identity;
-using RemoteCommerce.Application.Localization;
-using RemoteCommerce.Application.Security;
-using RemoteCommerce.Application.Site;
-using RemoteCommerce.Components;
-using RemoteCommerce.Infrastructure.Persistence;
-using RemoteCommerce.Infrastructure.Persistence.Entities;
-using RemoteCommerce.Plugins;
-using Scalar.AspNetCore;
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddLocalization();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -66,12 +49,22 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManagePlugins)));
 });
 
+builder.Services.AddScoped<IApplicationContext, HttpApplicationContext>();
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
 builder.Services.AddScoped<LocalizationResourceService>();
 builder.Services.AddScoped<ILocalizationResourceService>(sp => sp.GetRequiredService<LocalizationResourceService>());
 builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
 builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+
+builder.Services.AddMediatR(configuration =>
+{
+    configuration.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    configuration.AddOpenBehavior(typeof(LoggingBehavior<,>));
+    configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
+    configuration.AddOpenBehavior(typeof(TransactionalBehavior<,>));
+});
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 var adminNavigation = new AdminNavigationRegistry();
 adminNavigation.Register(new AdminNavigationItem("Dashboard", "/", Icons.Material.Filled.Dashboard, 0));
