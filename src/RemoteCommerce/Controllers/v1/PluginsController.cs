@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using RemoteCommerce.Plugins;
 
-namespace RemoteCommerce.Controllers;
+namespace RemoteCommerce.Controllers.v1;
 
 /// <summary>
 /// Exposes administrative endpoints for RemoteCommerce plugin installation.
 /// </summary>
 [ApiController]
-[Route("api/plugins")]
+[Route("api/v1/plugins")]
+[Tags("Plugins")]
 public sealed class PluginsController(PluginInstallationService installationService) : ControllerBase
 {
     /// <summary>

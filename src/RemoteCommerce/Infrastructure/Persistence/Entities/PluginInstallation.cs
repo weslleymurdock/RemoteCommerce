@@ -1,3 +1,5 @@
+using RemoteCommerce.Plugins;
+
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>
