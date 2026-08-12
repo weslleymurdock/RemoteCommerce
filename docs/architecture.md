@@ -5,6 +5,11 @@ RemoteCommerce host (single ASP.NET Core project)
 ├── Blazor UI (Interactive Server)
 ├── Controllers / OpenAPI + Scalar
 ├── Application services
+│   ├── Site/application settings
+│   ├── ASP.NET Core Identity + authorization
+│   ├── Secret provider boundary
+│   ├── Localization/resource administration
+│   └── Administrative audit logging
 ├── EF Core + SQL Server
 ├── Plugin runtime
 |   ├── RemoteCommerce.Plugin.Abstractions SDK
@@ -31,6 +36,34 @@ The host is a single main application containing:
 - MudBlazor presentation components.
 - OpenAPI/Scalar for API discovery.
 - Plugin discovery, installation, lifecycle, and runtime assembly registration.
+
+## Site and deployment configuration
+
+`IConfiguration` represents deployment/host configuration: connection strings, infrastructure settings, environment variables, and references to deployment-managed secrets. It is not the persistence mechanism for values that an administrator edits through the application UI.
+
+Persistent application/site settings are stored in the exclusive store database and are exposed through `ISiteSettingsService` and the typed `SiteSettingsModel`. The initial settings include site name, description, public URL, time zone, default culture, and locale. Defaults are safe and validated before persistence.
+
+This separation keeps the deployment boundary independent from future database, media, payment, shipping, and federation provider configuration. Application settings may later be extended with provider selections without turning `IConfiguration` into an administrator-editable database.
+
+## Identity and authorization
+
+Authentication and user persistence use ASP.NET Core Identity with `ApplicationUser` and `ApplicationRole` stored in the existing `CommerceDbContext`. Browser authentication uses Identity application cookies. Passwords are hashed by Identity and are never persisted as application secrets.
+
+The first administrator is created through the one-time `/admin/setup` bootstrap endpoint when the user store is empty. The bootstrap creates the `Administrator` role and the baseline permission claims, then signs the administrator in.
+
+Authorization is expressed through named policies and permission claims. The `Administrator` role is accepted by the baseline administrative policies, while individual permission claims provide an extension point for more granular roles and future plugin-declared permissions. No WooCommerce-style ACL is introduced in this stage.
+
+The Blazor route boundary uses `AuthorizeRouteView`, and sensitive administration pages additionally declare their required policy. Plugin administration remains protected by the plugin-management policy and therefore continues to work without changing the plugin runtime lifecycle.
+
+## Secrets
+
+Application code consumes deployment-managed sensitive values through `ISecretProvider`. The initial `ConfigurationSecretProvider` delegates to ASP.NET Core configuration, which supports environment variables and other built-in configuration providers without introducing a proprietary secret store.
+
+Secret values are never persisted in the application database and are never displayed by the administration UI. The security status page reports only configured/not-configured state. The contract is intentionally small so future Docker Secrets, Kubernetes Secrets, Azure Key Vault, or other providers can be introduced without changing consumers.
+
+## Audit logging
+
+Administrative security events use an `AuditLog` persistence model and `IAuditLogService` boundary. Site configuration changes and localization imports are persisted with non-secret context. The audit model records actor, operation, resource, result, context, and UTC timestamp and is deliberately not a SIEM or observability implementation.
 
 ## Database isolation and multi-store federation
 
@@ -90,9 +123,11 @@ A separate document/blob provider boundary should support non-relational assets.
 
 ## Localization
 
-Localization is a first-class cross-cutting service. The preferred abstraction is a RemoteCommerce `ILocalizer` wrapper over `IStringLocalizer<T>`/the ASP.NET Core localization infrastructure, allowing resource selection by resource type while keeping UI/application code independent from the underlying resource mechanism.
+Localization is a first-class cross-cutting service. The RemoteCommerce `ILocalizer` wrapper is resource-type-aware and sits over the ASP.NET Core `IStringLocalizer<T>` infrastructure while also consulting administratively imported XML resources.
 
-Initial cultures are `en-US` and `pt-BR`. The localization system must support loading resource XML files through the administration UI, validation, versioning, and safe replacement without requiring code changes. Resource ownership and fallback behavior must be explicit.
+Initial cultures are `en-US` and `pt-BR`. Site configuration supplies the default culture, while ASP.NET Core request localization establishes `CurrentCulture`/`CurrentUICulture`. The configured site culture is used as the lowest-priority application provider so explicit query/cookie/browser preferences can still take precedence.
+
+Administratively imported resources are validated as `.resx`-compatible XML, protected against DTD/external-entity processing, assigned a monotonically increasing version, stored as files under `App_Data/localization`, and represented in SQL Server only by metadata, hash, version, importer, and activation state. `en-US` is the final fallback when a localized key is unavailable. Invalid resources are never activated.
 
 ## API namespaces
 
