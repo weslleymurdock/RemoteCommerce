@@ -13,8 +13,15 @@
     <PackageTags>RemoteCommerce;plugin;template;dotnet-tool</PackageTags>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>rc-plugin</AssemblyName>
+    <AssemblyTitle>rc-plugin</AssemblyTitle>
   </PropertyGroup>
   <ItemGroup>
     <None Include="Resources/**/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Pack="true" PackagePath="Resources" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="System.Security" />
+    <Using Include="System.Text" />
+    <Using Include="System.Text.Json" />
   </ItemGroup>
 </Project>
