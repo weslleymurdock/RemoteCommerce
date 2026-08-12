@@ -15,6 +15,7 @@
     <Using Include="Microsoft.AspNetCore.Antiforgery" />
     <Using Include="Microsoft.AspNetCore.Authorization" />
     <Using Include="Microsoft.AspNetCore.Components.Authorization" />
+    <Using Include="Microsoft.AspNetCore.Diagnostics" />
     <Using Include="Microsoft.AspNetCore.Identity" />
     <Using Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <Using Include="Microsoft.AspNetCore.Localization" />
