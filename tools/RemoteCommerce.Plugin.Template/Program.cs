@@ -1,6 +1,6 @@
+using System.Security;
 using System.Text;
 using System.Text.Json;
-using System.Xml.Linq;
 
 return await PluginTemplateGenerator.RunAsync(args);
 
@@ -16,27 +16,20 @@ internal static class PluginTemplateGenerator
 
         var outputDirectory = args.Length > 1 ? Path.GetFullPath(args[1]) : PromptRequired("Output directory");
         var projectName = args.Length > 2 ? args[2] : PromptRequired("Plugin project name");
-        if (Directory.Exists(outputDirectory) && Directory.EnumerateFileSystemEntries(outputDirectory).Any())
-            throw new InvalidOperationException("The output directory must be empty.");
+        if (Directory.Exists(outputDirectory) && Directory.EnumerateFileSystemEntries(outputDirectory).Any()) throw new InvalidOperationException("The output directory must be empty.");
         Directory.CreateDirectory(outputDirectory);
 
         var manifest = PromptManifest(projectName);
         var namespaceName = SanitizeIdentifier(projectName);
-        var packageId = manifest.PackageId;
-        var projectFileName = $"{packageId}.csproj";
-        var entryType = $"{namespaceName}.PluginEntry";
-        var entryAssembly = $"lib/net10.0/{packageId}.dll";
-        manifest = manifest with { EntryAssembly = entryAssembly, EntryType = entryType };
-
-        var baseProject = FindBaseProject(Directory.GetCurrentDirectory(), outputDirectory);
+        manifest = manifest with { EntryAssembly = $"lib/net10.0/{manifest.PackageId}.dll", EntryType = $"{namespaceName}.PluginEntry" };
+        var baseProject = FindBaseProject(Directory.GetCurrentDirectory());
         var baseReference = Path.GetRelativePath(outputDirectory, baseProject).Replace(Path.DirectorySeparatorChar, '/');
-        var csproj = BuildProjectFile(manifest, baseReference);
 
-        File.WriteAllText(Path.Combine(outputDirectory, projectFileName), csproj);
+        File.WriteAllText(Path.Combine(outputDirectory, $"{manifest.PackageId}.csproj"), BuildProjectFile(manifest, baseReference));
         File.WriteAllText(Path.Combine(outputDirectory, "plugin.manifest.json"), JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(Path.Combine(outputDirectory, "README.md"), $"# {manifest.Name}\n\n{manifest.Description}\n");
         File.WriteAllText(Path.Combine(outputDirectory, "LICENSE.md"), "Mozilla Public License Version 2.0\n\nReplace this file with the license terms applicable to your plugin.\n");
-        File.WriteAllText(Path.Combine(outputDirectory, "PluginEntry.cs"), BuildEntry(manifest, namespaceName));
+        File.WriteAllText(Path.Combine(outputDirectory, "PluginEntry.cs"), BuildEntry(namespaceName));
         File.WriteAllText(Path.Combine(outputDirectory, "_Imports.razor"), "@using Microsoft.AspNetCore.Components\n@using Microsoft.AspNetCore.Components.Routing\n@using Microsoft.AspNetCore.Components.Web\n");
 
         var mode = Prompt("Extension type (page/controller/both)", "both").ToLowerInvariant();
@@ -108,7 +101,7 @@ internal static class PluginTemplateGenerator
 </Project>
 """;
 
-    private static string BuildEntry(PluginManifestModel m, string ns) => $"""using Microsoft.Extensions.DependencyInjection;
+    private static string BuildEntry(string ns) => $"""using Microsoft.Extensions.DependencyInjection;
 using RemoteCommerce.Plugins.Abstractions;
 
 namespace {ns};
@@ -128,9 +121,7 @@ public sealed class PluginEntry : IRemoteCommercePlugin
 """;
 
     private static string BuildController(PluginManifestModel m, string ns) => $"""using Microsoft.AspNetCore.Mvc;
-
 namespace {ns}.Controllers;
-
 /// <summary>Provides the generated plugin controller endpoint.</summary>
 [ApiController]
 [Route(\"api/plugins/{m.Id}\")]
@@ -143,7 +134,7 @@ public sealed class PluginController : ControllerBase
 }}
 """;
 
-    private static string FindBaseProject(string currentDirectory, string outputDirectory)
+    private static string FindBaseProject(string currentDirectory)
     {
         var directory = new DirectoryInfo(currentDirectory);
         while (directory is not null)
@@ -152,7 +143,7 @@ public sealed class PluginController : ControllerBase
             if (File.Exists(candidate)) return candidate;
             directory = directory.Parent;
         }
-        throw new InvalidOperationException("Could not locate src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj. Run the tool from the RemoteCommerce repository or provide a repository-aware working directory.");
+        throw new InvalidOperationException("Could not locate src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj. Run the tool from the RemoteCommerce repository.");
     }
 
     private static string PromptRequired(string label) => Prompt(label, null, true);
@@ -171,13 +162,12 @@ public sealed class PluginController : ControllerBase
     private static string SanitizeIdentifier(string value)
     {
         var builder = new StringBuilder();
-        foreach (var c in value) if (char.IsLetterOrDigit(c) || c == '_') builder.Append(c); else builder.Append('_');
+        foreach (var c in value) builder.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
         if (builder.Length == 0 || char.IsDigit(builder[0])) builder.Insert(0, '_');
         return builder.ToString();
     }
 
     private static string Xml(string value) => SecurityElement.Escape(value) ?? string.Empty;
     private static string EscapeRazor(string value) => value.Replace("\"", "&quot;", StringComparison.Ordinal);
-
     private sealed record PluginManifestModel(string Id, string Name, string License, string Readme, string Version, string EntryAssembly, string EntryType, string MinHostVersion, string Description, string PackageId, string PackageTags, string Title, string Authors, string Company, string RepositoryUrl, string RepositoryType, bool PackageRequireLicenseAcceptance, string PackageProjectUrl);
 }
