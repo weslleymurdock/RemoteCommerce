@@ -5,6 +5,7 @@ using RemoteCommerce.Infrastructure.Persistence;
 using RemoteCommerce.Infrastructure.Persistence.Entities;
 using RemoteCommerce.Plugins;
 using RemoteCommerce.Plugins.Abstractions;
+using Xunit;
 
 namespace RemoteCommerce.Tests;
 
