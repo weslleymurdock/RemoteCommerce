@@ -69,6 +69,7 @@ builder.Services.AddScoped<LocalizationResourceService>();
 builder.Services.AddScoped<ILocalizationResourceService>(sp => sp.GetRequiredService<LocalizationResourceService>());
 builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
 builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
