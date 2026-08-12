@@ -1,11 +1,15 @@
 @page "/admin/roles"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using RemoteCommerce.Application.Identity
+@using RemoteCommerce.Application.Security
 @using RemoteCommerce.Infrastructure.Persistence.Entities
 @inject RoleManager<ApplicationRole> RoleManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuditLogService AuditLog
 @inject ISnackbar Snackbar
 
 <PageTitle>Roles | RemoteCommerce</PageTitle>
@@ -74,6 +78,11 @@
             Snackbar.Add(string.Join(" ", result.Errors.Select(x => x.Description)), Severity.Error);
             return;
         }
+
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var actor = state.User.Identity?.Name ?? "unknown";
+        var actorId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        await AuditLog.WriteAsync("identity.role.create", "Role", Guid.TryParse(actorId, out var id) ? id : null, actor, "Success", $"TargetRole={_name.Trim()}");
 
         _name = string.Empty;
         _description = string.Empty;
