@@ -16,11 +16,12 @@ builder.Services.AddDbContextFactory<CommerceDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
 
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
-builder.Services.AddScoped<PluginInstallationService>();
-var pluginLoader = new PluginLoader(
-    builder.Services.BuildServiceProvider().GetRequiredService<ILogger<PluginLoader>>(),
-    builder.Services.BuildServiceProvider().GetRequiredService<IDbContextFactory<CommerceDbContext>>());
-pluginLoader.Load(builder.Services, pluginsRoot);
+builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
+
+await using (var startupProvider = builder.Services.BuildServiceProvider())
+{
+    startupProvider.GetRequiredService<IServiceCollection>();
+}
 
 var app = builder.Build();
 
