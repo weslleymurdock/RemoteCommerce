@@ -1,16 +1,13 @@
 @page "/admin/users"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
 @using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Application.Security
 @using RemoteCommerce.Infrastructure.Persistence.Entities
+@using MediatR
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<ApplicationRole> RoleManager
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject IAuditLogService AuditLog
+@inject IMediator Mediator
 @inject ISnackbar Snackbar
 
 <PageTitle>Users | RemoteCommerce</PageTitle>
@@ -39,9 +36,7 @@
         <MudPaper Class="pa-5">
             <MudText Typo="Typo.h6">Existing users</MudText>
             <MudTable Items="_users" Dense="true" Hover="true" Class="mt-3">
-                <HeaderContent>
-                    <MudTh>Name</MudTh><MudTh>Email</MudTh><MudTh>Roles</MudTh><MudTh>State</MudTh>
-                </HeaderContent>
+                <HeaderContent><MudTh>Name</MudTh><MudTh>Email</MudTh><MudTh>Roles</MudTh><MudTh>State</MudTh></HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Name">@context.DisplayName</MudTd>
                     <MudTd DataLabel="Email">@context.Email</MudTd>
@@ -73,51 +68,28 @@
             var roles = await UserManager.GetRolesAsync(user);
             rows.Add(new UserRow(user.DisplayName, user.Email ?? string.Empty, string.Join(", ", roles), user.LockoutEnd));
         }
-
         _users = rows;
     }
 
     private async Task CreateAsync()
     {
-        if (string.IsNullOrWhiteSpace(_displayName) || string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_password))
+        try
         {
-            Snackbar.Add("Name, email and password are required.", Severity.Warning);
-            return;
+            await Mediator.Send(new CreateUserCommand(_displayName, _email, _password, _role));
+            _displayName = string.Empty;
+            _email = string.Empty;
+            _password = string.Empty;
+            Snackbar.Add("User created.", Severity.Success);
+            await LoadAsync();
         }
-
-        var user = new ApplicationUser
+        catch (ValidationException exception)
         {
-            UserName = _email.Trim(),
-            Email = _email.Trim(),
-            DisplayName = _displayName.Trim(),
-            EmailConfirmed = true,
-        };
-        var result = await UserManager.CreateAsync(user, _password);
-        if (!result.Succeeded)
-        {
-            Snackbar.Add(string.Join(" ", result.Errors.Select(x => x.Description)), Severity.Error);
-            return;
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
         }
-
-        if (!string.IsNullOrWhiteSpace(_role))
+        catch (Exception exception)
         {
-            var roleResult = await UserManager.AddToRoleAsync(user, _role);
-            if (!roleResult.Succeeded)
-            {
-                Snackbar.Add(string.Join(" ", roleResult.Errors.Select(x => x.Description)), Severity.Error);
-            }
+            Snackbar.Add(exception.Message, Severity.Error);
         }
-
-        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var actor = state.User.Identity?.Name ?? "unknown";
-        var actorId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        await AuditLog.WriteAsync("identity.user.create", "User", Guid.TryParse(actorId, out var id) ? id : null, actor, "Success", $"TargetUserId={user.Id}");
-
-        _displayName = string.Empty;
-        _email = string.Empty;
-        _password = string.Empty;
-        Snackbar.Add("User created.", Severity.Success);
-        await LoadAsync();
     }
 
     private sealed record UserRow(string DisplayName, string Email, string Roles, DateTimeOffset? LockoutEnd);
