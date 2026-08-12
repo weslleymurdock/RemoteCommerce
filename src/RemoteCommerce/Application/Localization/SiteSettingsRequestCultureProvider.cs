@@ -1,8 +1,3 @@
-using System.Globalization;
-using Microsoft.AspNetCore.Localization;
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Infrastructure.Persistence;
-
 namespace RemoteCommerce.Application.Localization;
 
 /// <summary>Uses persisted site culture as the lowest-priority application culture provider.</summary>
@@ -16,11 +11,7 @@ public sealed class SiteSettingsRequestCultureProvider(IDbContextFactory<Commerc
     {
         await using var db = await dbFactory.CreateDbContextAsync(httpContext.RequestAborted);
         var settings = await db.SiteSettings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, httpContext.RequestAborted);
-        if (settings is null)
-        {
-            return null;
-        }
-
+        if (settings is null) return null;
         try
         {
             _ = CultureInfo.GetCultureInfo(settings.Culture);
