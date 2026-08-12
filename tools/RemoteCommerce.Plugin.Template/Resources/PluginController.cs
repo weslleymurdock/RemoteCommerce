@@ -1,0 +1,18 @@
+using Microsoft.AspNetCore.Mvc;
+
+namespace {{Namespace}}.Controllers;
+
+/// <summary>
+/// Provides the generated plugin API endpoint.
+/// </summary>
+[ApiController]
+[Route("api/rp/{{ApiVersion}}/{{ControllerName}}")] 
+public sealed class PluginController : ControllerBase
+{
+    /// <summary>
+    /// Returns basic information about the plugin.
+    /// </summary>
+    /// <returns>The plugin identifier and version.</returns>
+    [HttpGet]
+    public object Get() => new { PluginId = "{{PluginId}}", Version = "{{Version}}" };
+}
