@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace RemoteCommerce.Plugins.Abstractions;
 
 /// <summary>
@@ -47,6 +49,7 @@ public sealed record PluginManifest(
 {
     /// <summary>Gets the declared plugin dependencies, or an empty collection when the package has none.</summary>
     /// <remarks>The collection is normalized to an empty array so callers do not need null checks.</remarks>
+    [JsonIgnore]
     public IReadOnlyList<PluginDependencyDeclaration> DependencyDeclarations => Dependencies ?? [];
 }
 
