@@ -1,0 +1,86 @@
+@page "/admin/settings"
+@attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
+@using Microsoft.AspNetCore.Authorization
+@using RemoteCommerce.Application.Identity
+@using RemoteCommerce.Application.Site
+@using System.Globalization
+@inject ISiteSettingsService SiteSettingsService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Site Settings | RemoteCommerce</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Site settings</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">These values are application settings persisted in the store database. Deployment configuration and secrets remain outside this model.</MudText>
+
+@if (_model is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudPaper Class="pa-5" MaxWidth="MaxWidth.Medium">
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="_model.SiteName" Label="Site name" Required="true" MaxLength="200" />
+            <MudTextField @bind-Value="_model.SiteDescription" Label="Site description" Lines="4" MaxLength="2000" Class="mt-4" />
+            <MudTextField @bind-Value="_model.PublicUrl" Label="Public/base URL" Required="true" HelperText="Use an absolute HTTP or HTTPS URL." Class="mt-4" />
+            <MudSelect @bind-Value="_model.Culture" Label="Default culture" Required="true" Class="mt-4">
+                <MudSelectItem Value="en-US">English (United States)</MudSelectItem>
+                <MudSelectItem Value="pt-BR">Português (Brasil)</MudSelectItem>
+            </MudSelect>
+            <MudSelect @bind-Value="_model.Locale" Label="Locale" Required="true" Class="mt-4">
+                <MudSelectItem Value="en-US">en-US</MudSelectItem>
+                <MudSelectItem Value="pt-BR">pt-BR</MudSelectItem>
+            </MudSelect>
+            <MudSelect @bind-Value="_model.TimeZone" Label="Time zone" Required="true" Class="mt-4">
+                @foreach (var timeZone in TimeZoneInfo.GetSystemTimeZones().OrderBy(x => x.Id))
+                {
+                    <MudSelectItem Value="@timeZone.Id">@timeZone.DisplayName (@timeZone.Id)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudStack Row="true" Class="mt-6">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="_saving">Save settings</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="LoadAsync" Disabled="_saving">Reset</MudButton>
+            </MudStack>
+        </MudForm>
+    </MudPaper>
+}
+
+@code {
+    private MudForm? _form;
+    private SiteSettingsModel? _model;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _model = await SiteSettingsService.GetAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_model is null) return;
+        await _form!.Validate();
+        if (!_form.IsValid) return;
+
+        _saving = true;
+        try
+        {
+            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authentication.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var actor = authentication.User.Identity?.Name ?? "system";
+            await SiteSettingsService.UpdateAsync(_model, Guid.TryParse(userId, out var id) ? id : null, actor);
+            Snackbar.Add("Site settings saved.", Severity.Success);
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add(exception.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
