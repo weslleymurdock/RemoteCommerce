@@ -10,7 +10,11 @@ namespace RemoteCommerce.Plugins;
 /// <summary>Discovers and registers installed RemoteCommerce plugins before the application host is built.</summary>
 /// <param name="logger">The logger used to report plugin discovery failures.</param>
 /// <param name="dbFactory">The factory used to read persisted plugin activation state.</param>
-public sealed class PluginLoader(ILogger<PluginLoader> logger, IDbContextFactory<CommerceDbContext> dbFactory)
+/// <param name="configuration">The host application configuration exposed to plugins during startup.</param>
+public sealed class PluginLoader(
+    ILogger<PluginLoader> logger,
+    IDbContextFactory<CommerceDbContext> dbFactory,
+    IConfiguration configuration)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -39,7 +43,7 @@ public sealed class PluginLoader(ILogger<PluginLoader> logger, IDbContextFactory
                 var pluginType = assembly.GetType(manifest.EntryType, true, false) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' was not found.");
                 if (!typeof(IRemoteCommercePlugin).IsAssignableFrom(pluginType)) throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' must implement IRemoteCommercePlugin.");
                 var plugin = (IRemoteCommercePlugin)Activator.CreateInstance(pluginType)!;
-                plugin.ConfigureServices(services, manifest);
+                plugin.ConfigureServices(services, manifest, configuration);
                 PluginAssemblyRegistry.Add(assembly);
                 loaded.Add(manifest);
                 logger.LogInformation("Loaded plugin {PluginId} version {PluginVersion}.", manifest.Id, manifest.Version);
