@@ -1,7 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Configuration;
-
 namespace RemoteCommerce.Infrastructure.Persistence;
 
 /// <summary>Creates <see cref="CommerceDbContext"/> instances for EF Core design-time operations.</summary>
@@ -35,6 +31,14 @@ public sealed class CommerceDbContextDesignTimeFactory : IDesignTimeDbContextFac
             .UseSqlServer(connectionString)
             .Options;
 
-        return new CommerceDbContext(options);
+        return new CommerceDbContext(options, new DesignTimeApplicationContext());
+    }
+
+    private sealed class DesignTimeApplicationContext : IApplicationContext
+    {
+        public Guid? UserId => null;
+        public string Actor => "design-time";
+        public string CorrelationId => "design-time";
+        public string? IpAddress => null;
     }
 }
