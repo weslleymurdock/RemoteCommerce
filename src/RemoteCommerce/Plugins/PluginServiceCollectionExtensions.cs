@@ -14,6 +14,7 @@ public static class PluginServiceCollectionExtensions
     public static void AddInstalledRemoteCommercePlugins(this IServiceCollection services, string pluginsRoot, IConfiguration configuration)
     {
         services.AddSingleton<IApplicationRestartService, ApplicationRestartService>();
+        services.AddSingleton<IPluginPackageSource, TrustedPluginPackageSource>();
         services.AddScoped<IPluginManifestValidator, PluginManifestValidator>();
         services.AddScoped<IPluginCompatibilityValidator, PluginCompatibilityValidator>();
         services.AddScoped<IPluginPackageValidator, PluginPackageValidator>();
