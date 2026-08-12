@@ -30,6 +30,7 @@
 - Do not merge pull requests unless the user explicitly requests a merge. PRs remain open for user validation by default.
 - Maintain exactly one open pull request for the repository at a time. Do not open a new stage PR while another PR is open. New stages must be based on the latest integrated main history so integration remains linear.
 - Preserve a linear integration history. Prefer fast-forward or rebase-based integration; do not introduce merge commits unless explicitly requested by the user.
+- After a pull request has been successfully integrated and all required CI/jobs have passed, delete its working branch. Historical stage branches must not be retained after successful integration unless the user explicitly requests preservation.
 
 ## Public API documentation rule
 - Every public API introduced by RemoteCommerce must have XML documentation comments written in en-US.
