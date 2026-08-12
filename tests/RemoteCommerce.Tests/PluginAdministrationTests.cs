@@ -15,7 +15,7 @@ public sealed class PluginAdministrationTests
     public async Task PackageValidation_RejectsMissingReadme()
     {
         var path = await CreatePackageAsync(includeReadme: false, includeLicense: true);
-        try { var result = await CreatePackageValidator().ValidateAsync(path); Assert.Contains(result.Issues, x => x.Code == "README_MISSING"); Assert.False(result.IsValid); }
+        try { var result = await CreatePackageValidator().ValidateAsync(path, CancellationToken.None); Assert.Contains(result.Issues, x => x.Code == "README_MISSING"); Assert.False(result.IsValid); }
         finally { File.Delete(path); }
     }
 
@@ -23,7 +23,7 @@ public sealed class PluginAdministrationTests
     public async Task PackageValidation_RejectsMissingLicense()
     {
         var path = await CreatePackageAsync(includeReadme: true, includeLicense: false);
-        try { var result = await CreatePackageValidator().ValidateAsync(path); Assert.Contains(result.Issues, x => x.Code == "LICENSE_MISSING"); Assert.False(result.IsValid); }
+        try { var result = await CreatePackageValidator().ValidateAsync(path, CancellationToken.None); Assert.Contains(result.Issues, x => x.Code == "LICENSE_MISSING"); Assert.False(result.IsValid); }
         finally { File.Delete(path); }
     }
 
@@ -31,7 +31,7 @@ public sealed class PluginAdministrationTests
     public async Task PackageValidation_RejectsInvalidEntrypoint()
     {
         var path = await CreatePackageAsync(entryType: "InvalidType");
-        try { var result = await CreatePackageValidator().ValidateAsync(path); Assert.Contains(result.Issues, x => x.Code == "ENTRY_TYPE_INVALID"); Assert.False(result.IsValid); }
+        try { var result = await CreatePackageValidator().ValidateAsync(path, CancellationToken.None); Assert.Contains(result.Issues, x => x.Code == "ENTRY_TYPE_INVALID"); Assert.False(result.IsValid); }
         finally { File.Delete(path); }
     }
 
@@ -39,7 +39,7 @@ public sealed class PluginAdministrationTests
     public async Task PackageValidation_RejectsIncompatibleFramework()
     {
         var path = await CreatePackageAsync(entryAssembly: "lib/net9.0/TestPlugin.dll");
-        try { var result = await CreatePackageValidator().ValidateAsync(path); Assert.Contains(result.Issues, x => x.Code == "ENTRY_ASSEMBLY_TARGET_INVALID"); Assert.False(result.IsValid); }
+        try { var result = await CreatePackageValidator().ValidateAsync(path, CancellationToken.None); Assert.Contains(result.Issues, x => x.Code == "ENTRY_ASSEMBLY_TARGET_INVALID"); Assert.False(result.IsValid); }
         finally { File.Delete(path); }
     }
 
@@ -47,7 +47,7 @@ public sealed class PluginAdministrationTests
     public async Task PackageValidation_RejectsIncompatibleRemoteCommerceVersion()
     {
         var path = await CreatePackageAsync(minHostVersion: "999.0.0");
-        try { var result = await CreatePackageValidator().ValidateAsync(path); Assert.Contains(result.Issues, x => x.Code == "HOST_VERSION_INCOMPATIBLE"); Assert.False(result.IsValid); }
+        try { var result = await CreatePackageValidator().ValidateAsync(path, CancellationToken.None); Assert.Contains(result.Issues, x => x.Code == "HOST_VERSION_INCOMPATIBLE"); Assert.False(result.IsValid); }
         finally { File.Delete(path); }
     }
 
@@ -55,7 +55,7 @@ public sealed class PluginAdministrationTests
     public async Task PackageValidation_ProducesIntegrityHash()
     {
         var path = await CreatePackageAsync();
-        try { var result = await CreatePackageValidator().ValidateAsync(path); Assert.True(result.IsValid); Assert.Equal(64, result.PackageHash.Length); Assert.NotNull(result.Manifest); }
+        try { var result = await CreatePackageValidator().ValidateAsync(path, CancellationToken.None); Assert.True(result.IsValid); Assert.Equal(64, result.PackageHash.Length); Assert.NotNull(result.Manifest); }
         finally { File.Delete(path); }
     }
 
@@ -65,7 +65,7 @@ public sealed class PluginAdministrationTests
         var options = CreateOptions();
         await using var db = new CommerceDbContext(options);
         var validator = new PluginDependencyValidator(new TestDbContextFactory(options));
-        var issues = await validator.ValidateAsync(CreateManifest(dependencies: [new PluginDependencyDeclaration("missing", "1.0.0")]));
+        var issues = await validator.ValidateAsync(CreateManifest(dependencies: [new PluginDependencyDeclaration("missing", "1.0.0")]), CancellationToken.None);
         Assert.Contains(issues, x => x.Code == "DEPENDENCY_MISSING");
     }
 
@@ -75,9 +75,9 @@ public sealed class PluginAdministrationTests
         var options = CreateOptions();
         await using var db = new CommerceDbContext(options);
         db.PluginInstallations.Add(CreateInstallation("dependency", "1.0.0", PluginInstallationState.Loaded));
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         var validator = new PluginDependencyValidator(new TestDbContextFactory(options));
-        var issues = await validator.ValidateAsync(CreateManifest(dependencies: [new PluginDependencyDeclaration("dependency", "2.0.0")]));
+        var issues = await validator.ValidateAsync(CreateManifest(dependencies: [new PluginDependencyDeclaration("dependency", "2.0.0")]), CancellationToken.None);
         Assert.Contains(issues, x => x.Code == "DEPENDENCY_INCOMPATIBLE");
     }
 
@@ -87,9 +87,9 @@ public sealed class PluginAdministrationTests
         var options = CreateOptions();
         await using var db = new CommerceDbContext(options);
         db.PluginInstallations.Add(CreateInstallation("dependency", "1.0.0", PluginInstallationState.Disabled, PluginDesiredState.Disabled));
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         var validator = new PluginDependencyValidator(new TestDbContextFactory(options));
-        var issues = await validator.ValidateAsync(CreateManifest(dependencies: [new PluginDependencyDeclaration("dependency", "1.0.0")]));
+        var issues = await validator.ValidateAsync(CreateManifest(dependencies: [new PluginDependencyDeclaration("dependency", "1.0.0")]), CancellationToken.None);
         Assert.Contains(issues, x => x.Code == "DEPENDENCY_DISABLED");
     }
 
@@ -102,9 +102,9 @@ public sealed class PluginAdministrationTests
         db.PluginDependencies.AddRange(
             new PluginDependency { Id = Guid.NewGuid(), PluginId = "plugin-a", DependencyPluginId = "plugin-b", MinimumVersion = "1.0.0" },
             new PluginDependency { Id = Guid.NewGuid(), PluginId = "plugin-b", DependencyPluginId = "plugin-a", MinimumVersion = "1.0.0" });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         var validator = new PluginDependencyValidator(new TestDbContextFactory(options));
-        var issues = await validator.ValidateAsync(CreateManifest(id: "plugin-a", dependencies: [new PluginDependencyDeclaration("plugin-b", "1.0.0")]));
+        var issues = await validator.ValidateAsync(CreateManifest(id: "plugin-a", dependencies: [new PluginDependencyDeclaration("plugin-b", "1.0.0")]), CancellationToken.None);
         Assert.Contains(issues, x => x.Code == "DEPENDENCY_CYCLE");
     }
 
@@ -114,22 +114,22 @@ public sealed class PluginAdministrationTests
         var options = CreateOptions();
         await using var db = new CommerceDbContext(options);
         db.PluginInstallations.Add(CreateInstallation("plugin", "1.0.0", PluginInstallationState.Loaded));
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         var restart = new ApplicationRestartService();
         var management = new PluginManagementService(new TestDbContextFactory(options), restart);
 
-        await management.DisableAsync("plugin");
+        await management.DisableAsync("plugin", CancellationToken.None);
         await using (var verification = new CommerceDbContext(options))
         {
-            var disabled = await verification.PluginInstallations.SingleAsync();
+            var disabled = await verification.PluginInstallations.SingleAsync(CancellationToken.None);
             Assert.Equal(PluginDesiredState.Disabled, disabled.DesiredState);
             Assert.Equal(PluginInstallationState.ActivationPending, disabled.State);
         }
         Assert.True(restart.Status.Required);
 
-        await management.EnableAsync("plugin");
+        await management.EnableAsync("plugin", CancellationToken.None);
         await using var finalVerification = new CommerceDbContext(options);
-        var enabled = await finalVerification.PluginInstallations.SingleAsync();
+        var enabled = await finalVerification.PluginInstallations.SingleAsync(CancellationToken.None);
         Assert.Equal(PluginDesiredState.Enabled, enabled.DesiredState);
         Assert.Equal(PluginInstallationState.ActivationPending, enabled.State);
     }
@@ -141,10 +141,10 @@ public sealed class PluginAdministrationTests
         await using var db = new CommerceDbContext(options);
         db.PluginInstallations.AddRange(CreateInstallation("base", "1.0.0", PluginInstallationState.Loaded), CreateInstallation("dependent", "1.0.0", PluginInstallationState.Loaded));
         db.PluginDependencies.Add(new PluginDependency { Id = Guid.NewGuid(), PluginId = "dependent", DependencyPluginId = "base", MinimumVersion = "1.0.0" });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         var management = new PluginManagementService(new TestDbContextFactory(options), new ApplicationRestartService());
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => management.UninstallAsync("base"));
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => management.UninstallAsync("base", CancellationToken.None));
         Assert.Contains("dependent", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -157,12 +157,12 @@ public sealed class PluginAdministrationTests
         db.PluginVersions.AddRange(
             new PluginVersion { Id = Guid.NewGuid(), PluginId = "plugin", Version = "1.0.0", PackagePath = "old", PackageHash = "old", InstalledAt = DateTimeOffset.UtcNow.AddDays(-1), IsCurrent = false },
             new PluginVersion { Id = Guid.NewGuid(), PluginId = "plugin", Version = "2.0.0", PackagePath = "new", PackageHash = "new", InstalledAt = DateTimeOffset.UtcNow, IsCurrent = true });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(CancellationToken.None);
         var management = new PluginManagementService(new TestDbContextFactory(options), new ApplicationRestartService());
 
-        await management.RollbackAsync("plugin", "1.0.0");
+        await management.RollbackAsync("plugin", "1.0.0", CancellationToken.None);
         await using var verification = new CommerceDbContext(options);
-        var installation = await verification.PluginInstallations.SingleAsync();
+        var installation = await verification.PluginInstallations.SingleAsync(CancellationToken.None);
         Assert.Equal("1.0.0", installation.Version);
         Assert.Equal(PluginInstallationState.ActivationPending, installation.State);
         Assert.Equal("old", installation.PackagePath);
