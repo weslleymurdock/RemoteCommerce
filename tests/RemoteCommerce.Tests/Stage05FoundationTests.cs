@@ -54,6 +54,8 @@ public sealed class Stage05FoundationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<IApplicationContext, TestApplicationContext>();
+        services.AddDbContext<CommerceDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
         services.AddMediatR(configuration =>
         {
             configuration.RegisterServicesFromAssembly(typeof(Stage05FoundationTests).Assembly);
@@ -64,9 +66,7 @@ public sealed class Stage05FoundationTests
         services.AddValidatorsFromAssembly(typeof(Stage05FoundationTests).Assembly);
         await using var provider = services.BuildServiceProvider();
         var mediator = provider.GetRequiredService<IMediator>();
-
-        var result = await mediator.Send(new PingQuery("valid"));
-        Assert.Equal("valid", result);
+        Assert.Equal("valid", await mediator.Send(new PingQuery("valid")));
         await Assert.ThrowsAsync<ValidationException>(() => mediator.Send(new PingQuery(string.Empty)));
     }
 
@@ -182,15 +182,12 @@ public sealed class Stage05FoundationTests
 }
 
 internal sealed record PingQuery(string Value) : IQuery<string>;
-
 internal sealed class PingQueryValidator : AbstractValidator<PingQuery>
 {
     public PingQueryValidator() => RuleFor(x => x.Value).NotEmpty();
 }
-
 internal sealed class PingQueryHandler : IRequestHandler<PingQuery, string>
 {
     public Task<string> Handle(PingQuery request, CancellationToken cancellationToken) => Task.FromResult(request.Value);
 }
-
 internal sealed record FailingCommand : ITransactionalCommand;
