@@ -21,6 +21,7 @@
     <Using Include="Microsoft.AspNetCore.Localization" />
     <Using Include="Microsoft.AspNetCore.Mvc" />
     <Using Include="Microsoft.EntityFrameworkCore" />
+    <Using Include="Microsoft.EntityFrameworkCore.Design" />
     <Using Include="Microsoft.EntityFrameworkCore.Infrastructure" />
     <Using Include="Microsoft.EntityFrameworkCore.Migrations" />
     <Using Include="Microsoft.Extensions.Configuration" />
