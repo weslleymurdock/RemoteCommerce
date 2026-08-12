@@ -55,13 +55,13 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthorizationPolicies.Administrator, policy =>
         policy.RequireRole("Administrator"));
     options.AddPolicy(AuthorizationPolicies.ManageConfiguration, policy =>
-        policy.RequireClaim("permission", AuthorizationPolicies.ManageConfiguration));
+        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageConfiguration)));
     options.AddPolicy(AuthorizationPolicies.ManageUsers, policy =>
-        policy.RequireClaim("permission", AuthorizationPolicies.ManageUsers));
+        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageUsers)));
     options.AddPolicy(AuthorizationPolicies.ManageLocalization, policy =>
-        policy.RequireClaim("permission", AuthorizationPolicies.ManageLocalization));
+        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageLocalization)));
     options.AddPolicy(AuthorizationPolicies.ManagePlugins, policy =>
-        policy.RequireClaim("permission", AuthorizationPolicies.ManagePlugins));
+        policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManagePlugins)));
 });
 
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
