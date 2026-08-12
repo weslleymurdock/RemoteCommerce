@@ -40,6 +40,7 @@ public sealed class Stage04PluginAdministration : Migration
             END
             ELSE
             BEGIN
+                IF COL_LENGTH(N'commerce.PluginInstallations', N'PackagePath') IS NOT NULL ALTER TABLE commerce.PluginInstallations ALTER COLUMN PackagePath nvarchar(2048) NOT NULL;
                 IF COL_LENGTH(N'commerce.PluginInstallations', N'DesiredState') IS NULL ALTER TABLE commerce.PluginInstallations ADD DesiredState int NOT NULL CONSTRAINT DF_PluginInstallations_DesiredState DEFAULT 0;
                 IF COL_LENGTH(N'commerce.PluginInstallations', N'PackageHash') IS NULL ALTER TABLE commerce.PluginInstallations ADD PackageHash nvarchar(64) NOT NULL CONSTRAINT DF_PluginInstallations_PackageHash DEFAULT N'';
                 IF COL_LENGTH(N'commerce.PluginInstallations', N'PendingVersion') IS NULL ALTER TABLE commerce.PluginInstallations ADD PendingVersion nvarchar(50) NULL;
