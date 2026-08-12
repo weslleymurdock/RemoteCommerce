@@ -1,22 +1,8 @@
-using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Application.Identity;
-using RemoteCommerce.Application.Security;
-using RemoteCommerce.Infrastructure.Persistence.Entities;
-
 namespace RemoteCommerce.Controllers;
 
 /// <summary>Provides browser endpoints for authentication and first-administrator bootstrap.</summary>
 [ApiController]
-public sealed class AccountController(
-    UserManager<ApplicationUser> userManager,
-    RoleManager<ApplicationRole> roleManager,
-    SignInManager<ApplicationUser> signInManager,
-    IAntiforgery antiforgery,
-    IAuditLogService auditLog) : ControllerBase
+public sealed class AccountController(IMediator mediator, IAntiforgery antiforgery) : ControllerBase
 {
     /// <summary>Renders the sign-in form.</summary>
     /// <param name="returnUrl">The optional local URL to return to after authentication.</param>
@@ -38,60 +24,44 @@ public sealed class AccountController(
         return Html(html.Replace("__TOKEN__", token, StringComparison.Ordinal).Replace("__RETURN_URL__", HtmlEncode(safeReturnUrl), StringComparison.Ordinal));
     }
 
-    /// <summary>Authenticates a user with ASP.NET Core Identity.</summary>
+    /// <summary>Authenticates a user with ASP.NET Core Identity through the application command pipeline.</summary>
     /// <param name="email">The user's email address.</param>
     /// <param name="password">The user's password.</param>
     /// <param name="returnUrl">The optional local URL to return to after authentication.</param>
-    /// <returns>A redirect to the requested local URL or the dashboard.</returns>
+    /// <returns>A redirect to the requested local URL or an authentication failure response.</returns>
     [AllowAnonymous]
     [HttpPost("/login")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> LoginPost(
-        [FromForm] string email,
-        [FromForm] string password,
-        [FromForm] string? returnUrl)
+    public async Task<IActionResult> LoginPost([FromForm] string email, [FromForm] string password, [FromForm] string? returnUrl, CancellationToken cancellationToken)
     {
-        var normalizedEmail = email.Trim();
-        var user = await userManager.FindByEmailAsync(normalizedEmail);
-        if (user is null)
-        {
-            await auditLog.WriteAsync("identity.login", "User", null, normalizedEmail, "Failed", "Reason=InvalidCredentials");
-            return Unauthorized("Invalid credentials.");
-        }
-
-        var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: false, lockoutOnFailure: true);
+        var result = await mediator.Send(new LoginCommand(email, password), cancellationToken);
         if (!result.Succeeded)
         {
-            await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, "Failed", result.IsLockedOut ? "Reason=LockedOut" : "Reason=InvalidCredentials");
-            return Unauthorized(result.IsLockedOut ? "Account temporarily locked." : "Invalid credentials.");
+            return Unauthorized(result.LockedOut ? "Account temporarily locked." : "Invalid credentials.");
         }
-
-        await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, "Success");
         return Redirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : "/");
     }
 
     /// <summary>Signs out the current authenticated user.</summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A redirect to the sign-in page.</returns>
     [Authorize]
     [HttpPost("/account/logout")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var parsedId = Guid.TryParse(userId, out var id) ? id : (Guid?)null;
-        var actor = User.Identity?.Name ?? "unknown";
-        await signInManager.SignOutAsync();
-        await auditLog.WriteAsync("identity.logout", "User", parsedId, actor, "Success");
+        await mediator.Send(new LogoutCommand(), cancellationToken);
         return Redirect("/login");
     }
 
     /// <summary>Renders the first-administrator setup form when no user exists.</summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>An HTML setup document or a redirect when setup is already complete.</returns>
     [AllowAnonymous]
     [HttpGet("/admin/setup")]
-    public async Task<ContentResult> Setup()
+    public async Task<ContentResult> Setup(CancellationToken cancellationToken)
     {
-        if (await userManager.Users.AnyAsync())
+        if (!await mediator.Send(new GetSetupStatusQuery(), cancellationToken))
         {
             return Html("<html><body><h1>Setup already completed</h1><a href='/login'>Sign in</a></body></html>");
         }
@@ -106,75 +76,18 @@ public sealed class AccountController(
         return Html(html.Replace("__TOKEN__", token, StringComparison.Ordinal));
     }
 
-    /// <summary>Creates the first administrator and grants the baseline administration permissions.</summary>
+    /// <summary>Creates the first administrator through the MediatR application pipeline.</summary>
     /// <param name="displayName">The administrator display name.</param>
     /// <param name="email">The administrator email address.</param>
     /// <param name="password">The administrator password.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A redirect to the dashboard or a validation response.</returns>
     [AllowAnonymous]
     [HttpPost("/admin/setup")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SetupPost(
-        [FromForm] string displayName,
-        [FromForm] string email,
-        [FromForm] string password)
+    public async Task<IActionResult> SetupPost([FromForm] string displayName, [FromForm] string email, [FromForm] string password, CancellationToken cancellationToken)
     {
-        if (await userManager.Users.AnyAsync())
-        {
-            return Conflict("Initial administrator setup has already been completed.");
-        }
-
-        const string roleName = "Administrator";
-        if (!await roleManager.RoleExistsAsync(roleName))
-        {
-            var roleResult = await roleManager.CreateAsync(new ApplicationRole
-            {
-                Name = roleName,
-                Description = "Full access to RemoteCommerce administration.",
-            });
-            if (!roleResult.Succeeded)
-            {
-                return BadRequest(roleResult.Errors.Select(x => x.Description));
-            }
-        }
-
-        var user = new ApplicationUser
-        {
-            UserName = email.Trim(),
-            Email = email.Trim(),
-            DisplayName = displayName.Trim(),
-            EmailConfirmed = true,
-        };
-
-        var createResult = await userManager.CreateAsync(user, password);
-        if (!createResult.Succeeded)
-        {
-            return BadRequest(createResult.Errors.Select(x => x.Description));
-        }
-
-        var roleResultAfterCreation = await userManager.AddToRoleAsync(user, roleName);
-        if (!roleResultAfterCreation.Succeeded)
-        {
-            return BadRequest(roleResultAfterCreation.Errors.Select(x => x.Description));
-        }
-
-        foreach (var permission in new[]
-        {
-            AuthorizationPolicies.ManageConfiguration,
-            AuthorizationPolicies.ManageUsers,
-            AuthorizationPolicies.ManageLocalization,
-            AuthorizationPolicies.ManagePlugins,
-        })
-        {
-            var claimResult = await userManager.AddClaimAsync(user, new System.Security.Claims.Claim("permission", permission));
-            if (!claimResult.Succeeded)
-            {
-                return BadRequest(claimResult.Errors.Select(x => x.Description));
-            }
-        }
-
-        await signInManager.SignInAsync(user, isPersistent: false);
-        await auditLog.WriteAsync("identity.bootstrap", "User", user.Id, user.DisplayName, "Success");
+        await mediator.Send(new BootstrapAdministratorCommand(displayName, email, password), cancellationToken);
         return Redirect("/");
     }
 
@@ -184,5 +97,5 @@ public sealed class AccountController(
         Content = content,
     };
 
-    private static string HtmlEncode(string value) => System.Net.WebUtility.HtmlEncode(value);
+    private static string HtmlEncode(string value) => WebUtility.HtmlEncode(value);
 }
