@@ -4,8 +4,9 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using RemoteCommerce.Application.Identity
 @using RemoteCommerce.Application.Site
+@using MediatR
 @inject ISiteSettingsService SiteSettingsService
-@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IMediator Mediator
 @inject ISnackbar Snackbar
 
 <PageTitle>Site Settings | RemoteCommerce</PageTitle>
@@ -64,11 +65,12 @@ else
         _saving = true;
         try
         {
-            var authentication = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var userId = authentication.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var actor = authentication.User.Identity?.Name ?? "system";
-            await SiteSettingsService.UpdateAsync(_model, Guid.TryParse(userId, out var id) ? id : null, actor);
+            _model = await Mediator.Send(new UpdateSiteSettingsCommand(_model));
             Snackbar.Add("Site settings saved.", Severity.Success);
+        }
+        catch (ValidationException exception)
+        {
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
         }
         catch (Exception exception)
         {
