@@ -40,9 +40,7 @@ public sealed class PluginsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<PluginPackageValidationResult>> Validate(IFormFile package, CancellationToken cancellationToken)
     {
-        if (package.Length == 0 || !package.FileName.EndsWith(".nupkg", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new ProblemDetails { Title = "Invalid plugin package.", Detail = "The uploaded file must be a non-empty .nupkg file." });
-
+        if (!IsPackage(package)) return InvalidPackage();
         return await WithTemporaryPackageAsync(package, async path => Ok(await installationService.ValidatePackageAsync(path, cancellationToken)), cancellationToken);
     }
 
@@ -58,14 +56,19 @@ public sealed class PluginsController(
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<InstallPluginResponse>> Install(IFormFile package, CancellationToken cancellationToken)
     {
-        if (package.Length == 0 || !package.FileName.EndsWith(".nupkg", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new ProblemDetails { Title = "Invalid plugin package.", Detail = "The uploaded file must be a non-empty .nupkg file." });
-
-        return await ExecutePackageOperationAsync(package, async path =>
+        if (!IsPackage(package)) return InvalidPackage();
+        try
         {
-            var manifest = await installationService.InstallAsync(path, cancellationToken);
-            return CreatedAtAction(nameof(List), null, new InstallPluginResponse(manifest.Id, manifest.Version, true));
-        }, cancellationToken);
+            return await WithTemporaryPackageAsync(package, async path =>
+            {
+                var manifest = await installationService.InstallAsync(path, cancellationToken);
+                return CreatedAtAction(nameof(List), null, new InstallPluginResponse(manifest.Id, manifest.Version, true));
+            }, cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new ProblemDetails { Title = "Plugin installation failed.", Detail = exception.Message });
+        }
     }
 
     /// <summary>Updates an installed plugin with a newer compatible package while retaining the previous version.</summary>
@@ -83,9 +86,7 @@ public sealed class PluginsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<UpdatePluginResponse>> Update(string pluginId, IFormFile package, CancellationToken cancellationToken)
     {
-        if (package.Length == 0 || !package.FileName.EndsWith(".nupkg", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new ProblemDetails { Title = "Invalid plugin package.", Detail = "The uploaded file must be a non-empty .nupkg file." });
-
+        if (!IsPackage(package)) return InvalidPackage();
         try
         {
             return await WithTemporaryPackageAsync(package, async path =>
@@ -144,32 +145,16 @@ public sealed class PluginsController(
 
     private async Task<IActionResult> ExecuteLifecycleOperation(Func<Task> operation)
     {
-        try
-        {
-            await operation();
-            return NoContent();
-        }
-        catch (KeyNotFoundException exception)
-        {
-            return NotFound(new ProblemDetails { Title = "Plugin was not found.", Detail = exception.Message });
-        }
-        catch (InvalidOperationException exception)
-        {
-            return BadRequest(new ProblemDetails { Title = "Plugin lifecycle operation failed.", Detail = exception.Message });
-        }
+        try { await operation(); return NoContent(); }
+        catch (KeyNotFoundException exception) { return NotFound(new ProblemDetails { Title = "Plugin was not found.", Detail = exception.Message }); }
+        catch (InvalidOperationException exception) { return BadRequest(new ProblemDetails { Title = "Plugin lifecycle operation failed.", Detail = exception.Message }); }
     }
 
-    private async Task<T> ExecutePackageOperationAsync<T>(IFormFile package, Func<string, Task<T>> operation, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await WithTemporaryPackageAsync(package, operation, cancellationToken);
-        }
-        catch (InvalidOperationException exception)
-        {
-            return (T)(object)BadRequest(new ProblemDetails { Title = "Plugin installation failed.", Detail = exception.Message });
-        }
-    }
+    private static bool IsPackage(IFormFile package)
+        => package is not null && package.Length > 0 && package.FileName.EndsWith(".nupkg", StringComparison.OrdinalIgnoreCase);
+
+    private static ActionResult InvalidPackage()
+        => new BadRequestObjectResult(new ProblemDetails { Title = "Invalid plugin package.", Detail = "The uploaded file must be a non-empty .nupkg file." });
 
     private static async Task<T> WithTemporaryPackageAsync<T>(IFormFile package, Func<string, Task<T>> operation, CancellationToken cancellationToken)
     {
