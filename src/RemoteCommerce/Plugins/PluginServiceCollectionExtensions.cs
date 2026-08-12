@@ -34,6 +34,11 @@ public static class PluginServiceCollectionExtensions
         var logger = loggerFactory.CreateLogger<PluginLoader>();
         var dbFactory = bootstrapProvider.GetRequiredService<IDbContextFactory<CommerceDbContext>>();
 
+        using (var db = dbFactory.CreateDbContext())
+        {
+            db.Database.EnsureCreated();
+        }
+
         var loader = new PluginLoader(logger, dbFactory);
         loader.Load(services, pluginsRoot);
     }
