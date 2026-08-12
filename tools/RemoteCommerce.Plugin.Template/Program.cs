@@ -1,3 +1,4 @@
+using System.Security;
 using System.Text;
 using System.Text.Json;
 
@@ -5,11 +6,13 @@ return await PluginTemplateGenerator.RunAsync(args);
 
 internal static class PluginTemplateGenerator
 {
-    private static readonly string[] RequiredResources =
+    private static readonly string[] RequiredTextResources =
     [
-        "Plugin.csproj", "plugin.manifest.json", "README.md", "LICENSE.md", "PluginEntry.cs",
-        "_Imports.razor", "PluginInfo.razor", "PluginHealthController.cs", "PluginHome.razor", "PluginController.cs"
+        "Plugin.csproj.txt", "PluginEntry.cs.txt", "_Imports.razor.txt", "PluginInfo.razor.txt",
+        "PluginHealthController.cs.txt", "PluginHome.razor.txt", "PluginController.cs.txt"
     ];
+
+    private static readonly string[] RequiredDocumentResources = ["plugin.manifest.json", "README.md", "LICENSE.md"];
 
     public static Task<int> RunAsync(string[] args)
     {
@@ -40,19 +43,19 @@ internal static class PluginTemplateGenerator
         if (mode is not ("page" or "controller" or "both"))
             throw new InvalidOperationException("Extension type must be page, controller, or both.");
 
-        WriteResource(resources, "Plugin.csproj", outputDirectory, "Plugin.csproj", manifest, namespaceName, baseReference);
+        WriteResource(resources, "Plugin.csproj.txt", outputDirectory, "Plugin.csproj", manifest, namespaceName, baseReference);
         WriteResource(resources, "plugin.manifest.json", outputDirectory, "plugin.manifest.json", manifest, namespaceName, baseReference);
         WriteResource(resources, "README.md", outputDirectory, "README.md", manifest, namespaceName, baseReference);
         WriteResource(resources, "LICENSE.md", outputDirectory, "LICENSE.md", manifest, namespaceName, baseReference);
-        WriteResource(resources, "PluginEntry.cs", outputDirectory, "PluginEntry.cs", manifest, namespaceName, baseReference);
-        WriteResource(resources, "_Imports.razor", outputDirectory, "_Imports.razor", manifest, namespaceName, baseReference);
-        WriteResource(resources, "PluginInfo.razor", outputDirectory, "Pages/PluginInfo.razor", manifest, namespaceName, baseReference);
-        WriteResource(resources, "PluginHealthController.cs", outputDirectory, "Controllers/PluginHealthController.cs", manifest, namespaceName, baseReference);
+        WriteResource(resources, "PluginEntry.cs.txt", outputDirectory, "PluginEntry.cs", manifest, namespaceName, baseReference);
+        WriteResource(resources, "_Imports.razor.txt", outputDirectory, "_Imports.razor", manifest, namespaceName, baseReference);
+        WriteResource(resources, "PluginInfo.razor.txt", outputDirectory, "Pages/PluginInfo.razor", manifest, namespaceName, baseReference);
+        WriteResource(resources, "PluginHealthController.cs.txt", outputDirectory, "Controllers/PluginHealthController.cs", manifest, namespaceName, baseReference);
 
         if (mode is "page" or "both")
-            WriteResource(resources, "PluginHome.razor", outputDirectory, "Pages/PluginHome.razor", manifest, namespaceName, baseReference);
+            WriteResource(resources, "PluginHome.razor.txt", outputDirectory, "Pages/PluginHome.razor", manifest, namespaceName, baseReference);
         if (mode is "controller" or "both")
-            WriteResource(resources, "PluginController.cs", outputDirectory, "Controllers/PluginController.cs", manifest, namespaceName, baseReference);
+            WriteResource(resources, "PluginController.cs.txt", outputDirectory, "Controllers/PluginController.cs", manifest, namespaceName, baseReference);
 
         Console.WriteLine($"Created RemoteCommerce plugin '{manifest.Name}' at {outputDirectory}.");
         Console.WriteLine($"Default plugin API prefix: /api/rp/{manifest.ApiVersion}");
@@ -92,7 +95,7 @@ internal static class PluginTemplateGenerator
     private static string FindResources()
     {
         var candidates = new[] { Path.Combine(AppContext.BaseDirectory, "Resources"), Path.Combine(Directory.GetCurrentDirectory(), "Resources") };
-        return candidates.FirstOrDefault(path => Directory.Exists(path) && RequiredResources.All(file => File.Exists(Path.Combine(path, file))))
+        return candidates.FirstOrDefault(path => Directory.Exists(path) && RequiredTextResources.Concat(RequiredDocumentResources).All(file => File.Exists(Path.Combine(path, file))))
             ?? throw new InvalidOperationException("The plugin template resources could not be found. The dotnet tool package must contain its Resources directory.");
     }
 
