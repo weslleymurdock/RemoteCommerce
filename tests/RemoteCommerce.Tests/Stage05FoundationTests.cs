@@ -329,6 +329,7 @@ public sealed class Stage05FoundationTests
     {
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddDataProtection();
         services.AddSingleton<IApplicationContext, TestApplicationContext>();
         services.AddDbContext<CommerceDbContext>(
             options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
@@ -376,14 +377,14 @@ public sealed class Stage05FoundationTests
         }
     }
 
-    private sealed class TestDbContextFactory(CommerceDbContext db) : IDbContextFactory<CommerceDbContext>
+    private sealed class TestDbContextFactory(DbContextOptions<CommerceDbContext> options) : IDbContextFactory<CommerceDbContext>
     {
         public CommerceDbContext CreateDbContext()
-            => db;
+            => CreateDb(options);
 
         public Task<CommerceDbContext> CreateDbContextAsync(
             CancellationToken cancellationToken = default)
-            => Task.FromResult(db);
+            => Task.FromResult(CreateDb(options));
     }
 
     private sealed class TestApplicationContext : IApplicationContext
@@ -393,6 +394,9 @@ public sealed class Stage05FoundationTests
         public string CorrelationId => "test-correlation";
         public string? IpAddress => "127.0.0.1";
     }
+
+    private static CommerceDbContext CreateDb(DbContextOptions<CommerceDbContext> options)
+        => new(options, new TestApplicationContext());
 }
 
 public sealed record PingQuery(string Value) : IQuery<string>;
