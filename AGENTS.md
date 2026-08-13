@@ -32,6 +32,11 @@
 - Preserve a linear integration history. Prefer fast-forward or rebase-based integration; do not introduce merge commits unless explicitly requested by the user.
 - After a pull request has been successfully integrated and all required CI/jobs have passed, delete its working branch. Historical stage branches must not be retained after successful integration unless the user explicitly requests preservation.
 
+## C# readability rule
+- Keep C# implementations vertically readable: do not combine multiple executable statements, declarations, assignments, conditionals, or side effects on a single source line.
+- Use one logical statement per line and expand compound control-flow bodies when they contain more than a single simple statement.
+- Expression-bodied members are allowed only when the member consists of a single expression and expanding it would not improve readability.
+
 ## Public API documentation rule
 - Every public API introduced by RemoteCommerce must have XML documentation comments written in en-US.
 - Document every possible XML documentation element applicable to the API: `summary`, `remarks`, `param`, `returns`, `value`, `typeparam`, `exception`, `example`, `see`, `seealso`, and `inheritdoc` where applicable.

@@ -1,0 +1,45 @@
+@page "/admin/setup"
+
+<PageTitle>Initial administrator | RemoteCommerce</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h4" GutterBottom="true">Initial administrator</MudText>
+        <MudText Typo="Typo.body2" Class="mb-6">Create the first RemoteCommerce administrator. This setup is available only while the Identity user store is empty.</MudText>
+        <MudTextField @bind-Value="_displayName" Label="Display name" Required="true" />
+        <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Required="true" Class="mt-4" />
+        <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Required="true" Class="mt-4" />
+        @if (_error is not null)
+        {
+            <MudAlert Severity="MudSeverity.Error" Class="mt-4">@_error</MudAlert>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-6" OnClick="SetupAsync" Disabled="_busy">Create administrator</MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string _displayName = string.Empty;
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string? _error;
+    private bool _busy;
+
+    private async Task SetupAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await JS.InvokeAsync<object>("remoteCommerceIdentity.setup", _displayName, _email, _password);
+            Navigation.NavigateTo("/admin", forceLoad: true);
+        }
+        catch (JSException exception)
+        {
+            _error = exception.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

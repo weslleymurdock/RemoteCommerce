@@ -1,15 +1,10 @@
-using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Infrastructure.Persistence;
-using RemoteCommerce.Infrastructure.Persistence.Entities;
-using RemoteCommerce.Plugins.Abstractions;
-
 namespace RemoteCommerce.Plugins;
 
 /// <summary>Provides persistent lifecycle, version, documentation, and administration operations for installed plugins.</summary>
-/// <param name="dbFactory">The factory used to create persistence contexts.</param>
+/// <param name="dbFactory">The factory used to create read contexts.</param>
+/// <param name="db">The scoped context shared with transactional plugin commands.</param>
 /// <param name="restartService">The service used to report restart requirements.</param>
-public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext> dbFactory, IApplicationRestartService restartService)
+public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext> dbFactory, CommerceDbContext db, IApplicationRestartService restartService)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -18,18 +13,17 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
     /// <returns>The installed plugin information ordered by plugin identifier.</returns>
     public async Task<IReadOnlyList<PluginInformation>> ListAsync(CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var installations = await db.PluginInstallations.AsNoTracking().OrderBy(x => x.PluginId).ToListAsync(cancellationToken);
-        var dependencies = await db.PluginDependencies.AsNoTracking().ToListAsync(cancellationToken);
-        var errors = await db.PluginLifecycleErrors.AsNoTracking().OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
+        await using var readDb = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var installations = await readDb.PluginInstallations.AsNoTracking().OrderBy(x => x.PluginId).ToListAsync(cancellationToken);
+        var dependencies = await readDb.PluginDependencies.AsNoTracking().ToListAsync(cancellationToken);
+        var errors = await readDb.PluginLifecycleErrors.AsNoTracking().OrderByDescending(x => x.CreatedAt).ToListAsync(cancellationToken);
         var latestErrors = errors.GroupBy(x => x.PluginId, StringComparer.OrdinalIgnoreCase).ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
         var result = new List<PluginInformation>(installations.Count);
         foreach (var installation in installations)
         {
             var manifestPath = Path.Combine(installation.PackagePath, "plugin.manifest.json");
             PluginManifest? manifest = null;
-            if (File.Exists(manifestPath))
-                manifest = JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions);
+            if (File.Exists(manifestPath)) manifest = JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions);
             var pluginDependencies = dependencies.Where(x => string.Equals(x.PluginId, installation.PluginId, StringComparison.OrdinalIgnoreCase)).ToArray();
             latestErrors.TryGetValue(installation.PluginId, out var latestError);
             result.Add(new PluginInformation(installation, manifest, pluginDependencies, latestError));
@@ -45,8 +39,8 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
     /// <exception cref="FileNotFoundException">Thrown when a required package documentation file is missing.</exception>
     public async Task<PluginDocumentation> GetDocumentationAsync(string pluginId, CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var installation = await db.PluginInstallations.AsNoTracking().SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
+        await using var readDb = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var installation = await readDb.PluginInstallations.AsNoTracking().SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
         var readmePath = Path.Combine(installation.PackagePath, "README.md");
         var licensePath = Path.Combine(installation.PackagePath, "LICENSE.md");
         if (!File.Exists(readmePath)) throw new FileNotFoundException("The installed plugin README.md file was not found.", readmePath);
@@ -76,11 +70,9 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
     /// <exception cref="InvalidOperationException">Thrown when another installed plugin depends on the plugin.</exception>
     public async Task UninstallAsync(string pluginId, CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
         var dependents = await db.PluginDependencies.AsNoTracking().Where(x => x.DependencyPluginId == pluginId && x.PluginId != pluginId).Select(x => x.PluginId).Distinct().ToListAsync(cancellationToken);
         if (dependents.Count > 0) throw new InvalidOperationException($"Plugin '{pluginId}' cannot be uninstalled because it is required by: {string.Join(", ", dependents)}.");
-
         db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
         db.PluginSettings.RemoveRange(db.PluginSettings.Where(x => x.PluginId == pluginId));
         db.PluginVersions.RemoveRange(db.PluginVersions.Where(x => x.PluginId == pluginId));
@@ -98,9 +90,8 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
     /// <exception cref="KeyNotFoundException">Thrown when the plugin or requested version is not found.</exception>
     public async Task RollbackAsync(string pluginId, string version, CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
-        var retained = await db.PluginVersions.SingleOrDefaultAsync(x => x.PluginId == pluginId && x.Version == version, cancellationToken) ?? throw new KeyNotFoundException($"Plugin version '{pluginId} {version}' is not retained.");
+        var retained = await db.PluginVersions.IgnoreQueryFilters().Where(x => !x.IsDisabled).SingleOrDefaultAsync<PluginVersion>(x => x.PluginId == pluginId && x.Version == version, cancellationToken) ?? throw new KeyNotFoundException($"Plugin version '{pluginId} {version}' is not retained.");
         var manifestPath = Path.Combine(retained.PackagePath, "plugin.manifest.json");
         var manifest = File.Exists(manifestPath) ? JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions) : null;
         installation.Version = retained.Version;
@@ -112,25 +103,23 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
         foreach (var item in db.PluginVersions.Where(x => x.PluginId == pluginId)) item.IsCurrent = item.Id == retained.Id;
         db.PluginDependencies.RemoveRange(db.PluginDependencies.Where(x => x.PluginId == pluginId));
         if (manifest is not null)
-            foreach (var dependency in manifest.DependencyDeclarations)
-                db.PluginDependencies.Add(new PluginDependency { Id = Guid.NewGuid(), PluginId = pluginId, DependencyPluginId = dependency.PluginId, MinimumVersion = dependency.MinimumVersion, MaximumVersion = dependency.MaximumVersion });
+            foreach (var dependency in manifest.DependencyDeclarations) db.PluginDependencies.Add(new PluginDependency { Id = Guid.NewGuid(), PluginId = pluginId, DependencyPluginId = dependency.PluginId, MinimumVersion = dependency.MinimumVersion, MaximumVersion = dependency.MaximumVersion });
         await db.SaveChangesAsync(cancellationToken);
         restartService.RequestRestart($"Plugin '{pluginId}' rollback to {version} is pending activation.");
     }
 
     /// <summary>Gets all retained versions of an installed plugin.</summary>
-    /// <param name="pluginId">The stable identifier of the plugin.</param>
+    /// <param name="pluginId">The stable identifier of the installed plugin.</param>
     /// <param name="cancellationToken">The token used to cancel the query.</param>
     /// <returns>The retained versions ordered newest first.</returns>
     public async Task<IReadOnlyList<PluginVersion>> GetVersionsAsync(string pluginId, CancellationToken cancellationToken = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        return await db.PluginVersions.AsNoTracking().Where(x => x.PluginId == pluginId).OrderByDescending(x => x.InstalledAt).ToListAsync(cancellationToken);
+        await using var readDb = await dbFactory.CreateDbContextAsync(cancellationToken);
+        return await readDb.PluginVersions.AsNoTracking().Where(x => x.PluginId == pluginId).OrderByDescending(x => x.InstalledAt).ToListAsync(cancellationToken);
     }
 
     private async Task SetDesiredStateAsync(string pluginId, PluginDesiredState desiredState, CancellationToken cancellationToken)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
         installation.DesiredState = desiredState;
         installation.State = PluginInstallationState.ActivationPending;

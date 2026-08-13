@@ -9,13 +9,15 @@
     <MudAppBar Elevation="1">
         <MudText Typo="Typo.h6">RemoteCommerce</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.Settings" Color="Color.Inherit" />
+        <MudText Typo="Typo.body2" Class="mr-4">Administration</MudText>
     </MudAppBar>
 
     <MudDrawer Open="true" Elevation="2">
         <MudNavMenu Class="pa-3">
-            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
-            <MudNavLink Href="/plugins" Icon="@Icons.Material.Filled.Extension">Plugins</MudNavLink>
+            @foreach (var item in AdminNavigation.GetItems())
+            {
+                <MudNavLink Href="@item.Href" Match="@(item.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)" Icon="@item.Icon">@item.Title</MudNavLink>
+            }
         </MudNavMenu>
     </MudDrawer>
 

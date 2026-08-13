@@ -1,0 +1,87 @@
+@page "/admin/users"
+@attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
+
+<PageTitle>Users | RemoteCommerce</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Users</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">Manage authenticated users and their roles. Passwords are always handled by ASP.NET Core Identity.</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="5">
+        <MudPaper Class="pa-5">
+            <MudText Typo="Typo.h6">Create user</MudText>
+            <MudTextField @bind-Value="_displayName" Label="Display name" Required="true" Class="mt-3" />
+            <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Required="true" Class="mt-3" />
+            <MudTextField @bind-Value="_password" Label="Temporary password" InputType="InputType.Password" Required="true" HelperText="Minimum 12 characters with upper, lower, digit and symbol." Class="mt-3" />
+            <MudSelect @bind-Value="_role" Label="Role" Class="mt-3">
+                @foreach (var role in _roles)
+                {
+                    <MudSelectItem Value="@role.Name">@role.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-5" OnClick="CreateAsync">Create user</MudButton>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="7">
+        <MudPaper Class="pa-5">
+            <MudText Typo="Typo.h6">Existing users</MudText>
+            <MudTable Items="_users" Dense="true" Hover="true" Class="mt-3">
+                <HeaderContent><MudTh>Name</MudTh><MudTh>Email</MudTh><MudTh>Roles</MudTh><MudTh>State</MudTh></HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.DisplayName</MudTd>
+                    <MudTd DataLabel="Email">@context.Email</MudTd>
+                    <MudTd DataLabel="Roles">@context.Roles</MudTd>
+                    <MudTd DataLabel="State">@(context.LockoutEnd is null ? "Active" : "Locked")</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<UserRow> _users = [];
+    private IReadOnlyList<ApplicationRole> _roles = [];
+    private string _displayName = string.Empty;
+    private string _email = string.Empty;
+    private string _password = string.Empty;
+    private string? _role = "Administrator";
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _roles = await RoleManager.Roles.OrderBy(x => x.Name).ToListAsync();
+        var users = await UserManager.Users.OrderBy(x => x.Email).ToListAsync();
+        var rows = new List<UserRow>(users.Count);
+        foreach (var user in users)
+        {
+            var roles = await UserManager.GetRolesAsync(user);
+            rows.Add(new UserRow(user.DisplayName, user.Email ?? string.Empty, string.Join(", ", roles), user.LockoutEnd));
+        }
+        _users = rows;
+    }
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            await Mediator.Send(new CreateUserCommand(_displayName, _email, _password, _role));
+            _displayName = string.Empty;
+            _email = string.Empty;
+            _password = string.Empty;
+            Snackbar.Add("User created.", MudSeverity.Success);
+            await LoadAsync();
+        }
+        catch (ValidationException exception)
+        {
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), MudSeverity.Error);
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add(exception.Message, MudSeverity.Error);
+        }
+    }
+
+    private sealed record UserRow(string DisplayName, string Email, string Roles, DateTimeOffset? LockoutEnd);
+}

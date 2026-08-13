@@ -1,29 +1,14 @@
 @page "/"
 
-<PageTitle>Dashboard | RemoteCommerce</PageTitle>
+<PageTitle>RemoteCommerce</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">Commerce Dashboard</MudText>
-<MudText Typo="Typo.body1" Class="mb-6">
-    Foundation ready: Blazor Server, controllers, EF Core/SQL Server and the plugin platform boundary are in place.
-</MudText>
-
-<MudGrid>
-    <MudItem xs="12" md="4">
-        <MudPaper Class="pa-5" Elevation="2">
-            <MudText Typo="Typo.h6">Products</MudText>
-            <MudText Typo="Typo.body2">Commerce domain will be introduced in the next stages.</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="4">
-        <MudPaper Class="pa-5" Elevation="2">
-            <MudText Typo="Typo.h6">Orders</MudText>
-            <MudText Typo="Typo.body2">Order management will be plugin-driven.</MudText>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="4">
-        <MudPaper Class="pa-5" Elevation="2">
-            <MudText Typo="Typo.h6">Extensions</MudText>
-            <MudText Typo="Typo.body2">Installed extensions are discovered after application restart.</MudText>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-16">
+    <MudPaper Elevation="2" Class="pa-8">
+        <MudText Typo="Typo.h3" GutterBottom="true">RemoteCommerce</MudText>
+        <MudText Typo="Typo.body1">A modern .NET foundation for store management and extensibility.</MudText>
+        <MudStack Row="true" Spacing="2" Class="mt-6">
+            <MudButton Href="/admin" Variant="Variant.Filled" Color="Color.Primary">Administration</MudButton>
+            <MudButton Href="/login" Variant="Variant.Outlined" Color="Color.Primary">Sign in</MudButton>
+        </MudStack>
+    </MudPaper>
+</MudContainer>

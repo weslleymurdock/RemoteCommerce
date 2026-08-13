@@ -1,0 +1,67 @@
+@page "/admin/roles"
+@attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
+
+<PageTitle>Roles | RemoteCommerce</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Roles & permissions</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">Roles are backed by ASP.NET Core Identity. Permission claims provide an extensible boundary for future plugins.</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="5">
+        <MudPaper Class="pa-5">
+            <MudText Typo="Typo.h6">Create role</MudText>
+            <MudTextField @bind-Value="_name" Label="Role name" Required="true" Class="mt-3" />
+            <MudTextField @bind-Value="_description" Label="Description" Lines="3" Class="mt-3" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-5" OnClick="CreateAsync">Create role</MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="7">
+        <MudPaper Class="pa-5">
+            <MudText Typo="Typo.h6">Available roles</MudText>
+            <MudList T="ApplicationRole" Dense="true" Class="mt-3">
+                @foreach (var role in _roles)
+                {
+                    <MudListItem T="ApplicationRole">
+                        <MudText Typo="Typo.subtitle1">@role.Name</MudText>
+                        <MudText Typo="Typo.caption">@role.Description</MudText>
+                    </MudListItem>
+                }
+            </MudList>
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.h6">Permission catalog</MudText>
+            <MudText Typo="Typo.body2">@AuthorizationPolicies.ManageConfiguration — site configuration</MudText>
+            <MudText Typo="Typo.body2">@AuthorizationPolicies.ManageUsers — users and roles</MudText>
+            <MudText Typo="Typo.body2">@AuthorizationPolicies.ManageLocalization — localization resources</MudText>
+            <MudText Typo="Typo.body2">@AuthorizationPolicies.ManagePlugins — plugin administration</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<ApplicationRole> _roles = [];
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => _roles = await RoleManager.Roles.OrderBy(x => x.Name).ToListAsync();
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            await Mediator.Send(new CreateRoleCommand(_name, _description));
+            _name = string.Empty;
+            _description = string.Empty;
+            Snackbar.Add("Role created.", MudSeverity.Success);
+            await LoadAsync();
+        }
+        catch (ValidationException exception)
+        {
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), MudSeverity.Error);
+        }
+        catch (Exception exception)
+        {
+            Snackbar.Add(exception.Message, MudSeverity.Error);
+        }
+    }
+}

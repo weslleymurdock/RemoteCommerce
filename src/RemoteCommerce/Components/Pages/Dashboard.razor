@@ -1,0 +1,65 @@
+@page "/admin"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+
+<PageTitle>Dashboard | RemoteCommerce</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Administration Dashboard</MudText>
+<MudText Typo="Typo.body1" Class="mb-6">Manage the RemoteCommerce site, identity, plugins, and localization from one administrative surface.</MudText>
+
+@if (_settings is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">@_settings.SiteName</MudText>
+                <MudText Typo="Typo.body2" Class="mb-3">@(_settings.SiteDescription.Length == 0 ? "No site description configured." : _settings.SiteDescription)</MudText>
+                <MudChip T="string" Color="Color.Primary">@_settings.Culture</MudChip>
+                <MudChip T="string" Color="Color.Secondary">@_settings.TimeZone</MudChip>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Security</MudText>
+                <MudText Typo="Typo.body2">Authenticated administrator: @_userName</MudText>
+                <MudText Typo="Typo.body2">Identity password policy is enforced by ASP.NET Core Identity.</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Site configuration</MudText>
+                <MudText Typo="Typo.body2">Update general site settings and culture defaults.</MudText>
+                <MudButton Href="/admin/settings" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">Open settings</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Users & roles</MudText>
+                <MudText Typo="Typo.body2">Manage administrative identities and permissions.</MudText>
+                <MudButton Href="/admin/users" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">Manage users</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="2">
+                <MudText Typo="Typo.h6">Localization</MudText>
+                <MudText Typo="Typo.body2">Import validated en-US and pt-BR XML resources.</MudText>
+                <MudButton Href="/admin/localization" Variant="Variant.Text" Color="Color.Primary" Class="mt-3">Manage localization</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private SiteSettingsModel? _settings;
+    private string _userName = "unknown";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await SiteSettingsService.GetAsync();
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _userName = state.User.Identity?.Name ?? "unknown";
+    }
+}

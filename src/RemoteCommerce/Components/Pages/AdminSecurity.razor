@@ -1,0 +1,26 @@
+@page "/admin/security"
+@attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
+
+<PageTitle>Security & configuration | RemoteCommerce</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Security & configuration status</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">Deployment configuration and secrets are intentionally kept outside the editable site settings model.</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-5">
+            <MudText Typo="Typo.h6">Secret provider</MudText>
+            <MudText Typo="Typo.body2">Current provider: ASP.NET Core configuration.</MudText>
+            <MudText Typo="Typo.body2">Compatible future sources include environment variables, Docker/Kubernetes secrets and external vault providers.</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-5">
+            <MudText Typo="Typo.h6">Database deployment setting</MudText>
+            <MudChip T="string" Color="@(SecretProvider.IsConfigured("ConnectionStrings:Commerce") ? Color.Success : Color.Error)">
+                @(SecretProvider.IsConfigured("ConnectionStrings:Commerce") ? "Configured" : "Not configured")
+            </MudChip>
+            <MudText Typo="Typo.caption" Class="d-block mt-2">The connection string value is never displayed by this page.</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

@@ -1,9 +1,4 @@
-@page "/plugins"
-@using RemoteCommerce.Plugins
-@inject PluginManagementService PluginManagement
-@inject PluginInstallationService PluginInstallation
-@inject IApplicationRestartService RestartService
-@inject ISnackbar Snackbar
+@page "/admin/plugins"
 
 <PageTitle>Plugins - RemoteCommerce</PageTitle>
 
@@ -18,7 +13,7 @@
 
     @if (RestartService.Status.Required)
     {
-        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+        <MudAlert Severity="MudSeverity.Warning" Variant="Variant.Outlined">
             <MudText Typo="Typo.subtitle2">Restart required</MudText>
             <MudText Typo="Typo.body2">@RestartService.Status.Reason</MudText>
             <MudText Typo="Typo.caption">The current dependency injection container is unchanged. Restart the host to apply the pending lifecycle operation.</MudText>
@@ -36,7 +31,7 @@
         <MudText Typo="Typo.caption" Class="mt-2">Selected: @(_selectedFile?.Name ?? "No package selected")</MudText>
         @if (_validation is not null)
         {
-            <MudAlert Severity="@(_validation.IsValid ? Severity.Success : Severity.Error)" Class="mt-2">
+            <MudAlert Severity="@(_validation.IsValid ? MudSeverity.Success : MudSeverity.Error)" Class="mt-2">
                 <MudText Typo="Typo.subtitle2">Package validation: @(_validation.IsValid ? "passed" : "failed")</MudText>
                 @if (_validation.Manifest is not null)
                 {
@@ -56,7 +51,7 @@
     }
     else if (_plugins.Count == 0)
     {
-        <MudAlert Severity="Severity.Info">No plugins are installed.</MudAlert>
+        <MudAlert Severity="MudSeverity.Info">No plugins are installed.</MudAlert>
     }
     else
     {
@@ -100,7 +95,7 @@
                             }
                             @if (plugin.LatestError is not null)
                             {
-                                <MudAlert Severity="Severity.Error" Class="mt-2">
+                                <MudAlert Severity="MudSeverity.Error" Class="mt-2">
                                     <MudText Typo="Typo.subtitle2">Activation error</MudText>
                                     <MudText Typo="Typo.caption">[@plugin.LatestError.Category] @plugin.LatestError.Message</MudText>
                                 </MudAlert>
@@ -161,27 +156,15 @@
     private bool _busy;
 
     protected override async Task OnInitializedAsync() => await RefreshAsync();
-
-    private void OnPackageSelected(InputFileChangeEventArgs args)
-    {
-        _selectedFile = args.File;
-        _validation = null;
-    }
-
+    private void OnPackageSelected(InputFileChangeEventArgs args) { _selectedFile = args.File; _validation = null; }
     private async Task ValidateSelectedAsync()
     {
         if (_selectedFile is null) return;
         _busy = true;
-        try
-        {
-            var path = await CopySelectedPackageAsync();
-            try { _validation = await PluginInstallation.ValidatePackageAsync(path); }
-            finally { DeleteTemporary(path); }
-        }
-        catch (Exception exception) { Snackbar.Add(exception.Message, Severity.Error); }
+        try { var path = await CopySelectedPackageAsync(); try { _validation = await PluginInstallation.ValidatePackageAsync(path); } finally { DeleteTemporary(path); } }
+        catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
         finally { _busy = false; }
     }
-
     private async Task InstallAsync()
     {
         if (_selectedFile is null) return;
@@ -189,20 +172,12 @@
         try
         {
             var path = await CopySelectedPackageAsync();
-            try
-            {
-                await PluginInstallation.InstallAsync(path);
-                Snackbar.Add("Plugin installed. Restart the application to activate it.", Severity.Success);
-                _selectedFile = null;
-                _validation = null;
-                await RefreshAsync();
-            }
+            try { await PluginInstallation.InstallAsync(path); Snackbar.Add("Plugin installed. Restart the application to activate it.", MudSeverity.Success); _selectedFile = null; _validation = null; await RefreshAsync(); }
             finally { DeleteTemporary(path); }
         }
-        catch (Exception exception) { Snackbar.Add(exception.Message, Severity.Error); }
+        catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
         finally { _busy = false; }
     }
-
     private async Task UpdateAsync(string pluginId)
     {
         if (_selectedFile is null) return;
@@ -210,43 +185,31 @@
         try
         {
             var path = await CopySelectedPackageAsync();
-            try
-            {
-                await PluginInstallation.UpdateAsync(pluginId, path);
-                Snackbar.Add("Plugin update staged. Restart the application to activate the new version.", Severity.Success);
-                _selectedFile = null;
-                _validation = null;
-                await RefreshAsync();
-            }
+            try { await PluginInstallation.UpdateAsync(pluginId, path); Snackbar.Add("Plugin update staged. Restart the application to activate the new version.", MudSeverity.Success); _selectedFile = null; _validation = null; await RefreshAsync(); }
             finally { DeleteTemporary(path); }
         }
-        catch (Exception exception) { Snackbar.Add(exception.Message, Severity.Error); }
+        catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
         finally { _busy = false; }
     }
-
-    private async Task EnableAsync(string pluginId) { await RunLifecycleAsync(() => PluginManagement.EnableAsync(pluginId), "Plugin enabled for the next restart."); }
-    private async Task DisableAsync(string pluginId) { await RunLifecycleAsync(() => PluginManagement.DisableAsync(pluginId), "Plugin disabled for the next restart."); }
-    private async Task UninstallAsync(string pluginId) { await RunLifecycleAsync(() => PluginManagement.UninstallAsync(pluginId), "Plugin uninstalled. Restart the application to remove its loaded assembly."); }
-
+    private async Task EnableAsync(string pluginId) => await RunLifecycleAsync(() => PluginManagement.EnableAsync(pluginId), "Plugin enabled for the next restart.");
+    private async Task DisableAsync(string pluginId) => await RunLifecycleAsync(() => PluginManagement.DisableAsync(pluginId), "Plugin disabled for the next restart.");
+    private async Task UninstallAsync(string pluginId) => await RunLifecycleAsync(() => PluginManagement.UninstallAsync(pluginId), "Plugin uninstalled. Restart the application to remove its loaded assembly.");
     private async Task RunLifecycleAsync(Func<Task> operation, string successMessage)
     {
-        try { await operation(); Snackbar.Add(successMessage, Severity.Success); await RefreshAsync(); }
-        catch (Exception exception) { Snackbar.Add(exception.Message, Severity.Error); }
+        try { await operation(); Snackbar.Add(successMessage, MudSeverity.Success); await RefreshAsync(); }
+        catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
     }
-
     private async Task LoadDocumentationAsync(string pluginId)
     {
         try { _documentation[pluginId] = await PluginManagement.GetDocumentationAsync(pluginId); }
-        catch (Exception exception) { Snackbar.Add(exception.Message, Severity.Error); }
+        catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
     }
-
     private async Task RefreshAsync()
     {
         _loading = true;
         try { _plugins = await PluginManagement.ListAsync(); }
         finally { _loading = false; }
     }
-
     private async Task<string> CopySelectedPackageAsync()
     {
         if (_selectedFile is null) throw new InvalidOperationException("No plugin package is selected.");
@@ -258,12 +221,7 @@
         await input.CopyToAsync(output);
         return path;
     }
-
-    private static void DeleteTemporary(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
-    }
-
+    private static void DeleteTemporary(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
     private static Color StateColor(PluginInstallationState state) => state switch
     {
         PluginInstallationState.Loaded => Color.Success,

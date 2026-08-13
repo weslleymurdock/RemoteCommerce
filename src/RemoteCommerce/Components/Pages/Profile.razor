@@ -1,0 +1,64 @@
+@page "/profile"
+@attribute [Authorize]
+<PageTitle>Profile | RemoteCommerce</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-6">
+                <MudText Typo="Typo.h5">Profile</MudText>
+                <MudTextField @bind-Value="_displayName" Label="Display name" Class="mt-4" />
+                <MudTextField @bind-Value="_email" Label="Email" Class="mt-4" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-6" OnClick="SaveAsync">Save</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-6">
+                <MudText Typo="Typo.h5">Two-factor authentication</MudText>
+                <MudText Class="mt-4">Enabled: @_twoFactorEnabled</MudText>
+                <MudTextField Value="@_sharedKey" Label="Authenticator key" ReadOnly="true" Class="mt-4" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="ToggleAsync">@(_twoFactorEnabled ? "Disable" : "Enable")</MudButton>
+                <MudButton Variant="Variant.Text" Class="mt-2" OnClick="ResetAuthenticatorAsync">Reset authenticator</MudButton>
+                <MudButton Variant="Variant.Text" Class="mt-2" OnClick="GenerateCodesAsync">Generate recovery codes</MudButton>
+                @if (_codes.Count > 0)
+                {
+                    <MudList T="MudListItem<string>">
+                        @foreach (var c in _codes)
+                        {
+                            <MudListItem T="string">@c</MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+@code {
+    private string _displayName = string.Empty, _email = string.Empty, _sharedKey = string.Empty;
+    private bool _twoFactorEnabled;
+    private IReadOnlyList<string> _codes = [];
+    protected override async Task OnInitializedAsync()
+    {
+        var p = await JS.InvokeAsync<UserProfileResult>("remoteCommerceIdentity.profile");
+        _displayName = p.DisplayName;
+        _email = p.Email;
+        var t = await JS.InvokeAsync<TwoFactorInfo>("remoteCommerceIdentity.twoFactor");
+        _twoFactorEnabled = t.IsEnabled;
+        _sharedKey = t.SharedKey ?? string.Empty;
+    }
+    private async Task SaveAsync()
+    {
+        await JS.InvokeAsync<object>("remoteCommerceIdentity.updateProfile", _displayName, _email);
+    }
+    private async Task ToggleAsync()
+    {
+        var t = await JS.InvokeAsync<TwoFactorInfo>("remoteCommerceIdentity.setTwoFactor", !_twoFactorEnabled);
+        _twoFactorEnabled = t.IsEnabled;
+        _sharedKey = t.SharedKey ?? string.Empty;
+    }
+    private async Task ResetAuthenticatorAsync()
+    {
+        var t = await JS.InvokeAsync<TwoFactorInfo>("remoteCommerceIdentity.resetAuthenticator");
+        _sharedKey = t.SharedKey ?? string.Empty;
+    }
+    private async Task GenerateCodesAsync() => _codes = await JS.InvokeAsync<string[]>("remoteCommerceIdentity.recoveryCodes");
+}
