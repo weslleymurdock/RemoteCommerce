@@ -4,19 +4,19 @@ namespace RemoteCommerce.Application.Identity.Commands;
 /// <param name="Email">The email address.</param><param name="DisplayName">The display name.</param><param name="Password">The initial password.</param>
 public sealed record RegisterUserCommand(string Email, string DisplayName, string Password) : ICommand<Guid>, ITransactionalCommand;
 /// <summary>Requests a password reset message.</summary><param name="Email">The email address.</param>
-public sealed record ForgotPasswordCommand(string Email) : ICommand<Unit>, ITransactionalCommand;
+public sealed record ForgotPasswordCommand(string Email) : ICommand<Unit>;
 /// <summary>Resets a password.</summary><param name="Email">The email address.</param><param name="ResetToken">The reset token.</param><param name="NewPassword">The replacement password.</param>
 public sealed record ResetPasswordCommand(string Email, string ResetToken, string NewPassword) : ICommand<Unit>, ITransactionalCommand;
 /// <summary>Confirms an email address.</summary><param name="UserId">The user identifier.</param><param name="Token">The confirmation token.</param>
 public sealed record ConfirmEmailCommand(Guid UserId, string Token) : ICommand<Unit>, ITransactionalCommand;
 /// <summary>Requests another confirmation message.</summary><param name="Email">The email address.</param>
-public sealed record ResendConfirmationEmailCommand(string Email) : ICommand<Unit>, ITransactionalCommand;
+public sealed record ResendConfirmationEmailCommand(string Email) : ICommand<Unit>;
 /// <summary>Updates the authenticated profile.</summary><param name="DisplayName">The display name.</param><param name="Email">The email address.</param>
 public sealed record UpdateProfileCommand(string DisplayName, string Email) : ICommand<Unit>, ITransactionalCommand;
 /// <summary>Refreshes the authenticated JWT.</summary>
-public sealed record RefreshTokenCommand : ICommand<JwtAuthenticationResult>, ITransactionalCommand;
+public sealed record RefreshTokenCommand : ICommand<JwtAuthenticationResult>;
 /// <summary>Completes an authenticator-code challenge.</summary><param name="Email">The challenged email.</param><param name="Code">The authenticator code.</param><param name="RememberMachine">Whether to remember the machine.</param>
-public sealed record CompleteTwoFactorCommand(string Email, string Code, bool RememberMachine) : ICommand<JwtAuthenticationResult>, ITransactionalCommand;
+public sealed record CompleteTwoFactorCommand(string Email, string Code, bool RememberMachine) : ICommand<JwtAuthenticationResult>;
 /// <summary>Completes a recovery-code challenge.</summary><param name="Email">The challenged email.</param><param name="RecoveryCode">The recovery code.</param>
 public sealed record CompleteRecoveryCodeCommand(string Email, string RecoveryCode) : ICommand<JwtAuthenticationResult>, ITransactionalCommand;
 /// <summary>Sets two-factor authentication state.</summary><param name="Enable">Whether two-factor authentication should be enabled.</param>
