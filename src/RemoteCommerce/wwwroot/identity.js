@@ -7,6 +7,7 @@ window.remoteCommerceIdentity = {
     async logout() { return await this.post('/api/rc/v1/identity/logout', {}); },
     async forgotPassword(email) { return await this.post('/api/rc/v1/identity/forgot-password', { email }); },
     async resetPassword(email, resetToken, newPassword) { return await this.post('/api/rc/v1/identity/reset-password', { email, resetToken, newPassword }); },
+    async confirmEmail(userId, token) { return await this.get(`/api/rc/v1/identity/confirm-email?userId=${encodeURIComponent(userId)}&token=${encodeURIComponent(token)}`); },
     async resendConfirmation(email) { return await this.post('/api/rc/v1/identity/resend-confirmation', { email }); },
     async profile() { return await this.get('/api/rc/v1/identity/manage/info'); },
     async updateProfile(displayName, email) { return await this.post('/api/rc/v1/identity/manage/info', { displayName, email }); },
@@ -15,22 +16,7 @@ window.remoteCommerceIdentity = {
     async disableTwoFactor() { return await this.post('/api/rc/v1/identity/manage/2fa/disable', {}); },
     async recoveryCodes() { return await this.post('/api/rc/v1/identity/manage/2fa/recovery-codes', {}); },
     async resetAuthenticator() { return await this.post('/api/rc/v1/identity/manage/2fa/reset-authenticator', {}); },
-    async get(url) {
-        const response = await fetch(url, { credentials: 'same-origin' });
-        return await this.parse(response);
-    },
-    async post(url, body) {
-        const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        return await this.parse(response);
-    },
-    async parse(response) {
-        if (!response.ok) {
-            const payload = await response.json().catch(() => null);
-            const error = new Error(payload?.detail ?? 'The identity operation failed.');
-            error.status = response.status;
-            error.payload = payload;
-            throw error;
-        }
-        return await response.json().catch(() => null);
-    }
+    async get(url) { const response = await fetch(url, { credentials: 'same-origin' }); return await this.parse(response); },
+    async post(url, body) { const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return await this.parse(response); },
+    async parse(response) { if (!response.ok) { const payload = await response.json().catch(() => null); const error = new Error(payload?.detail ?? 'The identity operation failed.'); error.status = response.status; error.payload = payload; throw error; } return await response.json().catch(() => null); }
 };
