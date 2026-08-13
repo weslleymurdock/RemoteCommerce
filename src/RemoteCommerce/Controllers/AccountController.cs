@@ -21,8 +21,22 @@ public sealed class AccountController(IMediator mediator, IAntiforgery antiforge
     [AllowAnonymous, HttpPost("/login"), ValidateAntiForgeryToken]
     public async Task<IActionResult> LoginPost([FromForm] string email, [FromForm] string password, [FromForm] string? returnUrl, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new LoginCommand(email, password), cancellationToken);
-        return result.Succeeded ? Redirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : "/") : Unauthorized(result.LockedOut ? "Account temporarily locked." : "Invalid credentials.");
+        try
+        {
+            var result = await mediator.Send(new LoginCommand(email, password), cancellationToken);
+            Response.Cookies.Append(RemoteCommerce.Infrastructure.Identity.JwtOptions.CookieName, result.Token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = Request.IsHttps,
+                SameSite = SameSiteMode.Strict,
+                Expires = result.ExpiresAt
+            });
+            return Redirect(Url.IsLocalUrl(returnUrl) ? returnUrl! : "/");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized("Invalid credentials.");
+        }
     }
 
     /// <summary>Signs out the current authenticated user.</summary><param name="cancellationToken">The cancellation token.</param><returns>A redirect to the sign-in page.</returns>
@@ -30,6 +44,7 @@ public sealed class AccountController(IMediator mediator, IAntiforgery antiforge
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
         await mediator.Send(new LogoutCommand(), cancellationToken);
+        Response.Cookies.Delete(RemoteCommerce.Infrastructure.Identity.JwtOptions.CookieName);
         return Redirect("/login");
     }
 
