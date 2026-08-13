@@ -39,6 +39,7 @@ global using RemoteCommerce.Application.Site;
 global using RemoteCommerce.Application.Site.Commands;
 global using RemoteCommerce.Components;
 global using RemoteCommerce.Components.Layout;
+global using RemoteCommerce.Domain.Site.Entities;
 global using RemoteCommerce.Infrastructure.Common.Behaviors;
 global using RemoteCommerce.Infrastructure.Identity;
 global using RemoteCommerce.Infrastructure.Persistence;
