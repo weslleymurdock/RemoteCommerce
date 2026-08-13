@@ -4,13 +4,19 @@
 RemoteCommerce host (single ASP.NET Core project)
 ├── Blazor UI (Interactive Server)
 ├── Controllers / OpenAPI + Scalar
-├── Application services
+├── Application
+│   ├── Feature commands / queries / notifications
+│   ├── Feature handlers and FluentValidation validators
+│   ├── Application pipeline behaviors
 │   ├── Site/application settings
-│   ├── ASP.NET Core Identity + authorization
+│   ├── ASP.NET Core Identity stores + authorization
 │   ├── Secret provider boundary
 │   ├── Localization/resource administration
 │   └── Administrative audit logging
-├── EF Core + SQL Server
+├── Infrastructure
+│   ├── EF Core + SQL Server
+│   ├── Transactional persistence behavior
+│   └── JWT authentication implementation
 ├── Plugin runtime
 |   ├── RemoteCommerce.Plugin.Abstractions SDK
 |   ├── .nupkg package validation
@@ -37,6 +43,34 @@ The host is a single main application containing:
 - OpenAPI/Scalar for API discovery.
 - Plugin discovery, installation, lifecycle, and runtime assembly registration.
 
+## Application request pipeline
+
+Application use cases are organized by feature. Commands, queries, and notifications are kept in their respective `Commands`, `Queries`, and `Notifications` namespaces. Their handlers live under the feature `Handlers` namespace and applicable FluentValidation validators live under `Validators`.
+
+Controllers are thin HTTP adapters and dispatch application work through `IMediator.Send(...)`. They do not contain application orchestration or persistence logic.
+
+The common pipeline is:
+
+```text
+Controller
+    ↓
+IMediator.Send
+    ↓
+LoggingBehavior
+    ↓
+ValidationBehavior
+    ↓
+TransactionalBehavior
+    ↓
+Handler
+    ↓
+Persistence
+```
+
+`ValidationBehavior` belongs to `Application.Common.Behaviors`. `TransactionalBehavior` belongs to `Infrastructure.Common.Behaviors` because its responsibility is EF Core transaction management. Transactional commands commit successful persistence and roll back on exceptions; read-only queries do not receive write transactions by default.
+
+All C# projects use `ImplicitUsings` and repository `GlobalUsings.cs` files for namespace imports. Source files must not contain `using` or `global using` directives. Razor `@using` and `@inject` directives are centralized in `_Imports.razor`; page-specific `@page`, `@attribute`, `@inherits`, and `@implements` remain on the individual component.
+
 ## Site and deployment configuration
 
 `IConfiguration` represents deployment/host configuration: connection strings, infrastructure settings, environment variables, and references to deployment-managed secrets. It is not the persistence mechanism for values that an administrator edits through the application UI.
@@ -47,9 +81,13 @@ This separation keeps the deployment boundary independent from future database, 
 
 ## Identity and authorization
 
-Authentication and user persistence use ASP.NET Core Identity with `ApplicationUser` and `ApplicationRole` stored in the existing `CommerceDbContext`. Browser authentication uses Identity application cookies. Passwords are hashed by Identity and are never persisted as application secrets.
+Authentication and user persistence use ASP.NET Core Identity only for its EF Core schema, `UserManager<TUser>`, `RoleManager<TRole>`, password hashing, lockout, security stamps, and related stores. RemoteCommerce does not map ASP.NET Core Identity API endpoints or Identity Account/Razor Pages.
 
-The first administrator is created through the one-time `/admin/setup` bootstrap endpoint when the user store is empty. The bootstrap creates the `Administrator` role and the baseline permission claims, then signs the administrator in.
+RemoteCommerce exposes its own `IdentityController` and MudBlazor login/setup components. The controller dispatches `LoginCommand`, `BootstrapAdministratorCommand`, `LogoutCommand`, and related requests through MediatR. Successful authentication produces a signed, short-lived JWT. The browser administration session stores that JWT only in an HTTP-only, secure, same-site cookie. The bearer handler also accepts a standard `Authorization: Bearer` token for API clients.
+
+JWT validation checks signature, issuer, audience, lifetime, user existence, disabled state, and the Identity security stamp. Logout rotates the user's security stamp, invalidating previously issued tokens without a custom token database. Token signing configuration is deployment-managed and is never persisted in SQL or exposed through the administration UI.
+
+The first administrator is created through the RemoteCommerce `/api/identity/setup` boundary when the user store is empty. The setup creates the `Administrator` role and baseline permission claims and then establishes the JWT browser session. No ASP.NET Core Identity API or Identity Account endpoint is part of the application contract.
 
 Authorization is expressed through named policies and permission claims. The `Administrator` role is accepted by the baseline administrative policies, while individual permission claims provide an extension point for more granular roles and future plugin-declared permissions. No WooCommerce-style ACL is introduced in this stage.
 
@@ -69,29 +107,7 @@ Administrative security events use an `AuditLog` persistence model and `IAuditLo
 
 The default deployment model is **one RemoteCommerce application instance per store with one exclusive database per store**. Multiple store databases may reside on the same SQL Server instance, but a store must never share its application database with another store.
 
-A deployment may run several independent store stacks, for example with Docker Compose or Docker Swarm:
-
-```text
-Organization / Federation
-├── Store A stack → RemoteCommerce A → StoreA database
-├── Store B stack → RemoteCommerce B → StoreB database
-└── Store C stack → RemoteCommerce C → StoreC database
-```
-
-The architecture must remain federation-ready. A future federation plugin may connect independent stores and make them operate as a logical multi-store organization while preserving database isolation. Shared catalog, inventory, configuration, and other capabilities must be synchronized through explicit APIs/events/commands rather than direct cross-database writes.
-
-The preferred integration model is event/command based:
-
-```text
-Store A → Federation integration → Store B
-             │
-             ├── catalog synchronization
-             ├── inventory reservations/transfers
-             ├── shared configuration
-             └── organization-level policies
-```
-
-This model permits stores to remain independently deployable, backed up, upgraded, and recovered. A future control plane may hold organization/store metadata without containing the transactional store domain itself.
+A deployment may run several independent store stacks. A future federation plugin may connect independent stores and make them operate as a logical multi-store organization while preserving database isolation. Shared catalog, inventory, configuration, and other capabilities must be synchronized through explicit APIs/events/commands rather than direct cross-database writes.
 
 RemoteCommerce should not introduce a mandatory `TenantId` into every domain entity merely to support this scenario. Database-per-store is the isolation boundary unless a later stage explicitly introduces another hosting model.
 
@@ -101,17 +117,17 @@ A plugin is distributed as a `.nupkg`. During development the generated plugin m
 
 The manifest is the package metadata source of truth. It declares identity, version, entry point, host compatibility, optional EF Core compatibility, required README/LICENSE files, and plugin dependencies. Static package metadata is not duplicated into the relational database; the database stores administrative state, integrity hashes, retained versions, dependencies, settings, and lifecycle diagnostics.
 
-Package administration is separated into explicit validation and lifecycle boundaries. `IPluginManifestValidator` checks manifest semantics, `IPluginCompatibilityValidator` checks host/EF compatibility, and `IPluginPackageValidator` inspects the `.nupkg` structure and SHA-256 integrity before extraction. Validation never instantiates or activates the plugin entry point. Entry assemblies are inspected only for assembly metadata during package validation; executable activation occurs only during startup.
+Package administration is separated into explicit validation and lifecycle boundaries. `IPluginManifestValidator` checks manifest semantics, `IPluginCompatibilityValidator` checks host/EF compatibility, and `IPluginPackageValidator` inspects the `.nupkg` structure and SHA-256 integrity before extraction. Validation never instantiates or activates the plugin entry point.
 
 The persisted lifecycle distinguishes administrative intent from runtime reality. `PluginDesiredState` records whether the administrator wants a plugin enabled or disabled, while `PluginInstallationState` records states such as `Discovered`, `Validated`, `Installed`, `ActivationPending`, `Disabled`, `Loaded`, and `Failed`. Enable, disable, install, update, rollback, and uninstall operations persist their requested changes and use `IApplicationRestartService` to report that the current DI container remains unchanged until restart.
 
 Plugin dependencies are version-ranged and persisted separately. Installation and update validation rejects missing, disabled, incompatible, duplicate, or circular dependencies. Uninstall rejects a plugin that is still required by another installed plugin. Previous package versions are retained as explicit `PluginVersion` records so rollback can be scheduled without deleting the previous artifact immediately.
 
-The package administration UI is implemented with MudBlazor and provides plugin metadata, version/state, README/LICENSE content, dependency information, validation diagnostics, activation errors, install/update, enable/disable, and uninstall operations. A trusted local package source may also be configured through `PluginAdministration:TrustedPackageDirectory`.
+The package administration UI is implemented with MudBlazor and provides plugin metadata, version/state, README/LICENSE content, dependency information, validation diagnostics, activation errors, install/update, enable/disable, and uninstall operations.
 
 Plugin controllers are registered as MVC application parts. Plugin Razor components are registered with the Blazor router as additional assemblies.
 
-The current activation model uses application restart because the root DI container and endpoint/routing model are immutable after application build. A later stage should investigate collectible `AssemblyLoadContext`, isolated plugin service scopes/registries, dynamic endpoint refresh, and safe unload/reload so compatible plugins can be installed, enabled, disabled, updated, or removed without restarting the host. Runtime reload must not leak assemblies, singleton state, endpoints, or background services.
+The current activation model uses application restart because the root DI container and endpoint/routing model are immutable after application build. A later stage should investigate collectible `AssemblyLoadContext`, isolated plugin service scopes/registries, dynamic endpoint refresh, and safe unload/reload so compatible plugins can be installed, enabled, disabled, updated, or removed without restarting the host.
 
 ## Database providers
 
@@ -119,7 +135,7 @@ Persistence must be abstracted behind application/provider contracts so the conc
 
 The initial relational provider remains SQL Server. A strategy/provider pattern should allow additional providers without leaking provider-specific APIs into domain/application contracts. Provider selection must be validated at startup and migrations must be provider-aware.
 
-A separate document/blob provider boundary should support non-relational assets. MongoDB/GridFS is a candidate provider for media and potentially virtual-product payloads, but it must not become an implicit replacement for the transactional relational store. The provider should be consumed through application services so the domain does not depend directly on MongoDB types.
+A separate document/blob provider boundary should support non-relational assets. MongoDB/GridFS is a candidate provider for media and potentially virtual-product payloads, but it must not become an implicit replacement for the transactional relational store.
 
 ## Localization
 
@@ -133,9 +149,8 @@ Administratively imported resources are validated as `.resx`-compatible XML, pro
 
 - `/api/rp/v1/...` is the RemoteCommerce plugin API namespace.
 - `/api/rc/v1/...` is reserved for APIs ported from WooCommerce.
+- `/api/identity/...` is the host's explicit authentication boundary and is not an ASP.NET Core Identity endpoint.
 - Future versions increment the version segment rather than changing an existing contract.
-
-Plugin administration is a host administration API and currently uses `/api/v1/plugins`; it is not part of either plugin `/api/rp` or WooCommerce `/api/rc` namespace.
 
 ## Target domain boundaries
 

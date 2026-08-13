@@ -1,9 +1,5 @@
 @page "/admin/roles"
-
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
-@inject RoleManager<ApplicationRole> RoleManager
-@inject IMediator Mediator
-@inject ISnackbar Snackbar
 
 <PageTitle>Roles | RemoteCommerce</PageTitle>
 
@@ -47,7 +43,6 @@
     private string _description = string.Empty;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
-
     private async Task LoadAsync() => _roles = await RoleManager.Roles.OrderBy(x => x.Name).ToListAsync();
 
     private async Task CreateAsync()

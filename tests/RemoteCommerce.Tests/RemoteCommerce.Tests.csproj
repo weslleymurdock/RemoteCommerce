@@ -1,10 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><IsPackable>false</IsPackable><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
   <ItemGroup>
-    <Using Include="FluentValidation" /><Using Include="MediatR" /><Using Include="Microsoft.AspNetCore.Hosting" /><Using Include="Microsoft.AspNetCore.Identity" /><Using Include="Microsoft.Data.Sqlite" /><Using Include="Microsoft.EntityFrameworkCore" /><Using Include="Microsoft.Extensions.Configuration" /><Using Include="Microsoft.Extensions.DependencyInjection" /><Using Include="Microsoft.Extensions.FileProviders" /><Using Include="Microsoft.Extensions.Hosting" /><Using Include="Microsoft.Extensions.Logging" /><Using Include="RemoteCommerce.Application.Identity" /><Using Include="RemoteCommerce.Application.Localization" /><Using Include="RemoteCommerce.Application.Pipeline" /><Using Include="RemoteCommerce.Application.Security" /><Using Include="RemoteCommerce.Application.Site" /><Using Include="RemoteCommerce.Infrastructure.Persistence" /><Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" /><Using Include="RemoteCommerce.Plugins" /><Using Include="RemoteCommerce.Plugins.Abstractions" /><Using Include="System.IO.Compression" /><Using Include="System.Reflection" /><Using Include="System.Text.Json" /><Using Include="Xunit" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/RemoteCommerce/RemoteCommerce.csproj" /><PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" /><PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" /><PackageReference Include="Microsoft.NET.Test.Sdk" /><PackageReference Include="MediatR" /><PackageReference Include="FluentValidation" /><PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
-    <PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets><IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets></PackageReference><PackageReference Include="xunit.v3" />
+    <ProjectReference Include="../../src/RemoteCommerce/RemoteCommerce.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="xunit.runner.visualstudio"><PrivateAssets>all</PrivateAssets><IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets></PackageReference>
+    <PackageReference Include="xunit.v3" />
   </ItemGroup>
 </Project>

@@ -1,8 +1,4 @@
 @page "/plugins"
-@inject PluginManagementService PluginManagement
-@inject PluginInstallationService PluginInstallation
-@inject IApplicationRestartService RestartService
-@inject ISnackbar Snackbar
 
 <PageTitle>Plugins - RemoteCommerce</PageTitle>
 
@@ -160,27 +156,15 @@
     private bool _busy;
 
     protected override async Task OnInitializedAsync() => await RefreshAsync();
-
-    private void OnPackageSelected(InputFileChangeEventArgs args)
-    {
-        _selectedFile = args.File;
-        _validation = null;
-    }
-
+    private void OnPackageSelected(InputFileChangeEventArgs args) { _selectedFile = args.File; _validation = null; }
     private async Task ValidateSelectedAsync()
     {
         if (_selectedFile is null) return;
         _busy = true;
-        try
-        {
-            var path = await CopySelectedPackageAsync();
-            try { _validation = await PluginInstallation.ValidatePackageAsync(path); }
-            finally { DeleteTemporary(path); }
-        }
+        try { var path = await CopySelectedPackageAsync(); try { _validation = await PluginInstallation.ValidatePackageAsync(path); } finally { DeleteTemporary(path); } }
         catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
         finally { _busy = false; }
     }
-
     private async Task InstallAsync()
     {
         if (_selectedFile is null) return;
@@ -188,20 +172,12 @@
         try
         {
             var path = await CopySelectedPackageAsync();
-            try
-            {
-                await PluginInstallation.InstallAsync(path);
-                Snackbar.Add("Plugin installed. Restart the application to activate it.", MudSeverity.Success);
-                _selectedFile = null;
-                _validation = null;
-                await RefreshAsync();
-            }
+            try { await PluginInstallation.InstallAsync(path); Snackbar.Add("Plugin installed. Restart the application to activate it.", MudSeverity.Success); _selectedFile = null; _validation = null; await RefreshAsync(); }
             finally { DeleteTemporary(path); }
         }
         catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
         finally { _busy = false; }
     }
-
     private async Task UpdateAsync(string pluginId)
     {
         if (_selectedFile is null) return;
@@ -209,43 +185,31 @@
         try
         {
             var path = await CopySelectedPackageAsync();
-            try
-            {
-                await PluginInstallation.UpdateAsync(pluginId, path);
-                Snackbar.Add("Plugin update staged. Restart the application to activate the new version.", MudSeverity.Success);
-                _selectedFile = null;
-                _validation = null;
-                await RefreshAsync();
-            }
+            try { await PluginInstallation.UpdateAsync(pluginId, path); Snackbar.Add("Plugin update staged. Restart the application to activate the new version.", MudSeverity.Success); _selectedFile = null; _validation = null; await RefreshAsync(); }
             finally { DeleteTemporary(path); }
         }
         catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
         finally { _busy = false; }
     }
-
-    private async Task EnableAsync(string pluginId) { await RunLifecycleAsync(() => PluginManagement.EnableAsync(pluginId), "Plugin enabled for the next restart."); }
-    private async Task DisableAsync(string pluginId) { await RunLifecycleAsync(() => PluginManagement.DisableAsync(pluginId), "Plugin disabled for the next restart."); }
-    private async Task UninstallAsync(string pluginId) { await RunLifecycleAsync(() => PluginManagement.UninstallAsync(pluginId), "Plugin uninstalled. Restart the application to remove its loaded assembly."); }
-
+    private async Task EnableAsync(string pluginId) => await RunLifecycleAsync(() => PluginManagement.EnableAsync(pluginId), "Plugin enabled for the next restart.");
+    private async Task DisableAsync(string pluginId) => await RunLifecycleAsync(() => PluginManagement.DisableAsync(pluginId), "Plugin disabled for the next restart.");
+    private async Task UninstallAsync(string pluginId) => await RunLifecycleAsync(() => PluginManagement.UninstallAsync(pluginId), "Plugin uninstalled. Restart the application to remove its loaded assembly.");
     private async Task RunLifecycleAsync(Func<Task> operation, string successMessage)
     {
         try { await operation(); Snackbar.Add(successMessage, MudSeverity.Success); await RefreshAsync(); }
         catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
     }
-
     private async Task LoadDocumentationAsync(string pluginId)
     {
         try { _documentation[pluginId] = await PluginManagement.GetDocumentationAsync(pluginId); }
         catch (Exception exception) { Snackbar.Add(exception.Message, MudSeverity.Error); }
     }
-
     private async Task RefreshAsync()
     {
         _loading = true;
         try { _plugins = await PluginManagement.ListAsync(); }
         finally { _loading = false; }
     }
-
     private async Task<string> CopySelectedPackageAsync()
     {
         if (_selectedFile is null) throw new InvalidOperationException("No plugin package is selected.");
@@ -257,12 +221,7 @@
         await input.CopyToAsync(output);
         return path;
     }
-
-    private static void DeleteTemporary(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
-    }
-
+    private static void DeleteTemporary(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
     private static Color StateColor(PluginInstallationState state) => state switch
     {
         PluginInstallationState.Loaded => Color.Success,

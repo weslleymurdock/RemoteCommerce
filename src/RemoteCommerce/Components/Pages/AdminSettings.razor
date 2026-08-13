@@ -1,10 +1,6 @@
 @page "/admin/settings"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
 
-@inject ISiteSettingsService SiteSettingsService
-@inject IMediator Mediator
-@inject ISnackbar Snackbar
-
 <PageTitle>Site Settings | RemoteCommerce</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Site settings</MudText>
@@ -49,7 +45,6 @@ else
     private bool _saving;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
-
     private async Task LoadAsync() => _model = await SiteSettingsService.GetAsync();
 
     private async Task SaveAsync()
@@ -57,7 +52,6 @@ else
         if (_model is null) return;
         await _form!.ValidateAsync();
         if (!_form.IsValid) return;
-
         _saving = true;
         try
         {
@@ -72,9 +66,6 @@ else
         {
             Snackbar.Add(exception.Message, MudSeverity.Error);
         }
-        finally
-        {
-            _saving = false;
-        }
+        finally { _saving = false; }
     }
 }

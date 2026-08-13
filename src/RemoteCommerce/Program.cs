@@ -5,7 +5,6 @@ builder.Services.AddLocalization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddProblemDetails();
-
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddControllers();
@@ -25,11 +24,56 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 })
 .AddRoles<ApplicationRole>()
-.AddSignInManager()
 .AddEntityFrameworkStores<CommerceDbContext>()
 .AddDefaultTokenProviders();
 
-builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
+builder.Services.AddOptions<JwtOptions>()
+    .BindConfiguration("Jwt")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.Key) && x.Key.Length >= 32, "Jwt:Key must be supplied by deployment configuration and contain at least 32 characters.")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.Issuer), "Jwt:Issuer is required.")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.Audience), "Jwt:Audience is required.")
+    .ValidateOnStart();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        var jwt = builder.Configuration.GetSection("Jwt");
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? string.Empty)),
+            ValidateIssuer = true,
+            ValidIssuer = jwt["Issuer"] ?? "RemoteCommerce",
+            ValidateAudience = true,
+            ValidAudience = jwt["Audience"] ?? "RemoteCommerce",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = ClaimTypes.Name,
+            RoleClaimType = ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (string.IsNullOrWhiteSpace(context.Token) && context.Request.Cookies.TryGetValue(JwtOptions.CookieName, out var token)) context.Token = token;
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var subject = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var securityStamp = context.Principal?.FindFirst("security_stamp")?.Value;
+                if (subject is null || securityStamp is null)
+                {
+                    context.Fail("The authentication token is incomplete.");
+                    return;
+                }
+                var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+                var user = await userManager.FindByIdAsync(subject);
+                if (user is null || user.IsDisabled || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal)) context.Fail("The authentication token has been invalidated.");
+            }
+        };
+    });
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthorizationPolicies.Administrator, policy => policy.RequireRole("Administrator"));
@@ -46,6 +90,7 @@ builder.Services.AddScoped<ILocalizationResourceService>(sp => sp.GetRequiredSer
 builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
 builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddMediatR(configuration =>
 {
     configuration.RegisterServicesFromAssembly(typeof(Program).Assembly);
@@ -71,7 +116,6 @@ builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configur
 var app = builder.Build();
 app.UseExceptionHandler();
 if (!app.Environment.IsDevelopment()) app.UseHsts();
-
 app.MapOpenApi("o/{v1}.json");
 if (!app.Environment.IsProduction())
 {
@@ -91,7 +135,6 @@ if (!app.Environment.IsProduction())
             ");
     });
 }
-
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();

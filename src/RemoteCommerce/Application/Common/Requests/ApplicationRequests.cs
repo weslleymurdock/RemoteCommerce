@@ -1,6 +1,6 @@
-namespace RemoteCommerce.Application.Pipeline;
+namespace RemoteCommerce.Application.Common.Requests;
 
-/// <summary>Marks a MediatR request as an application command that may mutate persistent state.</summary>
+/// <summary>Marks a MediatR request as an application command.</summary>
 /// <typeparam name="TResponse">The command response type.</typeparam>
 public interface ICommand<out TResponse> : IRequest<TResponse>
 {
@@ -12,7 +12,7 @@ public interface IQuery<out TResponse> : IRequest<TResponse>
 {
 }
 
-/// <summary>Marks a MediatR request as a command whose persistence mutations must execute inside the common SQL transaction boundary.</summary>
+/// <summary>Marks a command whose persistence mutation must execute within the common transaction boundary.</summary>
 public interface ITransactionalCommand
 {
 }

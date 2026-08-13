@@ -1,11 +1,6 @@
 @page "/admin/users"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
 
-@inject UserManager<ApplicationUser> UserManager
-@inject RoleManager<ApplicationRole> RoleManager
-@inject IMediator Mediator
-@inject ISnackbar Snackbar
-
 <PageTitle>Users | RemoteCommerce</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Users</MudText>

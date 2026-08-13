@@ -1,8 +1,6 @@
 @page "/admin/security"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
 
-@inject ISecretProvider SecretProvider
-
 <PageTitle>Security & configuration | RemoteCommerce</PageTitle>
 
 <MudText Typo="Typo.h4" GutterBottom="true">Security & configuration status</MudText>

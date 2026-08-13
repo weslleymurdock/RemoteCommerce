@@ -1,30 +1,42 @@
-@using System.Net.Http
+@using FluentValidation
+@using MediatR
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
-@using MediatR
 @using MudBlazor
 @using RemoteCommerce
 @using RemoteCommerce.Application.Administration
+@using RemoteCommerce.Application.Common.Requests
 @using RemoteCommerce.Application.Identity
+@using RemoteCommerce.Application.Identity.Commands
+@using RemoteCommerce.Application.Identity.Queries
 @using RemoteCommerce.Application.Localization
 @using RemoteCommerce.Application.Security
 @using RemoteCommerce.Application.Site
 @using RemoteCommerce.Components
 @using RemoteCommerce.Components.Layout
-@using RemoteCommerce.Plugins
-@using FluentValidation
-@using Microsoft.AspNetCore.Identity
-@using Microsoft.EntityFrameworkCore
 @using RemoteCommerce.Infrastructure.Persistence.Entities
-@using Microsoft.AspNetCore.Components.Authorization
+@using RemoteCommerce.Plugins
 
 @using MudSeverity = MudBlazor.Severity
 
+@inject IAdminNavigationRegistry AdminNavigation
+@inject IApplicationRestartService RestartService
+@inject IJSRuntime JS
 @inject ILocalizationResourceService ResourceService
 @inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject ISecretProvider SecretProvider
+@inject ISiteSettingsService SiteSettingsService
 @inject ISnackbar Snackbar
+@inject PluginInstallationService PluginInstallation
+@inject PluginManagementService PluginManagement
+@inject RoleManager<ApplicationRole> RoleManager
+@inject UserManager<ApplicationUser> UserManager
