@@ -4,8 +4,7 @@ namespace RemoteCommerce.Controllers.v1;
 [ApiController]
 [Tags("Identity")]
 [Route("api/rc/v1/identity")]
-public sealed class IdentityController(IMediator mediator)
-    : ControllerBase
+public sealed class IdentityController(IMediator mediator) : ControllerBase
 {
     /// <summary>Authenticates a user.</summary><param name="request">Credentials.</param><param name="cancellationToken">Cancellation token.</param><returns>Session metadata.</returns>
     [AllowAnonymous, HttpPost("login")]
@@ -51,7 +50,7 @@ public sealed class IdentityController(IMediator mediator)
     public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
         await mediator.Send(new LogoutCommand(), cancellationToken);
-        Response.Cookies.Delete(JwtOptions.CookieName, new CookieOptions { Secure = true, SameSite = SameSiteMode.Strict, Path = "/" });
+        Response.Cookies.Delete(JwtOptions.CookieName, new CookieOptions { Secure = Request.IsHttps, SameSite = SameSiteMode.Strict, Path = "/" });
         return NoContent();
     }
 
@@ -99,10 +98,10 @@ public sealed class IdentityController(IMediator mediator)
     [Authorize, HttpPost("manage/2fa/reset-authenticator")]
     public async Task<ActionResult<TwoFactorInfo>> ResetAuthenticator(CancellationToken cancellationToken) => Ok(await mediator.Send(new ResetAuthenticatorKeyCommand(), cancellationToken));
 
-    private async Task<AuthenticationResponse> SetSession(JwtAuthenticationResult result)
+    private Task<AuthenticationResponse> SetSession(JwtAuthenticationResult result)
     {
-        Response.Cookies.Append(JwtOptions.CookieName, result.Token, new CookieOptions { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Expires = result.ExpiresAt, IsEssential = true, Path = "/" });
-        return new(result.ExpiresAt);
+        Response.Cookies.Append(JwtOptions.CookieName, result.Token, new CookieOptions { HttpOnly = true, Secure = Request.IsHttps, SameSite = SameSiteMode.Strict, Expires = result.ExpiresAt, IsEssential = true, Path = "/" });
+        return Task.FromResult(new AuthenticationResponse(result.ExpiresAt));
     }
 
     /// <summary>Login credentials.</summary><param name="Email">Email.</param><param name="Password">Password.</param>
