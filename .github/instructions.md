@@ -8,7 +8,7 @@
 - Use DI for all application services and plugin capabilities.
 - Treat plugin installation and plugin activation as separate lifecycle phases.
 - The only supported plugin distribution format is `.nupkg`.
-- A successful installation writes the package payload and immutable/versioned installation state; activation occurs only after restart.
+- A successful installation writes the package payload and immutable/versioned installation state; activation occurs only after restart; If possible, update later to a runtime install/removal without restart.
 - Never attempt to mutate the running root service provider to activate a plugin.
 - Avoid reflection in normal application paths; reflection is isolated to the plugin bootstrap boundary.
 - Prefer async APIs for I/O and EF Core operations.

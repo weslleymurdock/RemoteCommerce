@@ -81,7 +81,16 @@ jobs:
         run: dotnet restore RemoteCommerce.slnx
 
       - name: Run tests
-        run: dotnet test RemoteCommerce.slnx --configuration Release --no-restore
+        run: dotnet test RemoteCommerce.slnx --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --configuration Release --no-restore
+        continue-on-error: true
+
+      - name: Publish Test Summary
+        uses: dorny/test-reporter@v1
+        if: always() 
+        with:
+          name: 'xUnit v3 Test Results'
+          path: 'TestResults/*.trx'
+          reporter: 'dotnet-trx'
 
   publish:
     needs: [tests]
