@@ -1,20 +1,84 @@
-<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(Program).Assembly" AdditionalAssemblies="@PluginAssemblyRegistry.Assemblies.ToArray()">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
-                <NotAuthorized>
-                    <LayoutView Layout="@typeof(Layout.MainLayout)">
-                        <MudAlert Severity="MudSeverity.Warning" Class="ma-4">
-                            <MudText Typo="Typo.h6">Authentication required</MudText>
-                            <MudText>You must sign in to access this administration area.</MudText>
-                            <MudButton Href="/login" Variant="Variant.Filled" Color="Color.Primary" Class="mt-3">Sign in</MudButton>
-                        </MudAlert>
-                    </LayoutView>
-                </NotAuthorized>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-        <NotFound>
-        </NotFound>
-    </Router>
-</CascadingAuthenticationState>
+@if (!_setupStateLoaded || _redirecting)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+        <MudPaper Elevation="2" Class="pa-8">
+            <MudProgressCircular Indeterminate="true" />
+            <MudText Class="mt-4">Preparing RemoteCommerce...</MudText>
+        </MudPaper>
+    </MudContainer>
+}
+else if (_setupRequired && !IsSetupRoute)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+        <MudPaper Elevation="2" Class="pa-8">
+            <MudText Typo="Typo.h5">Initial setup required</MudText>
+            <MudText Class="mt-2">RemoteCommerce is not configured yet. Redirecting to the initial administrator setup.</MudText>
+        </MudPaper>
+    </MudContainer>
+}
+else
+{
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(Program).Assembly" AdditionalAssemblies="@PluginAssemblyRegistry.Assemblies.ToArray()">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                    <NotAuthorized>
+                        <LayoutView Layout="@typeof(Layout.MainLayout)">
+                            <MudAlert Severity="MudSeverity.Warning" Class="ma-4">
+                                <MudText Typo="Typo.h6">Authentication required</MudText>
+                                <MudText>You must sign in to access this administration area.</MudText>
+                                <MudButton Href="/login" Variant="Variant.Filled" Color="Color.Primary" Class="mt-3">Sign in</MudButton>
+                            </MudAlert>
+                        </LayoutView>
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+            </NotFound>
+        </Router>
+    </CascadingAuthenticationState>
+}
+
+@code {
+    private const string SetupPath = "/admin/setup";
+
+    private bool _setupRequired;
+    private bool _setupStateLoaded;
+    private bool _redirecting;
+
+    private bool IsSetupRoute
+        => string.Equals(
+            new Uri(Navigation.Uri).AbsolutePath,
+            SetupPath,
+            StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _setupRequired = await Mediator.Send(new GetSetupStatusQuery());
+        _setupStateLoaded = true;
+
+        if (_setupRequired && !IsSetupRoute)
+        {
+            _redirecting = true;
+            StateHasChanged();
+            Navigation.NavigateTo(SetupPath, forceLoad: true);
+            return;
+        }
+
+        if (!_setupRequired && IsSetupRoute)
+        {
+            _redirecting = true;
+            StateHasChanged();
+            Navigation.NavigateTo("/admin", forceLoad: true);
+            return;
+        }
+
+        StateHasChanged();
+    }
+}
