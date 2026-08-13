@@ -95,7 +95,7 @@ public sealed class Stage05FoundationTests
     {
         await using var provider = CreateIdentityServiceProvider();
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
-        var handler = new GetSetupStatusQueryHandler(userManager);
+        var handler = new RemoteCommerce.Application.Identity.Handlers.GetSetupStatusQueryHandler(userManager);
 
         var result = await handler.Handle(
             new GetSetupStatusQuery(),
@@ -109,7 +109,7 @@ public sealed class Stage05FoundationTests
     {
         await using var provider = CreateIdentityServiceProvider();
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
-        var handler = new GetSetupStatusQueryHandler(userManager);
+        var handler = new RemoteCommerce.Application.Identity.Handlers.GetSetupStatusQueryHandler(userManager);
         var user = new ApplicationUser
         {
             UserName = "admin@example.test",
@@ -133,7 +133,7 @@ public sealed class Stage05FoundationTests
     {
         await using var provider = CreateIdentityServiceProvider();
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
-        var handler = new GetSetupStatusQueryHandler(userManager);
+        var handler = new RemoteCommerce.Application.Identity.Handlers.GetSetupStatusQueryHandler(userManager);
         var user = new ApplicationUser
         {
             UserName = "admin@example.test",
