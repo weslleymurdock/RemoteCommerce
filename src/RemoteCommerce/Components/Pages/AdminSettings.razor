@@ -1,10 +1,6 @@
 @page "/admin/settings"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
-@using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Application.Site
-@using MediatR
+
 @inject ISiteSettingsService SiteSettingsService
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
@@ -66,15 +62,15 @@ else
         try
         {
             _model = await Mediator.Send(new UpdateSiteSettingsCommand(_model));
-            Snackbar.Add("Site settings saved.", Severity.Success);
+            Snackbar.Add("Site settings saved.", MudSeverity.Success);
         }
         catch (ValidationException exception)
         {
-            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), MudSeverity.Error);
         }
         catch (Exception exception)
         {
-            Snackbar.Add(exception.Message, Severity.Error);
+            Snackbar.Add(exception.Message, MudSeverity.Error);
         }
         finally
         {

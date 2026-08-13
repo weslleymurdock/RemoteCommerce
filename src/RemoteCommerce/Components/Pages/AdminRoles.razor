@@ -1,10 +1,6 @@
 @page "/admin/roles"
+
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.EntityFrameworkCore
-@using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Infrastructure.Persistence.Entities
-@using MediatR
 @inject RoleManager<ApplicationRole> RoleManager
 @inject IMediator Mediator
 @inject ISnackbar Snackbar
@@ -61,16 +57,16 @@
             await Mediator.Send(new CreateRoleCommand(_name, _description));
             _name = string.Empty;
             _description = string.Empty;
-            Snackbar.Add("Role created.", Severity.Success);
+            Snackbar.Add("Role created.", MudSeverity.Success);
             await LoadAsync();
         }
         catch (ValidationException exception)
         {
-            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), MudSeverity.Error);
         }
         catch (Exception exception)
         {
-            Snackbar.Add(exception.Message, Severity.Error);
+            Snackbar.Add(exception.Message, MudSeverity.Error);
         }
     }
 }

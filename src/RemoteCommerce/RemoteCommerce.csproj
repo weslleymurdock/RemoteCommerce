@@ -9,58 +9,17 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>$(WarningsAsErrors);1591</WarningsAsErrors>
   </PropertyGroup>
+
   <ItemGroup>
-    <Using Include="FluentValidation" />
-    <Using Include="MediatR" />
-    <Using Include="Microsoft.AspNetCore.Antiforgery" />
-    <Using Include="Microsoft.AspNetCore.Authorization" />
-    <Using Include="Microsoft.AspNetCore.Components.Authorization" />
-    <Using Include="Microsoft.AspNetCore.Diagnostics" />
-    <Using Include="Microsoft.AspNetCore.Identity" />
-    <Using Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
-    <Using Include="Microsoft.AspNetCore.Localization" />
-    <Using Include="Microsoft.AspNetCore.Mvc" />
-    <Using Include="Microsoft.EntityFrameworkCore" />
-    <Using Include="Microsoft.EntityFrameworkCore.Design" />
-    <Using Include="Microsoft.EntityFrameworkCore.Infrastructure" />
-    <Using Include="Microsoft.EntityFrameworkCore.Migrations" />
-    <Using Include="Microsoft.Extensions.Configuration" />
-    <Using Include="Microsoft.Extensions.Localization" />
-    <Using Include="Microsoft.Extensions.Logging" />
-    <Using Include="MudBlazor" />
-    <Using Include="MudBlazor.Services" />
-    <Using Include="RemoteCommerce.Application.Administration" />
-    <Using Include="RemoteCommerce.Application.Identity" />
-    <Using Include="RemoteCommerce.Application.Localization" />
-    <Using Include="RemoteCommerce.Application.Pipeline" />
-    <Using Include="RemoteCommerce.Application.Plugins" />
-    <Using Include="RemoteCommerce.Application.Security" />
-    <Using Include="RemoteCommerce.Application.Site" />
-    <Using Include="RemoteCommerce.Components" />
-    <Using Include="RemoteCommerce.Infrastructure.Persistence" />
-    <Using Include="RemoteCommerce.Infrastructure.Persistence.Entities" />
-    <Using Include="RemoteCommerce.Plugins" />
-    <Using Include="RemoteCommerce.Plugins.Abstractions" />
-    <Using Include="Scalar.AspNetCore" />
-    <Using Include="System.Collections.Concurrent" />
-    <Using Include="System.Diagnostics" />
-    <Using Include="System.Globalization" />
-    <Using Include="System.Net" />
-    <Using Include="System.Security.Claims" />
-    <Using Include="System.Security.Cryptography" />
-    <Using Include="System.Text.Json" />
-    <Using Include="System.Xml" />
-  </ItemGroup>
-  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="MediatR" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="MudBlazor" />
     <ProjectReference Include="../RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
-    <PackageReference Include="MediatR" />
-    <PackageReference Include="FluentValidation" />
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
     <PackageReference Include="Scalar.AspNetCore" />
-  </ItemGroup>
+  </ItemGroup> 
 </Project>

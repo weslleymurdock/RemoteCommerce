@@ -1,9 +1,6 @@
 @page "/"
 @attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.AspNetCore.Components.Authorization
-@using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Application.Site
+
 @inject ISiteSettingsService SiteSettingsService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 

@@ -65,7 +65,12 @@ public sealed class PluginAdministrationTests
     [Fact]
     public async Task Management_DisableAndEnablePersistPendingState()
     {
-        var options = CreateOptions(); await using var db = CreateDb(options); db.PluginInstallations.Add(CreateInstallation("plugin", "1.0.0", PluginInstallationState.Loaded)); await db.SaveChangesAsync(CancellationToken.None); var restart = new ApplicationRestartService(); var management = new PluginManagementService(new TestDbContextFactory(options), CreateDb(options), restart);
+        var options = CreateOptions(); 
+        await using var db = CreateDb(options); 
+        db.PluginInstallations.Add(CreateInstallation("plugin", "1.0.0", PluginInstallationState.Loaded)); 
+        await db.SaveChangesAsync(CancellationToken.None); 
+        var restart = new ApplicationRestartService(); 
+        var management = new PluginManagementService(new TestDbContextFactory(options), CreateDb(options), restart);
         await management.DisableAsync("plugin", CancellationToken.None); await using (var verification = CreateDb(options)) { var disabled = await verification.PluginInstallations.SingleAsync(CancellationToken.None); Assert.Equal(PluginDesiredState.Disabled, disabled.DesiredState); Assert.Equal(PluginInstallationState.ActivationPending, disabled.State); } Assert.True(restart.Status.Required);
         await management.EnableAsync("plugin", CancellationToken.None); await using var finalVerification = CreateDb(options); var enabled = await finalVerification.PluginInstallations.SingleAsync(CancellationToken.None); Assert.Equal(PluginDesiredState.Enabled, enabled.DesiredState); Assert.Equal(PluginInstallationState.ActivationPending, enabled.State);
     }
@@ -96,6 +101,7 @@ public sealed class PluginAdministrationTests
     {
         public CommerceDbContext CreateDbContext() => CreateDb(options); public Task<CommerceDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) => Task.FromResult(CreateDb(options));
     }
+
     private sealed class TestApplicationContext : IApplicationContext
     {
         public Guid? UserId => null; public string Actor => "test"; public string CorrelationId => "test"; public string? IpAddress => null;

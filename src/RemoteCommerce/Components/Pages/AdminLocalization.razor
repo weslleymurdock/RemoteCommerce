@@ -1,12 +1,5 @@
 @page "/admin/localization"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageLocalization)]
-@using Microsoft.AspNetCore.Authorization
-@using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Application.Localization
-@using MediatR
-@inject ILocalizationResourceService ResourceService
-@inject IMediator Mediator
-@inject ISnackbar Snackbar
 
 <PageTitle>Localization | RemoteCommerce</PageTitle>
 
@@ -66,17 +59,17 @@
         {
             await using var stream = _file.OpenReadStream(1_000_000);
             var result = await Mediator.Send(new ImportLocalizationResourceCommand(stream, _culture, _resourceType.Trim()));
-            Snackbar.Add($"Resource imported as version {result.Version} with {result.EntryCount} entries.", Severity.Success);
+            Snackbar.Add($"Resource imported as version {result.Version} with {result.EntryCount} entries.", MudSeverity.Success);
             _file = null;
             await LoadAsync();
         }
         catch (ValidationException exception)
         {
-            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), MudSeverity.Error);
         }
         catch (Exception exception)
         {
-            Snackbar.Add(exception.Message, Severity.Error);
+            Snackbar.Add(exception.Message, MudSeverity.Error);
         }
         finally
         {

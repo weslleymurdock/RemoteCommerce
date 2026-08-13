@@ -1,8 +1,6 @@
 @page "/admin/security"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageConfiguration)]
-@using Microsoft.AspNetCore.Authorization
-@using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Application.Security
+
 @inject ISecretProvider SecretProvider
 
 <PageTitle>Security & configuration | RemoteCommerce</PageTitle>

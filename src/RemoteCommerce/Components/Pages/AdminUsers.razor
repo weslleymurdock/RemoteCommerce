@@ -1,10 +1,6 @@
 @page "/admin/users"
 @attribute [Authorize(Policy = AuthorizationPolicies.ManageUsers)]
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.EntityFrameworkCore
-@using RemoteCommerce.Application.Identity
-@using RemoteCommerce.Infrastructure.Persistence.Entities
-@using MediatR
+
 @inject UserManager<ApplicationUser> UserManager
 @inject RoleManager<ApplicationRole> RoleManager
 @inject IMediator Mediator
@@ -79,16 +75,16 @@
             _displayName = string.Empty;
             _email = string.Empty;
             _password = string.Empty;
-            Snackbar.Add("User created.", Severity.Success);
+            Snackbar.Add("User created.", MudSeverity.Success);
             await LoadAsync();
         }
         catch (ValidationException exception)
         {
-            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), Severity.Error);
+            Snackbar.Add(string.Join(" ", exception.Errors.Select(x => x.ErrorMessage)), MudSeverity.Error);
         }
         catch (Exception exception)
         {
-            Snackbar.Add(exception.Message, Severity.Error);
+            Snackbar.Add(exception.Message, MudSeverity.Error);
         }
     }
 

@@ -91,7 +91,7 @@ public sealed class PluginManagementService(IDbContextFactory<CommerceDbContext>
     public async Task RollbackAsync(string pluginId, string version, CancellationToken cancellationToken = default)
     {
         var installation = await db.PluginInstallations.SingleOrDefaultAsync(x => x.PluginId == pluginId, cancellationToken) ?? throw new KeyNotFoundException($"Plugin '{pluginId}' is not installed.");
-        var retained = await db.PluginVersions.IgnoreQueryFilters().SingleOrDefaultAsync(x => x.PluginId == pluginId && x.Version == version && !x.IsDeleted, cancellationToken) ?? throw new KeyNotFoundException($"Plugin version '{pluginId} {version}' is not retained.");
+        var retained = await db.PluginVersions.IgnoreQueryFilters().Where(x => !x.IsDisabled).SingleOrDefaultAsync<PluginVersion>(x => x.PluginId == pluginId && x.Version == version, cancellationToken) ?? throw new KeyNotFoundException($"Plugin version '{pluginId} {version}' is not retained.");
         var manifestPath = Path.Combine(retained.PackagePath, "plugin.manifest.json");
         var manifest = File.Exists(manifestPath) ? JsonSerializer.Deserialize<PluginManifest>(await File.ReadAllTextAsync(manifestPath, cancellationToken), JsonOptions) : null;
         installation.Version = retained.Version;
