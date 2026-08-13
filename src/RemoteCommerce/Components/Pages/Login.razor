@@ -87,7 +87,7 @@
 
     private static bool IsLocalUrl(string? url)
         => !string.IsNullOrWhiteSpace(url)
-            && url.StartsWith('/', StringComparison.Ordinal)
+            && url.StartsWith("/", StringComparison.Ordinal)
             && !url.StartsWith("//", StringComparison.Ordinal)
             && !url.Contains("\\", StringComparison.Ordinal);
 }

@@ -24,7 +24,6 @@
 @using RemoteCommerce.Components.Layout
 @using RemoteCommerce.Infrastructure.Persistence.Entities
 @using RemoteCommerce.Plugins
-
 @using MudSeverity = MudBlazor.Severity
 
 @inject IAdminNavigationRegistry AdminNavigation
@@ -32,10 +31,11 @@
 @inject IJSRuntime JS
 @inject ILocalizationResourceService ResourceService
 @inject IMediator Mediator
-@inject NavigationManager Navigation
 @inject ISecretProvider SecretProvider
 @inject ISiteSettingsService SiteSettingsService
 @inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
 @inject PluginInstallationService PluginInstallation
 @inject PluginManagementService PluginManagement
 @inject RoleManager<ApplicationRole> RoleManager
