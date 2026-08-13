@@ -1,8 +1,9 @@
-namespace RemoteCommerce.Controllers;
+namespace RemoteCommerce.Controllers.v1;
 
 /// <summary>Provides the RemoteCommerce browser authentication boundary without exposing ASP.NET Core Identity endpoints.</summary>
 [ApiController]
-[Route("api/identity")]
+[Tags("Identity")]
+[Route("api/rc/v1/identity")]
 public sealed class IdentityController(IMediator mediator) : ControllerBase
 {
     /// <summary>Authenticates a user and stores the short-lived JWT in an HTTP-only browser cookie.</summary>

@@ -1,4 +1,6 @@
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsDevelopment() && !string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
 
 builder.Services.AddOpenApi();
 builder.Services.AddLocalization();
@@ -101,13 +103,13 @@ builder.Services.AddMediatR(configuration =>
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 var adminNavigation = new AdminNavigationRegistry();
-adminNavigation.Register(new AdminNavigationItem("Dashboard", "/", Icons.Material.Filled.Dashboard, 0));
-adminNavigation.Register(new AdminNavigationItem("Site settings", "/admin/settings", Icons.Material.Filled.Settings, 10));
-adminNavigation.Register(new AdminNavigationItem("Users", "/admin/users", Icons.Material.Filled.People, 20));
-adminNavigation.Register(new AdminNavigationItem("Roles & permissions", "/admin/roles", Icons.Material.Filled.Security, 30));
-adminNavigation.Register(new AdminNavigationItem("Localization", "/admin/localization", Icons.Material.Filled.Translate, 40));
-adminNavigation.Register(new AdminNavigationItem("Security & configuration", "/admin/security", Icons.Material.Filled.Lock, 50));
-adminNavigation.Register(new AdminNavigationItem("Plugins", "/plugins", Icons.Material.Filled.Extension, 60));
+adminNavigation.Register(new AdminNavigationItem("Dashboard", "/rc/admin", Icons.Material.Filled.Dashboard, 0));
+adminNavigation.Register(new AdminNavigationItem("Site settings", "/rc/admin/settings", Icons.Material.Filled.Settings, 10));
+adminNavigation.Register(new AdminNavigationItem("Users", "/rc/admin/users", Icons.Material.Filled.People, 20));
+adminNavigation.Register(new AdminNavigationItem("Roles & permissions", "/rc/admin/roles", Icons.Material.Filled.Security, 30));
+adminNavigation.Register(new AdminNavigationItem("Localization", "/rc/admin/localization", Icons.Material.Filled.Translate, 40));
+adminNavigation.Register(new AdminNavigationItem("Security & configuration", "/rc/admin/security", Icons.Material.Filled.Lock, 50));
+adminNavigation.Register(new AdminNavigationItem("Plugins", "/rc/plugins", Icons.Material.Filled.Extension, 60));
 builder.Services.AddSingleton<IAdminNavigationRegistry>(adminNavigation);
 
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
@@ -140,7 +142,7 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseRequestLocalization(new RequestLocalizationOptions
 {
-    DefaultRequestCulture = new RequestCulture("en-US"),
+    DefaultRequestCulture = new RequestCulture("pt-BR"),
     SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
     SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
     RequestCultureProviders = [new QueryStringRequestCultureProvider(), new CookieRequestCultureProvider(), new AcceptLanguageHeaderRequestCultureProvider(), new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())],
