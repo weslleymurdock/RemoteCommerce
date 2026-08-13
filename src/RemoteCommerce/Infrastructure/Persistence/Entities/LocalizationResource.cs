@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>Tracks an imported localization resource version without duplicating its content.</summary>
-public sealed class LocalizationResource : ISoftDeletable
+public sealed class LocalizationResource : Persistence.ISoftDeletable
 {
     /// <summary>Gets or sets the resource record identifier.</summary>
     public long Id { get; set; }

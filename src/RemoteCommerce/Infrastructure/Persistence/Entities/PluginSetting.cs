@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>Stores a plugin-owned configuration value without copying package-defined documentation into the database.</summary>
-public sealed class PluginSetting : ISoftDeletable
+public sealed class PluginSetting : Persistence.ISoftDeletable
 {
     /// <summary>Gets or sets the persistent setting identifier.</summary>
     public Guid Id { get; set; }
