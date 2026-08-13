@@ -11,7 +11,7 @@ public sealed class BootstrapAdministratorCommandValidator : AbstractValidator<B
 {
     /// <summary>Initializes bootstrap validation rules.</summary>
     public BootstrapAdministratorCommandValidator() { RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(200); RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256); Password(RuleFor(x => x.Password)); }
-    private static void Password(IRuleBuilderInitial<string, string> rule) => rule.NotEmpty().MinimumLength(12).MaximumLength(256).Matches("[A-Z]").WithMessage("Password must contain an uppercase character.").Matches("[a-z]").WithMessage("Password must contain a lowercase character.").Matches("[0-9]").WithMessage("Password must contain a digit.").Matches("[^a-zA-Z0-9]").WithMessage("Password must contain a non-alphanumeric character.");
+    private static void Password(IRuleBuilderInitial<BootstrapAdministratorCommand, string> rule) => rule.NotEmpty().MinimumLength(12).MaximumLength(256).Matches("[A-Z]").WithMessage("Password must contain an uppercase character.").Matches("[a-z]").WithMessage("Password must contain a lowercase character.").Matches("[0-9]").WithMessage("Password must contain a digit.").Matches("[^a-zA-Z0-9]").WithMessage("Password must contain a non-alphanumeric character.");
 }
 /// <summary>Validates user registration.</summary>
 public sealed class RegisterUserCommandValidator : AbstractValidator<RegisterUserCommand>

@@ -27,6 +27,7 @@ global using RemoteCommerce.Application.Common.Requests;
 global using RemoteCommerce.Application.Common.Validation;
 global using RemoteCommerce.Application.Identity;
 global using RemoteCommerce.Application.Identity.Commands;
+global using RemoteCommerce.Application.Identity.Handlers;
 global using RemoteCommerce.Application.Identity.Queries;
 global using RemoteCommerce.Application.Localization;
 global using RemoteCommerce.Application.Localization.Commands;

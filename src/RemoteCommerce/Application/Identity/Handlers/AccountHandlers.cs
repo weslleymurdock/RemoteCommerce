@@ -66,20 +66,26 @@ public sealed class AccountHandlers(UserManager<ApplicationUser> users, RoleMana
     }
 
     /// <summary>Refreshes the authenticated JWT.</summary>
-    public async Task<JwtAuthenticationResult> Refresh() { var u = await Current(); return tokens.CreateToken(u, await users.GetRolesAsync(u), await users.GetClaimsAsync(u)); }
+    public async Task<JwtAuthenticationResult> Refresh()
+    {
+        var u = await Current();
+        return tokens.CreateToken(u, await users.GetRolesAsync(u), await users.GetClaimsAsync(u));
+    }
 
     /// <summary>Completes an authenticator challenge.</summary>
     public async Task<JwtAuthenticationResult> TwoFactor(CompleteTwoFactorCommand request)
     {
         var u = await users.FindByEmailAsync(request.Email.Trim()) ?? throw new UnauthorizedAccessException("Invalid two-factor credentials.");
-        if (!u.TwoFactorEnabled || !await users.VerifyTwoFactorTokenAsync(u, TokenOptions.DefaultAuthenticatorProvider, request.Code)) throw new UnauthorizedAccessException("Invalid two-factor credentials.");
+        if (!u.TwoFactorEnabled || !await users.VerifyTwoFactorTokenAsync(u, TokenOptions.DefaultAuthenticatorProvider, request.Code))
+            throw new UnauthorizedAccessException("Invalid two-factor credentials.");
         return tokens.CreateToken(u, await users.GetRolesAsync(u), await users.GetClaimsAsync(u));
     }
 
     /// <summary>Completes a recovery-code challenge.</summary>
     public async Task<JwtAuthenticationResult> Recovery(CompleteRecoveryCodeCommand request)
     {
-        var u = await users.FindByEmailAsync(request.Email.Trim()) ?? throw new UnauthorizedAccessException("Invalid recovery credentials.");
+        var u = await users.FindByEmailAsync(request.Email.Trim())
+            ?? throw new UnauthorizedAccessException("Invalid recovery credentials.");
         Ensure(await users.RedeemTwoFactorRecoveryCodeAsync(u, request.RecoveryCode.Trim()), "Invalid recovery credentials.");
         return tokens.CreateToken(u, await users.GetRolesAsync(u), await users.GetClaimsAsync(u));
     }
@@ -88,20 +94,24 @@ public sealed class AccountHandlers(UserManager<ApplicationUser> users, RoleMana
     public async Task<TwoFactorInfo> SetTwoFactor(SetTwoFactorCommand request)
     {
         var u = await Current();
-        if (request.Enable && string.IsNullOrWhiteSpace(await users.GetAuthenticatorKeyAsync(u))) Ensure(await users.ResetAuthenticatorKeyAsync(u), "Authenticator setup failed.");
+        if (request.Enable && string.IsNullOrWhiteSpace(await users.GetAuthenticatorKeyAsync(u)))
+            Ensure(await users.ResetAuthenticatorKeyAsync(u), "Authenticator setup failed.");
         Ensure(await users.SetTwoFactorEnabledAsync(u, request.Enable), "Two-factor configuration failed.");
         return await TwoFactorInfo(u);
     }
 
     /// <summary>Disables two-factor authentication.</summary>
-    public async Task DisableTwoFactor() { Ensure(await users.SetTwoFactorEnabledAsync(await Current(), false), "Two-factor disable failed."); }
+    public async Task DisableTwoFactor()
+    {
+        Ensure(await users.SetTwoFactorEnabledAsync(await Current(), false), "Two-factor disable failed.");
+    }
 
     /// <summary>Generates recovery codes.</summary>
     public async Task<IReadOnlyList<string>> RecoveryCodes()
     {
         var u = await Current();
         if (!u.TwoFactorEnabled) throw new InvalidOperationException("Two-factor authentication must be enabled first.");
-        return (await users.GenerateNewTwoFactorRecoveryCodesAsync(u, 10)).ToArray();
+        return [.. (await users.GenerateNewTwoFactorRecoveryCodesAsync(u, 10))!];
     }
 
     /// <summary>Resets the authenticator key.</summary>
@@ -121,32 +131,102 @@ public sealed class AccountHandlers(UserManager<ApplicationUser> users, RoleMana
 }
 
 /// <summary>Handles registration.</summary>
-public sealed class RegisterUserCommandHandler(AccountHandlers h) : IRequestHandler<RegisterUserCommand, Guid> { public Task<Guid> Handle(RegisterUserCommand r, CancellationToken c) => h.Register(r, c); }
+public sealed class RegisterUserCommandHandler(AccountHandlers h) : IRequestHandler<RegisterUserCommand, Guid>
+{
+    /// <summary>Registration handler.</summary>
+    public Task<Guid> Handle(RegisterUserCommand r, CancellationToken c) => h.Register(r, c);
+}
 /// <summary>Handles password reset requests.</summary>
-public sealed class ForgotPasswordCommandHandler(AccountHandlers h) : IRequestHandler<ForgotPasswordCommand, Unit> { public async Task<Unit> Handle(ForgotPasswordCommand r, CancellationToken c) { await h.ForgotPassword(r, c); return Unit.Value; } }
+public sealed class ForgotPasswordCommandHandler(AccountHandlers h) : IRequestHandler<ForgotPasswordCommand, Unit>
+{
+    /// <summary>Password reset requests handler.</summary>
+    public async Task<Unit> Handle(ForgotPasswordCommand r, CancellationToken c)
+    {
+        await h.ForgotPassword(r, c); return Unit.Value;
+    }
+}
 /// <summary>Handles password resets.</summary>
-public sealed class ResetPasswordCommandHandler(AccountHandlers h) : IRequestHandler<ResetPasswordCommand, Unit> { public async Task<Unit> Handle(ResetPasswordCommand r, CancellationToken c) { await h.ResetPassword(r, c); return Unit.Value; } }
+public sealed class ResetPasswordCommandHandler(AccountHandlers h) : IRequestHandler<ResetPasswordCommand, Unit>
+{
+    /// <summary>Password resets handler.</summary>
+    public async Task<Unit> Handle(ResetPasswordCommand r, CancellationToken c) { await h.ResetPassword(r, c); return Unit.Value; }
+}
 /// <summary>Handles email confirmation.</summary>
-public sealed class ConfirmEmailCommandHandler(AccountHandlers h) : IRequestHandler<ConfirmEmailCommand, Unit> { public async Task<Unit> Handle(ConfirmEmailCommand r, CancellationToken c) { await h.ConfirmEmail(r, c); return Unit.Value; } }
+public sealed class ConfirmEmailCommandHandler(AccountHandlers h) : IRequestHandler<ConfirmEmailCommand, Unit>
+{
+    /// <summary>Email confirmation handler.</summary>
+    public async Task<Unit> Handle(ConfirmEmailCommand r, CancellationToken c) { await h.ConfirmEmail(r, c); return Unit.Value; }
+}
 /// <summary>Handles confirmation resend.</summary>
-public sealed class ResendConfirmationEmailCommandHandler(AccountHandlers h) : IRequestHandler<ResendConfirmationEmailCommand, Unit> { public async Task<Unit> Handle(ResendConfirmationEmailCommand r, CancellationToken c) { await h.ResendConfirmation(r, c); return Unit.Value; } }
+public sealed class ResendConfirmationEmailCommandHandler(AccountHandlers h) : IRequestHandler<ResendConfirmationEmailCommand, Unit>
+{
+    /// <summary>Confirmation resend handler.</summary>
+    public async Task<Unit> Handle(ResendConfirmationEmailCommand r, CancellationToken c) { await h.ResendConfirmation(r, c); return Unit.Value; }
+}
 /// <summary>Handles profile updates.</summary>
-public sealed class UpdateProfileCommandHandler(AccountHandlers h) : IRequestHandler<UpdateProfileCommand, Unit> { public async Task<Unit> Handle(UpdateProfileCommand r, CancellationToken c) { await h.UpdateProfile(r, c); return Unit.Value; } }
+public sealed class UpdateProfileCommandHandler(AccountHandlers h) : IRequestHandler<UpdateProfileCommand, Unit>
+{
+    /// <summary>Profile updates handler.</summary>
+    public async Task<Unit> Handle(UpdateProfileCommand r, CancellationToken c)
+    {
+        await h.UpdateProfile(r, c); return Unit.Value;
+    }
+}
 /// <summary>Handles JWT refresh.</summary>
-public sealed class RefreshTokenCommandHandler(AccountHandlers h) : IRequestHandler<RefreshTokenCommand, JwtAuthenticationResult> { public Task<JwtAuthenticationResult> Handle(RefreshTokenCommand r, CancellationToken c) => h.Refresh(); }
+public sealed class RefreshTokenCommandHandler(AccountHandlers h) : IRequestHandler<RefreshTokenCommand, JwtAuthenticationResult>
+{
+    /// <summary>JWT refresh handler.</summary>
+    public Task<JwtAuthenticationResult> Handle(RefreshTokenCommand r, CancellationToken c) => h.Refresh();
+}
 /// <summary>Handles authenticator login.</summary>
-public sealed class CompleteTwoFactorCommandHandler(AccountHandlers h) : IRequestHandler<CompleteTwoFactorCommand, JwtAuthenticationResult> { public Task<JwtAuthenticationResult> Handle(CompleteTwoFactorCommand r, CancellationToken c) => h.TwoFactor(r); }
+public sealed class CompleteTwoFactorCommandHandler(AccountHandlers h) : IRequestHandler<CompleteTwoFactorCommand, JwtAuthenticationResult>
+{
+    /// <summary>Authenticator login handler.</summary>
+    public Task<JwtAuthenticationResult> Handle(CompleteTwoFactorCommand r, CancellationToken c) => h.TwoFactor(r);
+}
 /// <summary>Handles recovery login.</summary>
-public sealed class CompleteRecoveryCodeCommandHandler(AccountHandlers h) : IRequestHandler<CompleteRecoveryCodeCommand, JwtAuthenticationResult> { public Task<JwtAuthenticationResult> Handle(CompleteRecoveryCodeCommand r, CancellationToken c) => h.Recovery(r); }
+public sealed class CompleteRecoveryCodeCommandHandler(AccountHandlers h) : IRequestHandler<CompleteRecoveryCodeCommand, JwtAuthenticationResult>
+{
+    /// <summary>Recovery login handler.</summary>
+    public Task<JwtAuthenticationResult> Handle(CompleteRecoveryCodeCommand r, CancellationToken c) => h.Recovery(r);
+}
 /// <summary>Handles two-factor enablement.</summary>
-public sealed class SetTwoFactorCommandHandler(AccountHandlers h) : IRequestHandler<SetTwoFactorCommand, TwoFactorInfo> { public Task<TwoFactorInfo> Handle(SetTwoFactorCommand r, CancellationToken c) => h.SetTwoFactor(r); }
+public sealed class SetTwoFactorCommandHandler(AccountHandlers h) : IRequestHandler<SetTwoFactorCommand, TwoFactorInfo>
+{
+    /// <summary>Two-Factor enablement handler.</summary>
+    public Task<TwoFactorInfo> Handle(SetTwoFactorCommand r, CancellationToken c) => h.SetTwoFactor(r);
+}
 /// <summary>Handles two-factor disablement.</summary>
-public sealed class DisableTwoFactorCommandHandler(AccountHandlers h) : IRequestHandler<DisableTwoFactorCommand, Unit> { public async Task<Unit> Handle(DisableTwoFactorCommand r, CancellationToken c) { await h.DisableTwoFactor(); return Unit.Value; } }
+public sealed class DisableTwoFactorCommandHandler(AccountHandlers h) : IRequestHandler<DisableTwoFactorCommand, Unit>
+{
+    /// <summary>Two-Factor disablement handler.</summary>
+    public async Task<Unit> Handle(DisableTwoFactorCommand r, CancellationToken c)
+    {
+        await h.DisableTwoFactor();
+        return Unit.Value;
+    }
+}
 /// <summary>Handles recovery-code generation.</summary>
-public sealed class GenerateRecoveryCodesCommandHandler(AccountHandlers h) : IRequestHandler<GenerateRecoveryCodesCommand, IReadOnlyList<string>> { public Task<IReadOnlyList<string>> Handle(GenerateRecoveryCodesCommand r, CancellationToken c) => h.RecoveryCodes(); }
+public sealed class GenerateRecoveryCodesCommandHandler(AccountHandlers h) : IRequestHandler<GenerateRecoveryCodesCommand, IReadOnlyList<string>>
+{
+    /// <summary>Recovery-code generation handler.</summary>
+    public Task<IReadOnlyList<string>> Handle(GenerateRecoveryCodesCommand r, CancellationToken c) => h.RecoveryCodes();
+}
 /// <summary>Handles authenticator reset.</summary>
-public sealed class ResetAuthenticatorKeyCommandHandler(AccountHandlers h) : IRequestHandler<ResetAuthenticatorKeyCommand, TwoFactorInfo> { public Task<TwoFactorInfo> Handle(ResetAuthenticatorKeyCommand r, CancellationToken c) => h.ResetAuthenticatorKey(); }
+public sealed class ResetAuthenticatorKeyCommandHandler(AccountHandlers h) : IRequestHandler<ResetAuthenticatorKeyCommand, TwoFactorInfo>
+{
+    /// <summary>Authenticator reset handler.</summary>
+    public Task<TwoFactorInfo> Handle(ResetAuthenticatorKeyCommand r, CancellationToken c) => h.ResetAuthenticatorKey();
+}
 /// <summary>Handles profile queries.</summary>
-public sealed class GetCurrentProfileQueryHandler(AccountHandlers h) : IRequestHandler<GetCurrentProfileQuery, UserProfileResult> { public Task<UserProfileResult> Handle(GetCurrentProfileQuery r, CancellationToken c) => h.Profile(); }
+public sealed class GetCurrentProfileQueryHandler(AccountHandlers h) : IRequestHandler<GetCurrentProfileQuery, UserProfileResult>
+{
+    /// <summary>Profile queries handler.</summary>
+    public Task<UserProfileResult> Handle(GetCurrentProfileQuery r, CancellationToken c) => h.Profile();
+}
 /// <summary>Handles two-factor queries.</summary>
-public sealed class GetTwoFactorQueryHandler(AccountHandlers h) : IRequestHandler<GetTwoFactorQuery, TwoFactorInfo> { public Task<TwoFactorInfo> Handle(GetTwoFactorQuery r, CancellationToken c) => h.GetTwoFactor(); }
+public sealed class GetTwoFactorQueryHandler(AccountHandlers h) : IRequestHandler<GetTwoFactorQuery, TwoFactorInfo>
+{
+    /// <summary>Two-Factor queries handler.</summary>
+    public Task<TwoFactorInfo> Handle(GetTwoFactorQuery r, CancellationToken c) => h.GetTwoFactor();
+}
