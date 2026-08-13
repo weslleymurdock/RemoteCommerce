@@ -47,7 +47,7 @@ The host is a single main application containing:
 
 Application use cases are organized by feature. Commands, queries, and notifications are kept in their respective `Commands`, `Queries`, and `Notifications` namespaces. Their handlers live under the feature `Handlers` namespace and applicable FluentValidation validators live under `Validators`.
 
-Controllers are thin HTTP adapters and dispatch application work through `IMediator.Send(...)`. They do not contain application orchestration or persistence logic.
+Controllers are thin HTTP adapters and dispatch application work through `IMediator.Send(...)`. They do not contain application orchestration or persistence logic. A Razor feature's controller is the HTTP code-behind boundary for that feature and delegates its work to the corresponding MediatR request/handler rather than implementing the use case itself.
 
 The common pipeline is:
 
@@ -69,7 +69,7 @@ Persistence
 
 `ValidationBehavior` belongs to `Application.Common.Behaviors`. `TransactionalBehavior` belongs to `Infrastructure.Common.Behaviors` because its responsibility is EF Core transaction management. Transactional commands commit successful persistence and roll back on exceptions; read-only queries do not receive write transactions by default.
 
-All C# projects use `ImplicitUsings` and repository `GlobalUsings.cs` files for namespace imports. Source files must not contain `using` or `global using` directives. Razor `@using` and `@inject` directives are centralized in `_Imports.razor`; page-specific `@page`, `@attribute`, `@inherits`, and `@implements` remain on the individual component.
+All C# projects use `<ImplicitUsings>enable</ImplicitUsings>` and project-level `GlobalUsings.cs` files for namespace imports. Namespace imports are maintained as organized `global using` directives in those files; ordinary `using` directives and `global using` directives are not placed in feature/source files. Razor `@using` and `@inject` directives are centralized in `_Imports.razor`; page-specific `@page`, `@attribute`, `@inherits`, and `@implements` remain on the individual component.
 
 ## Site and deployment configuration
 
@@ -83,11 +83,15 @@ This separation keeps the deployment boundary independent from future database, 
 
 Authentication and user persistence use ASP.NET Core Identity only for its EF Core schema, `UserManager<TUser>`, `RoleManager<TRole>`, password hashing, lockout, security stamps, and related stores. RemoteCommerce does not map ASP.NET Core Identity API endpoints or Identity Account/Razor Pages.
 
-RemoteCommerce exposes its own `IdentityController` and MudBlazor login/setup components. The controller dispatches `LoginCommand`, `BootstrapAdministratorCommand`, `LogoutCommand`, and related requests through MediatR. Successful authentication produces a signed, short-lived JWT. The browser administration session stores that JWT only in an HTTP-only, secure, same-site cookie. The bearer handler also accepts a standard `Authorization: Bearer` token for API clients.
+RemoteCommerce exposes its own `IdentityController` and MudBlazor login, setup, recovery, registration, profile, and two-factor components. The controller dispatches identity requests such as `LoginCommand`, `BootstrapAdministratorCommand`, `RefreshTokenCommand`, `LogoutCommand`, and related requests through MediatR.
 
-JWT validation checks signature, issuer, audience, lifetime, user existence, disabled state, and the Identity security stamp. Logout rotates the user's security stamp, invalidating previously issued tokens without a custom token database. Token signing configuration is deployment-managed and is never persisted in SQL or exposed through the administration UI.
+Successful authentication produces a signed, short-lived JWT access token together with a refresh token and their respective expiration metadata. Refresh requests validate the refresh token and its lifetime before issuing a new access/refresh pair. The browser administration session stores the access token only in an HTTP-only, secure, same-site cookie. The bearer handler also accepts a standard `Authorization: Bearer` token for API clients.
 
-The first administrator is created through the RemoteCommerce `/api/identity/setup` boundary when the user store is empty. The setup creates the `Administrator` role and baseline permission claims and then establishes the JWT browser session. No ASP.NET Core Identity API or Identity Account endpoint is part of the application contract.
+JWT validation checks signature, issuer, audience, lifetime, user existence, disabled state, and the Identity security stamp. Logout/security-stamp changes invalidate previously issued sessions. Token signing configuration is deployment-managed and is never persisted in SQL or exposed through the administration UI.
+
+The first administrator is created through the RemoteCommerce `/api/identity/setup` boundary when the user store is empty. The setup creates the `Administrator` role and baseline permission claims and then establishes the authentication session. The Blazor route boundary checks the persisted setup state before rendering the application: while the Identity store has no users, the setup page is the only available application page; once setup exists, the setup page is unavailable and normal application/admin routes are available. If the user store is subsequently emptied, setup is required again.
+
+No ASP.NET Core Identity API or Identity Account endpoint is part of the application contract.
 
 Authorization is expressed through named policies and permission claims. The `Administrator` role is accepted by the baseline administrative policies, while individual permission claims provide an extension point for more granular roles and future plugin-declared permissions. No WooCommerce-style ACL is introduced in this stage.
 
@@ -149,7 +153,7 @@ Administratively imported resources are validated as `.resx`-compatible XML, pro
 
 - `/api/rp/v1/...` is the RemoteCommerce plugin API namespace.
 - `/api/rc/v1/...` is reserved for APIs ported from WooCommerce.
-- `/api/identity/...` is the host's explicit authentication boundary and is not an ASP.NET Core Identity endpoint.
+- `/api/identity/...` is the host's explicit authentication/account boundary and is not an ASP.NET Core Identity endpoint.
 - Future versions increment the version segment rather than changing an existing contract.
 
 ## Target domain boundaries
