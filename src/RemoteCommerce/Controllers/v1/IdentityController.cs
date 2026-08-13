@@ -6,7 +6,7 @@ namespace RemoteCommerce.Controllers.v1;
 [Route("api/rc/v1/identity")]
 public sealed class IdentityController(IMediator mediator) : ControllerBase
 {
-    /// <summary>Authenticates a user.</summary><param name="request">Credentials.</param><param name="cancellationToken">Cancellation token.</param><returns>Session metadata.</returns>
+    /// <summary>Authenticates a user.</summary><param name="request">Credentials.</param><param name="cancellationToken">Cancellation token.</param><returns>Authentication session.</returns>
     [AllowAnonymous, HttpPost("login")]
     public async Task<ActionResult<AuthenticationResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
@@ -15,15 +15,15 @@ public sealed class IdentityController(IMediator mediator) : ControllerBase
         catch (UnauthorizedAccessException ex) { return Unauthorized(new ProblemDetails { Title = "Authentication failed.", Detail = ex.Message }); }
     }
 
-    /// <summary>Completes an authenticator challenge.</summary><param name="request">The challenge.</param><param name="cancellationToken">Cancellation token.</param><returns>Session metadata.</returns>
+    /// <summary>Completes an authenticator challenge.</summary><param name="request">The challenge.</param><param name="cancellationToken">Cancellation token.</param><returns>Authentication session.</returns>
     [AllowAnonymous, HttpPost("login/2fa")]
     public async Task<ActionResult<AuthenticationResponse>> LoginTwoFactor(CompleteTwoFactorRequest request, CancellationToken cancellationToken) => Ok(await SetSession(await mediator.Send(new CompleteTwoFactorCommand(request.Email, request.Code, request.RememberMachine), cancellationToken)));
 
-    /// <summary>Completes a recovery-code challenge.</summary><param name="request">The recovery code.</param><param name="cancellationToken">Cancellation token.</param><returns>Session metadata.</returns>
+    /// <summary>Completes a recovery-code challenge.</summary><param name="request">The recovery code.</param><param name="cancellationToken">Cancellation token.</param><returns>Authentication session.</returns>
     [AllowAnonymous, HttpPost("login/recovery")]
     public async Task<ActionResult<AuthenticationResponse>> LoginRecovery(RecoveryLoginRequest request, CancellationToken cancellationToken) => Ok(await SetSession(await mediator.Send(new CompleteRecoveryCodeCommand(request.Email, request.RecoveryCode), cancellationToken)));
 
-    /// <summary>Refreshes the authenticated session.</summary><param name="cancellationToken">Cancellation token.</param><returns>Session metadata.</returns>
+    /// <summary>Refreshes the authenticated session.</summary><param name="cancellationToken">Cancellation token.</param><returns>Authentication session.</returns>
     [Authorize, HttpPost("refresh")]
     public async Task<ActionResult<AuthenticationResponse>> Refresh(CancellationToken cancellationToken) => Ok(await SetSession(await mediator.Send(new RefreshTokenCommand(), cancellationToken)));
 
@@ -31,14 +31,13 @@ public sealed class IdentityController(IMediator mediator) : ControllerBase
     [AllowAnonymous, HttpGet("setup-status")]
     public async Task<ActionResult<bool>> SetupStatus(CancellationToken cancellationToken) => Ok(await mediator.Send(new GetSetupStatusQuery(), cancellationToken));
 
-    /// <summary>Creates the first administrator.</summary><param name="request">Bootstrap data.</param><param name="cancellationToken">Cancellation token.</param><returns>Created user identifier.</returns>
+    /// <summary>Creates the first administrator and establishes its authenticated session.</summary><param name="request">Bootstrap data.</param><param name="cancellationToken">Cancellation token.</param><returns>Authentication session.</returns>
     [AllowAnonymous, HttpPost("setup")]
-    public async Task<ActionResult<Guid>> Setup(BootstrapRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<AuthenticationResponse>> Setup(BootstrapRequest request, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new BootstrapAdministratorCommand(request.DisplayName, request.Email, request.Password), cancellationToken);
+        await mediator.Send(new BootstrapAdministratorCommand(request.DisplayName, request.Email, request.Password), cancellationToken);
         var login = await mediator.Send(new LoginCommand(request.Email, request.Password), cancellationToken);
-        await SetSession(login);
-        return Ok(result.UserId);
+        return Ok(await SetSession(login));
     }
 
     /// <summary>Registers a standard user.</summary><param name="request">Registration data.</param><param name="cancellationToken">Cancellation token.</param><returns>Created user identifier.</returns>
@@ -101,7 +100,7 @@ public sealed class IdentityController(IMediator mediator) : ControllerBase
     private Task<AuthenticationResponse> SetSession(JwtAuthenticationResult result)
     {
         Response.Cookies.Append(JwtOptions.CookieName, result.Token, new CookieOptions { HttpOnly = true, Secure = Request.IsHttps, SameSite = SameSiteMode.Strict, Expires = result.ExpiresAt, IsEssential = true, Path = "/" });
-        return Task.FromResult(new AuthenticationResponse(result.ExpiresAt));
+        return Task.FromResult(new AuthenticationResponse(result.Token, result.ExpiresAt));
     }
 
     /// <summary>Login credentials.</summary><param name="Email">Email.</param><param name="Password">Password.</param>
@@ -124,6 +123,6 @@ public sealed class IdentityController(IMediator mediator) : ControllerBase
     public sealed record ProfileRequest(string DisplayName, string Email);
     /// <summary>Two-factor state.</summary><param name="Enable">Whether to enable 2FA.</param>
     public sealed record TwoFactorRequest(bool Enable);
-    /// <summary>Authentication session metadata.</summary><param name="ExpiresAt">JWT expiration.</param>
-    public sealed record AuthenticationResponse(DateTimeOffset ExpiresAt);
+    /// <summary>Authentication session containing the issued access token and expiration.</summary><param name="AccessToken">The signed access token.</param><param name="ExpiresAt">JWT expiration.</param>
+    public sealed record AuthenticationResponse(string AccessToken, DateTimeOffset ExpiresAt);
 }
