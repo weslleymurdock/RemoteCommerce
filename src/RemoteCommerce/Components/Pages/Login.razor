@@ -1,43 +1,5 @@
 @page "/login"
 
 <PageTitle>Sign in | RemoteCommerce</PageTitle>
-
-<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
-    <MudPaper Elevation="4" Class="pa-8">
-        <MudText Typo="Typo.h4" GutterBottom="true">Sign in</MudText>
-        <MudText Typo="Typo.body2" Class="mb-6">Sign in to the RemoteCommerce administration.</MudText>
-        <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Required="true" />
-        <MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Required="true" Class="mt-4" />
-        @if (_error is not null)
-        {
-            <MudAlert Severity="MudSeverity.Error" Class="mt-4">@_error</MudAlert>
-        }
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-6" OnClick="LoginAsync" Disabled="_busy">Sign in</MudButton>
-    </MudPaper>
-</MudContainer>
-
-@code {
-    private string _email = string.Empty;
-    private string _password = string.Empty;
-    private string? _error;
-    private bool _busy;
-
-    private async Task LoginAsync()
-    {
-        _busy = true;
-        _error = null;
-        try
-        {
-            await JS.InvokeAsync<object>("remoteCommerceIdentity.login", _email, _password);
-            Navigation.NavigateTo("/", forceLoad: true);
-        }
-        catch (JSException exception)
-        {
-            _error = exception.Message;
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-}
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16"><MudPaper Elevation="4" Class="pa-8"><MudText Typo="Typo.h4">Sign in</MudText>@if (!_requiresTwoFactor){<MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Required="true" Class="mt-4" /><MudTextField @bind-Value="_password" Label="Password" InputType="InputType.Password" Required="true" Class="mt-4" /><MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-6" OnClick="LoginAsync" Disabled="_busy">Sign in</MudButton><MudLink Href="/forgot-password" Class="d-block mt-4">Forgot your password?</MudLink>}else{<MudTextField @bind-Value="_code" Label="Authenticator code" InputType="InputType.Number" Class="mt-4" /><MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-6" OnClick="TwoFactorAsync" Disabled="_busy">Verify</MudButton><MudTextField @bind-Value="_recoveryCode" Label="Recovery code" Class="mt-4" /><MudButton Variant="Variant.Text" FullWidth="true" OnClick="RecoveryAsync" Disabled="_busy">Use recovery code</MudButton>}@if (_error is not null){<MudAlert Severity="MudSeverity.Error" Class="mt-4">@_error</MudAlert>}</MudPaper></MudContainer>
+@code { private string _email=string.Empty; private string _password=string.Empty; private string _code=string.Empty; private string _recoveryCode=string.Empty; private string? _error; private bool _busy; private bool _requiresTwoFactor; private async Task LoginAsync()=>await Execute(async()=>{try{await JS.InvokeAsync<object>("remoteCommerceIdentity.login",_email,_password);Navigation.NavigateTo("/",true);}catch(JSException ex){if(ex.Message.Contains("409",StringComparison.OrdinalIgnoreCase))_requiresTwoFactor=true;else throw;}}); private async Task TwoFactorAsync()=>await Execute(async()=>{await JS.InvokeAsync<object>("remoteCommerceIdentity.login2fa",_email,_code,false);Navigation.NavigateTo("/",true);}); private async Task RecoveryAsync()=>await Execute(async()=>{await JS.InvokeAsync<object>("remoteCommerceIdentity.loginRecovery",_email,_recoveryCode);Navigation.NavigateTo("/",true);}); private async Task Execute(Func<Task> action){_busy=true;_error=null;try{await action();}catch(JSException ex){_error=ex.Message;}finally{_busy=false;}} }

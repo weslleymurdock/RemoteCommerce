@@ -1,0 +1,4 @@
+@page "/confirm-email"
+<PageTitle>Confirm email | RemoteCommerce</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16"><MudPaper Class="pa-8"><MudText Typo="Typo.h5">Email confirmation</MudText><MudText Class="mt-4">@_message</MudText></MudPaper></MudContainer>
+@code { [SupplyParameterFromQuery] private Guid UserId {get;set;} [SupplyParameterFromQuery] private string? Token {get;set;} private string _message="Confirming your email..."; protected override async Task OnInitializedAsync(){try{await JS.InvokeAsync<object>("remoteCommerceIdentity.confirmEmail",UserId,Token);_message="Your email has been confirmed.";}catch(JSException ex){_message=ex.Message;}} }
