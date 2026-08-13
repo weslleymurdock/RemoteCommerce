@@ -1,5 +1,5 @@
 window.remoteCommerceIdentity = {
-    async login(email, password) { return await this.post('/api/rc/v1/identity/login', { email, password }); },
+    async login(email, password) { const response = await fetch('/api/rc/v1/identity/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }); if (response.status === 409) return { requiresTwoFactor: true }; return await this.parse(response); },
     async login2fa(email, code, rememberMachine = false) { return await this.post('/api/rc/v1/identity/login/2fa', { email, code, rememberMachine }); },
     async loginRecovery(email, recoveryCode) { return await this.post('/api/rc/v1/identity/login/recovery', { email, recoveryCode }); },
     async setup(displayName, email, password) { return await this.post('/api/rc/v1/identity/setup', { displayName, email, password }); },
