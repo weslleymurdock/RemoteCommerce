@@ -1,6 +1,5 @@
 var builder = WebApplication.CreateBuilder(args);
-if (builder.Environment.IsDevelopment() && !string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
-    builder.Configuration.AddUserSecrets<Program>(optional: true);
+if (builder.Environment.IsDevelopment() && !string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)) builder.Configuration.AddUserSecrets<Program>(optional: true);
 
 builder.Services.AddOpenApi();
 builder.Services.AddLocalization();
@@ -13,7 +12,6 @@ builder.Services.AddControllers();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 builder.Services.AddDbContextFactory<CommerceDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
-
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
     options.User.RequireUniqueEmail = true;
@@ -25,57 +23,26 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 })
-.AddRoles<ApplicationRole>()
-.AddEntityFrameworkStores<CommerceDbContext>()
-.AddDefaultTokenProviders();
-
-builder.Services.AddOptions<JwtOptions>()
-    .BindConfiguration("Jwt")
-    .Validate(x => !string.IsNullOrWhiteSpace(x.Key) && x.Key.Length >= 32, "Jwt:Key must be supplied by deployment configuration and contain at least 32 characters.")
-    .Validate(x => !string.IsNullOrWhiteSpace(x.Issuer), "Jwt:Issuer is required.")
-    .Validate(x => !string.IsNullOrWhiteSpace(x.Audience), "Jwt:Audience is required.")
-    .ValidateOnStart();
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+.AddRoles<ApplicationRole>().AddEntityFrameworkStores<CommerceDbContext>().AddDefaultTokenProviders();
+builder.Services.AddOptions<JwtOptions>().BindConfiguration("Jwt").Validate(x => !string.IsNullOrWhiteSpace(x.Key) && x.Key.Length >= 32, "Jwt:Key must be supplied by deployment configuration and contain at least 32 characters.").Validate(x => !string.IsNullOrWhiteSpace(x.Issuer), "Jwt:Issuer is required.").Validate(x => !string.IsNullOrWhiteSpace(x.Audience), "Jwt:Audience is required.").ValidateOnStart();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+{
+    var jwt = builder.Configuration.GetSection("Jwt");
+    options.TokenValidationParameters = new TokenValidationParameters { ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? string.Empty)), ValidateIssuer = true, ValidIssuer = jwt["Issuer"] ?? "RemoteCommerce", ValidateAudience = true, ValidAudience = jwt["Audience"] ?? "RemoteCommerce", ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(30), NameClaimType = ClaimTypes.Name, RoleClaimType = ClaimTypes.Role };
+    options.Events = new JwtBearerEvents
     {
-        var jwt = builder.Configuration.GetSection("Jwt");
-        options.TokenValidationParameters = new TokenValidationParameters
+        OnMessageReceived = context => { if (string.IsNullOrWhiteSpace(context.Token) && context.Request.Cookies.TryGetValue(JwtOptions.CookieName, out var token)) context.Token = token; return Task.CompletedTask; },
+        OnTokenValidated = async context =>
         {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? string.Empty)),
-            ValidateIssuer = true,
-            ValidIssuer = jwt["Issuer"] ?? "RemoteCommerce",
-            ValidateAudience = true,
-            ValidAudience = jwt["Audience"] ?? "RemoteCommerce",
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromSeconds(30),
-            NameClaimType = ClaimTypes.Name,
-            RoleClaimType = ClaimTypes.Role
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                if (string.IsNullOrWhiteSpace(context.Token) && context.Request.Cookies.TryGetValue(JwtOptions.CookieName, out var token)) context.Token = token;
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = async context =>
-            {
-                var subject = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var securityStamp = context.Principal?.FindFirst("security_stamp")?.Value;
-                if (subject is null || securityStamp is null)
-                {
-                    context.Fail("The authentication token is incomplete.");
-                    return;
-                }
-                var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
-                var user = await userManager.FindByIdAsync(subject);
-                if (user is null || user.IsDisabled || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal)) context.Fail("The authentication token has been invalidated.");
-            }
-        };
-    });
-
+            var subject = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+            var securityStamp = context.Principal?.FindFirst("security_stamp")?.Value;
+            if (subject is null || securityStamp is null) { context.Fail("The authentication token is incomplete."); return; }
+            var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByIdAsync(subject);
+            if (user is null || user.IsDisabled || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal)) context.Fail("The authentication token has been invalidated.");
+        }
+    };
+});
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthorizationPolicies.Administrator, policy => policy.RequireRole("Administrator"));
@@ -84,7 +51,6 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AuthorizationPolicies.ManageLocalization, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageLocalization)));
     options.AddPolicy(AuthorizationPolicies.ManagePlugins, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManagePlugins)));
 });
-
 builder.Services.AddSingleton<IApplicationContext, HttpApplicationContext>();
 builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
 builder.Services.AddScoped<LocalizationResourceService>();
@@ -93,15 +59,10 @@ builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
 builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
-builder.Services.AddMediatR(configuration =>
-{
-    configuration.RegisterServicesFromAssembly(typeof(Program).Assembly);
-    configuration.AddOpenBehavior(typeof(LoggingBehavior<,>));
-    configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
-    configuration.AddOpenBehavior(typeof(TransactionalBehavior<,>));
-});
+builder.Services.AddScoped<AccountHandlers>();
+builder.Services.AddScoped<IEmailService<IdentityEmailMessage>, LoggingIdentityEmailService>();
+builder.Services.AddMediatR(configuration => { configuration.RegisterServicesFromAssembly(typeof(Program).Assembly); configuration.AddOpenBehavior(typeof(LoggingBehavior<,>)); configuration.AddOpenBehavior(typeof(ValidationBehavior<,>)); configuration.AddOpenBehavior(typeof(TransactionalBehavior<,>)); });
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-
 var adminNavigation = new AdminNavigationRegistry();
 adminNavigation.Register(new AdminNavigationItem("Dashboard", "/rc/admin", Icons.Material.Filled.Dashboard, 0));
 adminNavigation.Register(new AdminNavigationItem("Site settings", "/rc/admin/settings", Icons.Material.Filled.Settings, 10));
@@ -111,42 +72,17 @@ adminNavigation.Register(new AdminNavigationItem("Localization", "/rc/admin/loca
 adminNavigation.Register(new AdminNavigationItem("Security & configuration", "/rc/admin/security", Icons.Material.Filled.Lock, 50));
 adminNavigation.Register(new AdminNavigationItem("Plugins", "/rc/plugins", Icons.Material.Filled.Extension, 60));
 builder.Services.AddSingleton<IAdminNavigationRegistry>(adminNavigation);
-
 var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
 builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
-
 var app = builder.Build();
 app.UseExceptionHandler();
 if (!app.Environment.IsDevelopment()) app.UseHsts();
 app.MapOpenApi("o/{v1}.json");
-if (!app.Environment.IsProduction())
-{
-    app.MapScalarApiReference("s/rc", configuration =>
-    {
-        configuration.WithTitle($"[{app.Environment.EnvironmentName}] RemoteCommerce API Reference")
-            .WithOpenApiRoutePattern("/o/{documentName}.json")
-            .WithTheme(ScalarTheme.Purple)
-            .AddHeadContent(@"
-                <link href=""https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap"" rel=""stylesheet"" />
-                <link href=""_content/MudBlazor/MudBlazor.min.css"" rel=""stylesheet"" />
-                <script src=""_content/MudBlazor/MudBlazor.min.js""></script>
-                <script>document.addEventListener('DOMContentLoaded',()=>{document.body.classList.add('mud-application','mud-theme-primary');const update=()=>document.documentElement.setAttribute('data-theme',document.body.classList.contains('mud-dark-theme')?'dark':'light');new MutationObserver(update).observe(document.body,{attributes:true,attributeFilter:['class']});update();});</script>
-            ")
-            .WithCustomCss(@"
-                :root{--scalar-background-1:var(--mud-palette-surface,#fff);--scalar-background-2:var(--mud-palette-background,#f5f5f5);--scalar-background-3:var(--mud-palette-background-gray,#e0e0e0);--scalar-background-accent:var(--mud-palette-action-default-hover,rgba(0,0,0,.04));--scalar-color-1:var(--mud-palette-text-primary,#424242);--scalar-color-2:var(--mud-palette-text-secondary,#616161);--scalar-color-3:var(--mud-palette-text-disabled,#9e9e9e);--scalar-color-accent:var(--mud-palette-primary,#594ae2);--scalar-button-1:var(--mud-palette-primary,#594ae2);--scalar-button-1-color:var(--mud-palette-primary-text,#fff);--scalar-button-1-hover:var(--mud-palette-primary-darken,#3d2cc4);--scalar-border-color:var(--mud-palette-lines-default,#e0e0e0);--scalar-radius:var(--mud-default-borderradius,4px);--scalar-font:'Roboto',sans-serif;--scalar-font-code:'Roboto Mono',monospace}.mud-dark-theme,[data-theme='dark']{--scalar-background-1:var(--mud-palette-surface,#1e1e2d);--scalar-background-2:var(--mud-palette-background,#151521);--scalar-background-3:var(--mud-palette-background-gray,#27273a);--scalar-color-1:var(--mud-palette-text-primary,#fff);--scalar-color-2:var(--mud-palette-text-secondary,#a1a5b7);--scalar-border-color:var(--mud-palette-lines-default,#2b2b40)}.scalar-api-reference{font-family:var(--scalar-font);background-color:var(--scalar-background-1);color:var(--scalar-color-1)}.scalar-card,.section{border-radius:var(--mud-default-borderradius,4px)!important;box-shadow:var(--mud-elevation-1,0 2px 1px -1px rgba(0,0,0,.2))!important}
-            ");
-    });
-}
+if (!app.Environment.IsProduction()) app.MapScalarApiReference("s/rc", configuration => configuration.WithTitle($"[{app.Environment.EnvironmentName}] RemoteCommerce API Reference").WithOpenApiRoutePattern("/o/{documentName}.json").WithTheme(ScalarTheme.Purple));
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseRequestLocalization(new RequestLocalizationOptions
-{
-    DefaultRequestCulture = new RequestCulture("pt-BR"),
-    SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
-    SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
-    RequestCultureProviders = [new QueryStringRequestCultureProvider(), new CookieRequestCultureProvider(), new AcceptLanguageHeaderRequestCultureProvider(), new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())],
-});
+app.UseRequestLocalization(new RequestLocalizationOptions { DefaultRequestCulture = new RequestCulture("pt-BR"), SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")], SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")], RequestCultureProviders = [new QueryStringRequestCultureProvider(), new CookieRequestCultureProvider(), new AcceptLanguageHeaderRequestCultureProvider(), new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())] });
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
