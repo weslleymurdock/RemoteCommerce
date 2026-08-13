@@ -5,9 +5,9 @@ on:
     types: [opened, synchronize]
   push:
     branches: [main]
-    tags: ['v*'] 
+    tags: ['v*']
   workflow_dispatch:
-   
+
 permissions:
   contents: write
   packages: write
@@ -18,65 +18,97 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
-      with:
-        submodules: recursive
-        
-    - uses: actions/setup-dotnet@v6
-      with:
-        global-json-file: ${{ github.workspace }}/global.json
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
-    - name: Remote Commerce
-      run: |
-        dotnet restore RemoteCommerce.slnx
-        dotnet build RemoteCommerce.slnx --configuration Release --no-restore
-        dotnet test RemoteCommerce.slnx --configuration Release --no-build --no-restore
-    
-    - name: Plugins
-      run: |
-        dotnet restore RemoteCommerce.Plugins.slnx
-        dotnet build RemoteCommerce.Plugins.slnx --configuration Release --no-restore
-        dotnet build RemoteCommerce.Plugins.slnx --configuration Release --no-restore
-        dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/Plugin.csproj --configuration Release --no-restore --output ./artifacts
-        
-    - name: Tools
-      run: |
-        dotnet restore RemoteCommerce.Tools.slnx 
-        dotnet build RemoteCommerce.Tools.slnx --configuration Release --no-restore
-        dotnet pack tools/RemoteCommerce.Plugin.Template/RemoteCommerce.Plugin.Template.csproj --configuration Release --no-restore --output ./artifacts
-    
-    - name: Validate plugin package
-      shell: bash
-      run: test -f ./artifacts/RemoteCommerce_SamplePlugin.1.0.0.nupkg
-    - name: Validate dotnet tool package
-      shell: bash
-      run: test -f ./artifacts/RemoteCommerce.Plugin.Template.1.0.0.nupkg
-  
-  publish:
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: ${{ github.workspace }}/global.json
 
-      - name: Download packed tools
+      - name: Restore RemoteCommerce
+        run: dotnet restore RemoteCommerce.slnx
+
+      - name: Build RemoteCommerce
+        run: dotnet build RemoteCommerce.slnx --configuration Release --no-restore
+
+      - name: Restore plugins
+        run: dotnet restore RemoteCommerce.Plugins.slnx
+
+      - name: Build plugins
+        run: dotnet build RemoteCommerce.Plugins.slnx --configuration Release --no-restore
+
+      - name: Pack sample plugin
+        run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/Plugin.csproj --configuration Release --no-restore --output ./artifacts
+
+      - name: Restore tools
+        run: dotnet restore RemoteCommerce.Tools.slnx
+
+      - name: Build tools
+        run: dotnet build RemoteCommerce.Tools.slnx --configuration Release --no-restore
+
+      - name: Pack plugin template tool
+        run: dotnet pack tools/RemoteCommerce.Plugin.Template/RemoteCommerce.Plugin.Template.csproj --configuration Release --no-restore --output ./artifacts
+
+      - name: Validate plugin package
+        shell: bash
+        run: test -f ./artifacts/RemoteCommerce_SamplePlugin.1.0.0.nupkg
+
+      - name: Validate dotnet tool package
+        shell: bash
+        run: test -f ./artifacts/RemoteCommerce.Plugin.Template.1.0.0.nupkg
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts/*.nupkg
+          if-no-files-found: error
+
+  tests:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: ${{ github.workspace }}/global.json
+
+      - name: Restore RemoteCommerce tests
+        run: dotnet restore RemoteCommerce.slnx
+
+      - name: Run tests
+        run: dotnet test RemoteCommerce.slnx --configuration Release --no-restore
+
+  publish:
+    needs: [tests]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: ${{ github.workspace }}/global.json
+
+      - name: Download packed tools and plugins
         uses: actions/download-artifact@v4
         with:
           name: nuget-packages
           path: ./artifacts
 
       - name: NuGet login (OIDC) and package push
-        id: login 
-        if: startsWith(github.ref, 'refs/tags/')
+        id: login
         uses: NuGet/login@v1
         with:
-          user: ${{ env.USERNAME }}  
+          user: ${{ env.USERNAME }}
         env:
           USERNAME: ${{ secrets.USER_NAME }}
 
-      - name: Publish Dotnet Tools & Packages to NuGet
+      - name: Publish Dotnet Tools and Packages to NuGet
         run: |
           dotnet nuget push ./artifacts/*.nupkg \
             --api-key ${{ steps.login.outputs.NUGET_API_KEY }} \
