@@ -32,6 +32,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context => { if (string.IsNullOrWhiteSpace(context.Token) && context.Request.Cookies.TryGetValue(JwtOptions.CookieName, out var token)) context.Token = token; return Task.CompletedTask; },
+        OnChallenge = context =>
+        {
+            if (!context.Response.HasStarted && !context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) && !context.Request.Path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase) && !context.Request.Path.StartsWithSegments("/_framework", StringComparison.OrdinalIgnoreCase))
+            {
+                var returnUrl = context.Request.PathBase + context.Request.Path + context.Request.QueryString;
+                context.Response.Redirect($"/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
+                context.HandleResponse();
+            }
+
+            return Task.CompletedTask;
+        },
         OnTokenValidated = async context =>
         {
             var subject = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
