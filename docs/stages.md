@@ -2,14 +2,38 @@
 
 Stages are sequential. Only one stage may be active/open as a PR at a time. A new stage starts from the latest `main` after the previous stage is successfully integrated.
 
+## Stage goals index
+
+This file is the source of truth for the goals and exit conditions of every implementation stage. Each stage section describes its goal, implementation scope, explicit exclusions where relevant, and exit condition. Use the stage headings below as the roadmap index:
+
+1. Foundation
+2. Plugin Runtime
+3. NuGet Plugin Packaging and Template Tooling
+4. Host Installation and Administration
+5. Site, Identity, Configuration, Secrets, and Localization Foundation
+6. Database Provider Strategy and Media Storage
+7. Plugin Persistence Compatibility
+8. Product Catalog
+9. Customers, Cart, and Checkout
+10. Orders and Payments
+11. Shipping, Taxes, and Store Operations
+12. WooCommerce-Compatible REST API
+13. Storefront and Theme/Extension Model
+14. Multi-Store Federation
+15. Runtime Plugin Hot Reload
+16. Production Readiness
+
 ## Global implementation rules
 
 - Public APIs must use complete XML documentation in en-US, including all applicable elements such as `<summary>`, `<param>`, `<returns>`, `<typeparam>`, `<exception>`, and `<remarks>`.
-- All projects must use implicit namespaces through the project file (`<ImplicitUsings>enable</ImplicitUsings>` and explicit `<Using Include="..." />` items where required). Source files must not contain `using` directives. New code must follow this rule, and touched code must be migrated when practical.
+- All C# projects must use `<ImplicitUsings>enable</ImplicitUsings>`. Namespace imports must be maintained as `global using` directives in the project's `GlobalUsings.cs`, organized by namespace. Source files must not contain ordinary `using` directives or additional `global using` directives outside `GlobalUsings.cs`.
+- Razor namespace imports and dependency injections must be centralized in `_Imports.razor`. Page-specific `@page`, `@attribute`, `@inherits`, and `@implements` directives remain on the individual component.
 - MediatR is mandatory for application commands, queries, notifications, and pipeline behaviors, fixed at version `12.5.0`.
 - Controllers must dispatch application work through MediatR rather than embedding business/application orchestration directly in controller actions.
-- FluentValidation is mandatory for command/query validation where validation is applicable, using `FluentValidation` and `FluentValidation.DependencyInjectionExtensions` with the repository-approved version.
+- Feature commands, queries, and notifications belong respectively under `Application.<Namespace>.<Feature>.Commands`, `Application.<Namespace>.<Feature>.Queries`, and `Application.<Namespace>.<Feature>.Notifications`. Their handlers belong under the corresponding feature `Handlers` namespace, and applicable validators belong under `Validators`.
+- FluentValidation is mandatory for command/query validation where validation is applicable, using `FluentValidation` and `FluentValidation.DependencyInjectionExtensions` with the repository-approved version. Validation must be executed through the MediatR validation behavior rather than duplicated manually in controllers or handlers.
 - Required MediatR behaviors include logging and validation behaviors. Commands that execute transactional SQL/application persistence operations must use a transactional behavior with rollback on failure. Queries must not be wrapped in write transactions unless explicitly required by their consistency semantics.
+- Application behaviors belong under `Application.Common.Behaviors` or `Infrastructure.Common.Behaviors` according to responsibility. Application-only behaviors such as validation belong in Application; EF Core transaction management belongs in Infrastructure.
 - SQL persistence strategies must implement soft-delete for mutable persisted records. Hard deletion is exceptional and must be explicitly justified by the persistence contract.
 - SQL persistence must provide an operation-history strategy for relevant mutations. Before an update/delete operation, the previous state must be captured as serialized metadata in a single history value/cell together with operation timestamp, user/actor, operation type, entity identity, and other relevant context available from the request/application context. The replacement/new state should likewise be serialized when applicable. History records must remain queryable independently from the current row state.
 - Persistence history must not depend on controller-specific code; it belongs in application/persistence infrastructure and must work for MediatR-driven commands.
@@ -29,7 +53,7 @@ Implemented foundation for the RemoteCommerce host and its plugin architecture.
 - Initial plugin administration/runtime concepts.
 - XML documentation policy for public APIs.
 - OpenAPI/Scalar setup was established during the early foundation work.
-- Implicit namespace policy is part of the repository conventions.
+- Repository-wide global namespace policy is part of the repository conventions.
 
 **Exit condition:** host solution builds and provides the foundation required by the plugin runtime.
 
@@ -67,13 +91,13 @@ Implemented distributable plugin packaging and generation tooling.
 - Plugin entry point can consume host `IConfiguration`.
 - Plugin Razor assemblies are registered through Blazor routing `AdditionalAssemblies`, while controllers are registered as MVC application parts.
 - Plugin projects can be built independently from the main solution.
-- Generated source projects must follow the repository-wide implicit-namespace/no-using-directive rule.
+- Generated source projects follow the repository-wide global namespace and Razor `_Imports.razor` conventions.
 
 **Exit condition:** a generated plugin can be built, packed, installed, and loaded by the host after restart.
 
 ## Stage 04 — Host Installation and Administration
 
-Implemented and validated in the single Stage 04 PR.
+Implemented and validated in the Stage 04 PR.
 
 - MudBlazor plugin administration list and details.
 - `.nupkg` upload, package validation, install, update, enable, disable, uninstall, and retained-version rollback.
@@ -103,11 +127,13 @@ Intentionally deferred from this stage:
 
 ## Stage 05 — Site, Identity, Configuration, Secrets, and Localization Foundation
 
+**Status: implemented in the open Stage 05 PR; CI build and tests are green.**
+
 Goal: establish the application-level foundation required by every subsequent store capability, while introducing the repository-wide application pipeline and persistence rules that future commerce features must follow.
 
 ### Site and application configuration
 
-- Site identity, name, public URL/base URL, locale, timezone, culture, and general settings.
+- Site identity, name, description, public URL/base URL, locale, timezone, culture, date/time defaults, and general settings.
 - Persistent application/store settings with a clear distinction between deployment configuration and editable application configuration.
 - Typed configuration boundaries for settings consumed by application services.
 - Configuration validation and safe defaults.
@@ -115,81 +141,86 @@ Goal: establish the application-level foundation required by every subsequent st
 
 ### Application request pipeline
 
-- Introduce MediatR `12.5.0` as the application command/query/notification mediator.
-- Controllers must remain thin and dispatch commands/queries through MediatR.
-- Implement command/query handlers as the application boundary for use cases.
-- Introduce MediatR pipeline behaviors for structured logging and FluentValidation.
-- Use `FluentValidation` and `FluentValidation.DependencyInjectionExtensions` for validators and automatic validator registration.
-- Validation behavior must prevent invalid commands/queries from reaching handlers and must expose predictable validation failures to the API/UI layers.
-- Logging behavior must capture relevant request/handler context without logging secrets or sensitive credentials.
-- Introduce transactional behavior for commands that perform SQL/persistence mutations. The behavior must commit on successful completion and rollback when the handler or persistence operation fails.
-- Transactional behavior must not blindly wrap read-only queries in write transactions.
-- Transaction boundaries must be compatible with EF Core execution semantics and the repository's persistence abstractions.
-- MediatR notifications may be used for side effects that do not belong in the core command transaction, with explicit consistency semantics.
+- MediatR `12.5.0` is the application command/query/notification mediator.
+- Controllers remain thin and dispatch commands/queries through MediatR.
+- Feature handlers are the application boundary for use cases.
+- `LoggingBehavior`, `ValidationBehavior`, and transactional behavior are implemented in the appropriate Application/Infrastructure boundaries.
+- FluentValidation and `FluentValidation.DependencyInjectionExtensions` provide validator registration and command/query validation.
+- Validation behavior prevents invalid requests from reaching handlers and exposes predictable failures to API/UI boundaries.
+- Logging behavior captures request/handler context without logging secrets or sensitive credentials.
+- Transactional behavior commits successful mutating persistence operations and rolls them back on exceptions, while read-only queries are not wrapped in write transactions by default.
 
 ### Identity and authorization
 
-- Users, authentication/session foundation, roles, claims, and permissions.
-- Administrative authorization policies.
-- Seed/bootstrap path for the initial administrator.
-- Explicit separation between authentication, authorization, and application/site settings.
-- Identity mutations must use commands and validation through the MediatR pipeline.
+- ASP.NET Core Identity is used for its EF Core schema, stores, `UserManager<TUser>`, `RoleManager<TRole>`, password hashing, lockout, security stamps, and related persistence primitives.
+- RemoteCommerce does not expose ASP.NET Core Identity API endpoints or Identity Account/Razor Pages.
+- A RemoteCommerce-owned `IdentityController` implements the authentication/account boundary through MediatR.
+- JWT access tokens are signed, short-lived, returned with refresh tokens, and renewed through the refresh-token flow while valid.
+- Browser administration authentication uses the secure HTTP-only session cookie, while API clients can use bearer authentication.
+- Security-stamp validation supports invalidation of previously issued authentication sessions.
+- Initial administrator bootstrap is available only while the Identity store has no configured users.
+- Setup is enforced at the Blazor route boundary: when setup has not been completed, only the setup experience is available; after setup, normal application/admin routes are available. If the user store is later emptied, setup becomes required again.
+- Login, setup, refresh, logout, registration, recovery, password, two-factor, profile, and related identity mutations use MediatR commands/queries and the common validation/logging/transaction pipeline where applicable.
+- Administrative authorization uses roles, claims, named policies, and permission boundaries.
 
 ### Administration foundation
 
-- Admin dashboard foundation.
-- Consistent admin navigation and settings organization.
-- Configuration status/validation feedback.
+- MudBlazor administration dashboard and navigation foundation.
+- Site/general settings, users, roles, localization, resource administration, and security/configuration status pages.
+- Consistent `/admin/**` navigation for administration routes while the public home remains outside the admin area.
+- Configuration status and setup-incomplete feedback.
 - Audit logging foundation for administrative configuration/security changes.
-- Administrative mutation operations must participate in the common command, validation, logging, transaction, soft-delete, and history policies where applicable.
+- Administrative mutation operations participate in the common command, validation, logging, transaction, soft-delete, and history policies where applicable.
 
 ### Secrets boundary
 
-- Introduce an application-level `ISecretProvider` abstraction (or an equivalent existing abstraction if the repository already provides one).
-- Initial implementation must integrate with ASP.NET Core configuration/environment mechanisms rather than inventing a proprietary secret store.
-- Do not persist plaintext secrets in the application database.
-- Keep the abstraction compatible with future Docker secrets, Swarm/Kubernetes secrets, Azure Key Vault, environment variables, or other external providers.
-- Clearly distinguish secrets from normal editable application settings.
-- Secret access must not be logged by MediatR logging behavior.
+- Application-level `ISecretProvider` abstraction backed initially by ASP.NET Core configuration/environment providers.
+- No proprietary secret store is introduced.
+- Plaintext application secrets are not persisted in SQL or returned by administrative APIs/UI.
+- Secret values are redacted from logs and operation history.
+- The abstraction remains compatible with future Docker Secrets, Swarm/Kubernetes Secrets, Azure Key Vault, or other external providers.
+- JWT signing configuration is deployment-managed rather than application-editable site data.
 
 ### Localization
 
-- Introduce the RemoteCommerce `ILocalizer` abstraction/wrapper over the ASP.NET Core `IStringLocalizer<T>` infrastructure.
-- Resource resolution must support resource-type-aware localization.
-- Initial cultures: `en-US` and `pt-BR`.
-- Define culture fallback behavior.
-- Support resource XML files as an administrable resource format.
-- Resource XML upload/import through the UI.
-- Validate resource structure, culture, keys, duplicates, and malformed files before activation.
-- Version/track imported resources and provide safe replacement semantics.
-- Do not require code changes to add or replace localized resource content.
-- Resource mutation commands must use FluentValidation and transactional behavior where database state is changed.
+- RemoteCommerce `ILocalizer` abstraction/wrapper over ASP.NET Core `IStringLocalizer<T>` infrastructure.
+- Resource resolution is resource-type-aware.
+- Initial cultures are `en-US` and `pt-BR`.
+- Explicit fallback behavior uses `en-US` as the application base/final fallback.
+- Administrators can import localization XML through the MudBlazor UI.
+- XML parsing is hardened against DTD/external-entity processing.
+- Imports validate XML structure, supported culture, resource keys, duplicates, and malformed resources before activation.
+- Imported resources are versioned/tracked and safely replace active resources without requiring source-code changes.
+- Resource mutation commands use FluentValidation and transactional behavior when SQL state is changed.
 
 ### SQL persistence, soft-delete, and history
 
-- Every mutable SQL persistence strategy introduced by this stage or later must support soft-delete.
-- Soft-deleted records must not appear in normal application queries unless an explicit administrative/history query requests them.
-- Deletion commands must translate to soft-delete by default.
-- Hard-delete operations are exceptional and require an explicit persistence contract and justification.
-- Persisted mutations must have an operation-history strategy independent from controller/UI code.
-- Before an update or delete, capture the previous state as serialized metadata in a single history value/cell, together with the operation timestamp, actor/user identity when available, operation type, entity identity, correlation/request information when available, and other relevant context.
-- When applicable, capture the replacement/new state in serialized form as part of the history record.
-- History records must remain queryable independently of the current entity row.
-- The history implementation must work with MediatR command handlers and transactional behavior so the mutation and its history are committed or rolled back together.
-- Avoid relying on controller-specific code to populate audit metadata; obtain context through application/infrastructure abstractions.
-- Sensitive values must be excluded or protected according to the repository's security policy.
+- Mutable SQL records use `IsDisabled` as the persisted soft-delete state; a deleted EF entity is converted to a disabled/modified state before persistence rather than physically deleted by default.
+- Normal EF queries exclude disabled records through query filters.
+- Administrative/history queries can explicitly include disabled records with `IgnoreQueryFilters()` and then apply the required state predicate.
+- Operation history captures previous state, entity identity/type, operation, timestamp, actor/request context, and serialized state metadata before update/delete mutations.
+- New state is captured when applicable.
+- Mutation and history persistence share the same transaction so command failure rolls back both.
+- Sensitive values are redacted/protected before being persisted to history.
 
 ### Architectural constraints
 
-- Do not split the application into Domain/Application/Infrastructure projects merely for organizational purposes in this stage.
-- Keep boundaries explicit through contracts and services so a later DDD/modular refactoring can be performed when actual bounded contexts emerge.
-- Do not introduce `TenantId` into all entities.
-- Do not implement multi-store federation in this stage.
-- Do not implement the database strategy/provider pattern in this stage; it remains Stage 06.
-- Do not implement MongoDB/GridFS in this stage; it remains Stage 06.
-- Do not make Docker/Swarm/Kubernetes the application's deployment abstraction in this stage. The secret abstraction must merely remain compatible with those environments.
+- The host remains a single ASP.NET Core/Blazor Server project; no DDD project split was introduced.
+- No `TenantId` was introduced across entities.
+- No multi-store federation was implemented.
+- No database strategy/provider pattern was implemented; that remains Stage 06.
+- No MongoDB/GridFS provider was implemented; that remains Stage 06.
+- No Docker/Swarm/Kubernetes deployment implementation was introduced; only secret-provider compatibility boundaries were established.
+- Plugin runtime and Stage 04 plugin administration remain compatible with the Stage 05 application pipeline and authentication/authorization foundation.
 
-**Exit condition:** a fresh installation can be configured and administered through the UI, an initial administrator can authenticate and use authorized administration features, commands/queries flow through MediatR `12.5.0` with FluentValidation and logging behaviors, mutating commands use transactional rollback semantics, SQL persistence uses soft-delete and atomic operation history, secrets are consumed through an abstraction without plaintext persistence, and application UI/services resolve localized strings through `ILocalizer` for `en-US` and `pt-BR` with validated resource XML imports.
+### Stage 05 validation
+
+- Main application build passes in CI.
+- Automated test suite passes in CI.
+- Plugin/tool build and packaging flow remains part of the CI validation.
+- Identity, setup gating, authorization, secret redaction, localization validation/fallback, MediatR behaviors, transaction rollback, soft-delete, and operation-history behavior are covered by automated tests.
+
+**Exit condition:** a fresh installation can be configured and administered through the UI, an initial administrator can authenticate and use authorized administration features, setup is enforced until the Identity store is initialized, commands/queries flow through MediatR `12.5.0` with FluentValidation and logging behaviors, mutating commands use transactional rollback semantics, SQL persistence uses soft-delete and atomic operation history, secrets are consumed through an abstraction without plaintext persistence, and application UI/services resolve localized strings through `ILocalizer` for `en-US` and `pt-BR` with validated resource XML imports.
 
 ## Stage 06 — Database Provider Strategy and Media Storage
 
