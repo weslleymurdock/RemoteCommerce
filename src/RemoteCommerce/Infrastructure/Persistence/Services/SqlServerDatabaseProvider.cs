@@ -41,6 +41,20 @@ public sealed class SqlServerDatabaseProvider(
     }
 
     /// <inheritdoc />
+    public void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null)
+    {
+        options.UseSqlServer(
+            GetConnectionString(DatabaseEndpoint.Primary),
+            sql =>
+            {
+                if (!string.IsNullOrWhiteSpace(migrationsAssembly))
+                {
+                    sql.MigrationsAssembly(migrationsAssembly);
+                }
+            });
+    }
+
+    /// <inheritdoc />
     public async Task ValidateAsync(CancellationToken cancellationToken = default)
     {
         _ = GetConnectionString(DatabaseEndpoint.Primary);
