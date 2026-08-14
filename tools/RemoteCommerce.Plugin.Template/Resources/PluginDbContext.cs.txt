@@ -1,0 +1,17 @@
+namespace {{Namespace}}.Infrastructure.Persistence;
+
+/// <summary>Provides the EF Core persistence boundary owned by the generated plugin.</summary>
+public sealed class PluginDbContext(DbContextOptions<PluginDbContext> options) : DbContext(options)
+{
+    /// <summary>Gets the sample plugin entities.</summary>
+    public DbSet<PluginEntity> PluginEntities => Set<PluginEntity>();
+
+    /// <summary>Configures the plugin-owned relational model.</summary>
+    /// <param name="modelBuilder">The model builder used to configure plugin entities.</param>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("{{PluginSchema}}");
+        modelBuilder.ApplyConfiguration(new PluginEntityConfiguration());
+        base.OnModelCreating(modelBuilder);
+    }
+}
