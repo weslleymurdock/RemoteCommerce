@@ -129,10 +129,10 @@ public sealed class InitialRemoteAdSenseMigration : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.CreateTable("AdPlacements", "rc_plugin_remote_adsense", table => new
+        migrationBuilder.CreateTable("AdPlacements", table => new
         {
             Id = table.Column<Guid>(nullable: false), SlotName = table.Column<string>(maxLength: 128, nullable: false), AdClient = table.Column<string>(maxLength: 256, nullable: false), AdSlot = table.Column<string>(maxLength: 256, nullable: true), Format = table.Column<string>(maxLength: 64, nullable: false), IsAutomatic = table.Column<bool>(nullable: false), IsDisabled = table.Column<bool>(nullable: false)
-        }, constraints: table => table.PrimaryKey("PK_AdPlacements", x => x.Id));
+        }, constraints: table => table.PrimaryKey("PK_AdPlacements", x => x.Id), schema: "rc_plugin_remote_adsense");
         migrationBuilder.CreateIndex("IX_AdPlacements_SlotName", "AdPlacements", "SlotName", unique: true, schema: "rc_plugin_remote_adsense");
     }
 
