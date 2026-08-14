@@ -59,7 +59,10 @@ public sealed class CatalogHandlers(ICatalogService catalog) :
     private async Task<ProductModel?> ChangeStatus(Guid id, ProductStatus status, CancellationToken cancellationToken)
     {
         var current = await catalog.GetProductAsync(id, cancellationToken);
-        return current is null ? null : await catalog.UpdateProductAsync(new UpdateProductCommand(current.Id, current.Name, current.Slug, current.Sku, current.ShortDescription, current.Description, status, current.ProductType, current.Price, current.CompareAtPrice, current.Currency, current.BrandId), cancellationToken);
+        if (current is null) return null;
+        if (current.Status == ProductStatus.Archived && status == ProductStatus.Published) throw new ValidationException("An archived product cannot be published directly.");
+        if (current.Status == status) return current;
+        return await catalog.UpdateProductAsync(new UpdateProductCommand(current.Id, current.Name, current.Slug, current.Sku, current.ShortDescription, current.Description, status, current.ProductType, current.Price, current.CompareAtPrice, current.Currency, current.BrandId), cancellationToken);
     }
 }
 
