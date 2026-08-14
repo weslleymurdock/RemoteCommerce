@@ -9,21 +9,31 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout class="rc-theme-@ThemeProvider.Current.Id">
+<MudLayout Class="@ThemeClass">
     <MudAppBar Elevation="1">
         <MudText Typo="Typo.h6">RemoteCommerce</MudText>
         <MudSpacer />
-        <MudText Typo="Typo.body2" Class="mr-4">@Localizer.Get<CatalogResources>("Admin.Administration")</MudText>
+        <MudText Typo="Typo.body2" Class="mr-4">@Get("Admin.Administration")</MudText>
     </MudAppBar>
     <MudDrawer Open="true" Elevation="2">
         <MudNavMenu Class="pa-3">
-            @foreach (var item in MenuProvider.GetItems((await AuthenticationStateProvider.GetAuthenticationStateAsync()).User))
+            @foreach (var item in MenuItems)
             {
-                <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@item.Icon">@Localizer.Get<CatalogResources>(item.LabelResourceKey)</MudNavLink>
+                <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@item.Icon">@Get(item.LabelResourceKey)</MudNavLink>
             }
         </MudNavMenu>
     </MudDrawer>
-    <MudMainContent Class="pa-6">
-        @Body
-    </MudMainContent>
+    <MudMainContent Class="pa-6">@Body</MudMainContent>
 </MudLayout>
+
+@code {
+    private IReadOnlyList<MenuItemDefinition> MenuItems = [];
+    private string ThemeClass => $"rc-theme-{ThemeProvider.Current.Id}";
+    private string Get(string key) => Localizer.Get<CatalogResources>(key);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        MenuItems = MenuProvider.GetItems(state.User);
+    }
+}
