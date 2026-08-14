@@ -85,17 +85,18 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
             schema);
 
         var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
+        var pluginDbContext = ActivatorUtilities.CreateInstance<TDbContext>(serviceProvider, optionsBuilder.Options);
         if (commerceDb.Database.CurrentTransaction?.GetDbTransaction() is DbTransaction transaction)
         {
-            optionsBuilder.UseTransaction(transaction);
+            pluginDbContext.Database.UseTransaction(transaction);
         }
 
-        optionsBuilder.AddInterceptors(new PluginOperationHistoryInterceptor(
+        pluginDbContext.AddInterceptors(new PluginOperationHistoryInterceptor(
             commerceDb,
             serviceProvider.GetRequiredService<IApplicationContext>(),
             pluginId));
 
-        return ActivatorUtilities.CreateInstance<TDbContext>(serviceProvider, optionsBuilder.Options);
+        return pluginDbContext;
     }
 
     /// <summary>Gets the persistence registrations collected from the plugin entry point.</summary>
