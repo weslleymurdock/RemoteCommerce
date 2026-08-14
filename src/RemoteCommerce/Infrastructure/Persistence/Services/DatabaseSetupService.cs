@@ -20,8 +20,8 @@ public sealed class DatabaseSetupService(
         }
 
         var persisted = await stateStore.ReadAsync(cancellationToken);
-        return persisted?.State is DatabaseSetupState.Configured or DatabaseSetupState.InProgress
-            ? persisted.State
+        return persisted?.State == DatabaseSetupState.Configured
+            ? DatabaseSetupState.Configured
             : DatabaseSetupState.Required;
     }
 
