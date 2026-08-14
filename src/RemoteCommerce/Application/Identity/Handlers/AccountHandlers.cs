@@ -62,8 +62,8 @@ public sealed class AccountHandlers(
         }
     }
 
-    /// <summary>Authenticates a user and returns an access token.</summary>
-    public async Task<string> Login(LoginCommand request, CancellationToken cancellationToken)
+    /// <summary>Authenticates a user and returns an access and refresh token pair.</summary>
+    public async Task<JwtAuthenticationResult> Login(LoginCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim());
         if (user is null || user.IsDisabled || !await users.CheckPasswordAsync(user, request.Password))
@@ -71,25 +71,26 @@ public sealed class AccountHandlers(
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
-        return await CreateTokenAsync(user, cancellationToken);
+        return await CreateTokenAsync(user);
     }
 
-    /// <summary>Refreshes an access token using the authenticated user's refresh credentials.</summary>
-    public async Task<string> Refresh(RefreshTokenCommand request, CancellationToken cancellationToken)
+    /// <summary>Refreshes an access token using a valid refresh token.</summary>
+    public async Task<JwtAuthenticationResult> Refresh(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
-        var user = await users.FindByIdAsync(context.UserId?.ToString() ?? string.Empty)
-            ?? throw new UnauthorizedAccessException("Invalid refresh credentials.");
+        var validation = tokens.ValidateRefreshToken(request.RefreshToken);
+        var user = await users.FindByIdAsync(validation.UserId.ToString())
+            ?? throw new UnauthorizedAccessException("The refresh token is invalid.");
 
-        if (user.IsDisabled || !string.Equals(request.SecurityStamp, user.SecurityStamp, StringComparison.Ordinal))
+        if (user.IsDisabled || !string.Equals(user.SecurityStamp, validation.SecurityStamp, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("The refresh token has been invalidated.");
         }
 
-        return await CreateTokenAsync(user, cancellationToken);
+        return await CreateTokenAsync(user);
     }
 
     /// <summary>Completes an authenticator-based two-factor authentication flow.</summary>
-    public async Task<string> VerifyTwoFactor(CompleteTwoFactorCommand request, CancellationToken cancellationToken)
+    public async Task<JwtAuthenticationResult> VerifyTwoFactor(CompleteTwoFactorCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim())
             ?? throw new UnauthorizedAccessException("Invalid two-factor credentials.");
@@ -98,11 +99,11 @@ public sealed class AccountHandlers(
             await users.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, request.Code),
             "Invalid two-factor credentials.");
 
-        return await CreateTokenAsync(user, cancellationToken);
+        return await CreateTokenAsync(user);
     }
 
     /// <summary>Completes two-factor authentication using a recovery code.</summary>
-    public async Task<string> RedeemRecoveryCode(CompleteRecoveryCodeCommand request, CancellationToken cancellationToken)
+    public async Task<JwtAuthenticationResult> RedeemRecoveryCode(CompleteRecoveryCodeCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim())
             ?? throw new UnauthorizedAccessException("Invalid recovery credentials.");
@@ -111,10 +112,10 @@ public sealed class AccountHandlers(
             await users.RedeemTwoFactorRecoveryCodeAsync(user, request.RecoveryCode.Trim()),
             "Invalid recovery credentials.");
 
-        return await CreateTokenAsync(user, cancellationToken);
+        return await CreateTokenAsync(user);
     }
 
-    private async Task<string> CreateTokenAsync(ApplicationUser user, CancellationToken cancellationToken)
+    private async Task<JwtAuthenticationResult> CreateTokenAsync(ApplicationUser user)
     {
         var roles = await users.GetRolesAsync(user);
         var claims = await users.GetClaimsAsync(user);
