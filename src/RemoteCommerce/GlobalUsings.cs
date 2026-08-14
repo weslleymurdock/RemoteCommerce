@@ -41,7 +41,6 @@ global using RemoteCommerce.Application.Localization.Abstractions;
 global using RemoteCommerce.Application.Localization.Commands;
 global using RemoteCommerce.Application.Localization.Services;
 global using RemoteCommerce.Application.Media.Abstractions;
-global using RemoteCommerce.Application.Media.Commands;
 global using RemoteCommerce.Application.Persistence.Abstractions;
 global using RemoteCommerce.Application.Persistence.Commands;
 global using RemoteCommerce.Application.Persistence.Handlers;
