@@ -10,7 +10,7 @@ public sealed class DatabaseProviderResolver(
     /// <summary>Creates the configured relational provider.</summary>
     /// <returns>The configured database provider implementation.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provider is not supported.</exception>
-    public IDatabaseProvider Resolve()
+    public RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider Resolve()
     {
         var provider = configuration["Persistence:Database:Provider"];
         provider = string.IsNullOrWhiteSpace(provider) ? "SqlServer" : provider;
