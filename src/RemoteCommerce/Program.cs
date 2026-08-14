@@ -30,6 +30,7 @@ builder.Services.AddScoped<IDatabaseSetupService, DatabaseSetupService>();
 builder.Services.AddSingleton<MediaStorageProviderResolver>();
 builder.Services.AddScoped<IMediaStorageProvider>(
     services => services.GetRequiredService<MediaStorageProviderResolver>().Resolve());
+builder.Services.AddHostedService<ProviderConfigurationValidationService>();
 builder.Services.AddDbContextFactory<CommerceDbContext>(
     (services, options) => options.UseSqlServer(
         services.GetRequiredService<IDatabaseProvider>().GetConnectionString(DatabaseEndpoint.Primary)));
