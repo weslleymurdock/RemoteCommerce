@@ -62,198 +62,106 @@ public sealed class AccountHandlers(
         }
     }
 
-    /// <summary>Resets a password.</summary>
-    public async Task ResetPassword(ResetPasswordCommand request, CancellationToken cancellationToken)
-    {
-        var user = await users.FindByEmailAsync(request.Email.Trim())
-            ?? throw new InvalidOperationException("The password reset request is invalid.");
-
-        Ensure(await users.ResetPasswordAsync(user, request.ResetToken, request.NewPassword), "Password reset failed.");
-        await users.UpdateSecurityStampAsync(user);
-    }
-
-    /// <summary>Confirms an email address.</summary>
-    public async Task ConfirmEmail(ConfirmEmailCommand request, CancellationToken cancellationToken)
-    {
-        var user = await users.FindByIdAsync(request.UserId.ToString())
-            ?? throw new InvalidOperationException("The confirmation request is invalid.");
-
-        Ensure(await users.ConfirmEmailAsync(user, request.Token), "Email confirmation failed.");
-    }
-
-    /// <summary>Resends an email confirmation.</summary>
-    public async Task ResendConfirmation(ResendConfirmationEmailCommand request, CancellationToken cancellationToken)
+    /// <summary>Authenticates a user and returns an access token.</summary>
+    public async Task<string> Login(LoginCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim());
-
-        if (user is not null && !user.EmailConfirmed && !user.IsDisabled)
+        if (user is null || user.IsDisabled || !await users.CheckPasswordAsync(user, request.Password))
         {
-            await SendConfirmation(user, cancellationToken);
-        }
-    }
-
-    /// <summary>Updates the authenticated profile.</summary>
-    public async Task UpdateProfile(UpdateProfileCommand request, CancellationToken cancellationToken)
-    {
-        var user = await Current();
-        var emailAddress = request.Email.Trim();
-        var emailChanged = !string.Equals(user.Email, emailAddress, StringComparison.OrdinalIgnoreCase);
-
-        user.DisplayName = request.DisplayName.Trim();
-        Ensure(await users.UpdateAsync(user), "Profile update failed.");
-
-        if (!emailChanged)
-        {
-            return;
+            throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
-        Ensure(await users.SetEmailAsync(user, emailAddress), "Email update failed.");
-        Ensure(await users.SetUserNameAsync(user, emailAddress), "Username update failed.");
-
-        user.EmailConfirmed = false;
-        Ensure(await users.UpdateAsync(user), "Email confirmation state update failed.");
-        await SendConfirmation(user, cancellationToken);
+        return await CreateTokenAsync(user, cancellationToken);
     }
 
-    /// <summary>Refreshes a JWT session using a valid refresh token.</summary>
-    public async Task<JwtAuthenticationResult> Refresh(RefreshTokenCommand request)
+    /// <summary>Refreshes an access token using the authenticated user's refresh credentials.</summary>
+    public async Task<string> Refresh(RefreshTokenCommand request, CancellationToken cancellationToken)
     {
-        var validation = tokens.ValidateRefreshToken(request.RefreshToken);
-        var user = await users.FindByIdAsync(validation.UserId.ToString())
-            ?? throw new UnauthorizedAccessException("The refresh token is invalid.");
+        var user = await users.FindByIdAsync(context.UserId?.ToString() ?? string.Empty)
+            ?? throw new UnauthorizedAccessException("Invalid refresh credentials.");
 
-        if (user.IsDisabled || !string.Equals(user.SecurityStamp, validation.SecurityStamp, StringComparison.Ordinal))
+        if (user.IsDisabled || !string.Equals(request.SecurityStamp, user.SecurityStamp, StringComparison.Ordinal))
         {
             throw new UnauthorizedAccessException("The refresh token has been invalidated.");
         }
 
-        return tokens.CreateToken(
-            user,
-            user.SecurityStamp ?? string.Empty,
-            await users.GetRolesAsync(user),
-            await users.GetClaimsAsync(user));
+        return await CreateTokenAsync(user, cancellationToken);
     }
 
-    /// <summary>Completes an authenticator challenge.</summary>
-    public async Task<JwtAuthenticationResult> TwoFactor(CompleteTwoFactorCommand request)
+    /// <summary>Completes an authenticator-based two-factor authentication flow.</summary>
+    public async Task<string> VerifyTwoFactor(TwoFactorCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim())
             ?? throw new UnauthorizedAccessException("Invalid two-factor credentials.");
 
-        if (!user.TwoFactorEnabled || !await users.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, request.Code))
-        {
-            throw new UnauthorizedAccessException("Invalid two-factor credentials.");
-        }
+        Ensure(
+            await users.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultAuthenticatorProvider, request.Code),
+            "Invalid two-factor credentials.");
 
-        return tokens.CreateToken(
-            user,
-            user.SecurityStamp ?? string.Empty,
-            await users.GetRolesAsync(user),
-            await users.GetClaimsAsync(user));
+        return await CreateTokenAsync(user, cancellationToken);
     }
 
-    /// <summary>Completes a recovery-code challenge.</summary>
-    public async Task<JwtAuthenticationResult> Recovery(CompleteRecoveryCodeCommand request)
+    /// <summary>Completes two-factor authentication using a recovery code.</summary>
+    public async Task<string> RedeemRecoveryCode(TwoFactorRecoveryCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim())
             ?? throw new UnauthorizedAccessException("Invalid recovery credentials.");
 
-        Ensure(await users.RedeemTwoFactorRecoveryCodeAsync(user, request.RecoveryCode.Trim()), "Invalid recovery credentials.");
+        Ensure(
+            await users.RedeemTwoFactorRecoveryCodeAsync(user, request.RecoveryCode.Trim()),
+            "Invalid recovery credentials.");
+
+        return await CreateTokenAsync(user, cancellationToken);
+    }
+
+    private async Task<string> CreateTokenAsync(ApplicationUser user, CancellationToken cancellationToken)
+    {
+        var roles = await users.GetRolesAsync(user);
+        var claims = await users.GetClaimsAsync(user);
 
         return tokens.CreateToken(
-            user,
+            user.Id,
+            user.Email ?? string.Empty,
+            user.DisplayName,
             user.SecurityStamp ?? string.Empty,
-            await users.GetRolesAsync(user),
-            await users.GetClaimsAsync(user));
-    }
-
-    /// <summary>Sets two-factor state.</summary>
-    public async Task<TwoFactorInfo> SetTwoFactor(SetTwoFactorCommand request)
-    {
-        var user = await Current();
-
-        if (request.Enable && string.IsNullOrWhiteSpace(await users.GetAuthenticatorKeyAsync(user)))
-        {
-            Ensure(await users.ResetAuthenticatorKeyAsync(user), "Authenticator setup failed.");
-        }
-
-        Ensure(await users.SetTwoFactorEnabledAsync(user, request.Enable), "Two-factor configuration failed.");
-        return await TwoFactorInfo(user);
-    }
-
-    /// <summary>Disables two-factor authentication.</summary>
-    public async Task DisableTwoFactor()
-    {
-        Ensure(await users.SetTwoFactorEnabledAsync(await Current(), false), "Two-factor disable failed.");
-    }
-
-    /// <summary>Generates recovery codes.</summary>
-    public async Task<IReadOnlyList<string>> RecoveryCodes()
-    {
-        var user = await Current();
-
-        if (!user.TwoFactorEnabled)
-        {
-            throw new InvalidOperationException("Two-factor authentication must be enabled first.");
-        }
-
-        var codes = await users.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
-        return [.. codes!];
-    }
-
-    /// <summary>Resets the authenticator key.</summary>
-    public async Task<TwoFactorInfo> ResetAuthenticatorKey()
-    {
-        var user = await Current();
-        Ensure(await users.ResetAuthenticatorKeyAsync(user), "Authenticator reset failed.");
-        return await TwoFactorInfo(user);
-    }
-
-    /// <summary>Gets the authenticated profile.</summary>
-    public async Task<UserProfileResult> Profile()
-    {
-        var user = await Current();
-        return new UserProfileResult(user.Id, user.Email ?? string.Empty, user.DisplayName, user.EmailConfirmed, user.TwoFactorEnabled);
-    }
-
-    /// <summary>Gets two-factor information.</summary>
-    public async Task<TwoFactorInfo> GetTwoFactor() => await TwoFactorInfo(await Current());
-
-    private async Task<ApplicationUser> Current()
-    {
-        var userId = context.UserId ?? throw new UnauthorizedAccessException("Authentication is required.");
-        return await users.FindByIdAsync(userId.ToString())
-            ?? throw new UnauthorizedAccessException("Authentication is required.");
+            roles,
+            claims);
     }
 
     private async Task SendConfirmation(ApplicationUser user, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return;
+        }
+
         var token = await users.GenerateEmailConfirmationTokenAsync(user);
         var confirmationUrl = Url($"/confirm-email?userId={user.Id}&token={Uri.EscapeDataString(token)}");
-        await email.SendAsync(user.Email!, "Confirm your RemoteCommerce email", $"Confirm: {confirmationUrl}", cancellationToken);
+
+        await email.SendAsync(user.Email, "Confirm your RemoteCommerce account", $"Confirm: {confirmationUrl}", cancellationToken);
     }
 
-    private async Task<TwoFactorInfo> TwoFactorInfo(ApplicationUser user)
+    private string Url(string relativePath)
     {
-        var key = await users.GetAuthenticatorKeyAsync(user);
-        var uri = string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(user.Email)
-            ? null
-            : $"otpauth://totp/RemoteCommerce:{Uri.EscapeDataString(user.Email)}?secret={Uri.EscapeDataString(key)}&issuer=RemoteCommerce&digits=6&period=30";
+        var baseUrl = configuration["Application:BaseUrl"]?.TrimEnd('/')
+            ?? throw new InvalidOperationException("Application:BaseUrl is not configured.");
 
-        return new TwoFactorInfo(user.TwoFactorEnabled, key, uri);
-    }
-
-    private string Url(string path)
-    {
-        var publicUrl = configuration["Application:PublicUrl"]?.TrimEnd('/');
-        return $"{publicUrl ?? "https://localhost:5001"}{path}";
+        return $"{baseUrl}{relativePath}";
     }
 
     private static void Ensure(IdentityResult result, string message)
     {
         if (!result.Succeeded)
         {
-            throw new InvalidOperationException($"{message} {string.Join(" ", result.Errors.Select(error => error.Description))}");
+            throw new InvalidOperationException($"{message} {string.Join("; ", result.Errors.Select(error => error.Description))}");
+        }
+    }
+
+    private static void Ensure(bool result, string message)
+    {
+        if (!result)
+        {
+            throw new UnauthorizedAccessException(message);
         }
     }
 }
