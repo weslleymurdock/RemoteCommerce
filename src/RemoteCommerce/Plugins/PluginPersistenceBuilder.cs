@@ -16,7 +16,6 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
     public void AddDbContext(Type dbContextType, string? migrationsAssembly = null, string? schema = null)
     {
         ArgumentNullException.ThrowIfNull(dbContextType);
-
         if (!typeof(DbContext).IsAssignableFrom(dbContextType))
         {
             throw new ArgumentException("The plugin persistence type must derive from DbContext.", nameof(dbContextType));
@@ -26,9 +25,7 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
         var resolvedSchema = string.IsNullOrWhiteSpace(schema) ? expectedSchema : schema.Trim();
         if (!string.Equals(resolvedSchema, expectedSchema, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException(
-                $"Plugin persistence schema must be '{expectedSchema}'.",
-                nameof(schema));
+            throw new ArgumentException($"Plugin persistence schema must be '{expectedSchema}'.", nameof(schema));
         }
 
         if (descriptors.Any(x => x.DbContextType == dbContextType))
@@ -36,12 +33,7 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
             throw new InvalidOperationException($"Plugin '{pluginId}' registered DbContext '{dbContextType.FullName}' more than once.");
         }
 
-        var descriptor = new PluginPersistenceDescriptor(
-            pluginId,
-            dbContextType,
-            migrationsAssembly,
-            resolvedSchema);
-
+        var descriptor = new PluginPersistenceDescriptor(pluginId, dbContextType, migrationsAssembly, resolvedSchema);
         descriptors.Add(descriptor);
         services.AddSingleton(descriptor);
         services.AddScoped(dbContextType, serviceProvider => CreateDbContext(
@@ -63,9 +55,7 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
             .GetMethod(nameof(CreateTypedDbContext), BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Plugin DbContext factory method could not be located.");
         var genericMethod = method.MakeGenericMethod(dbContextType);
-        return (DbContext)(genericMethod.Invoke(
-            null,
-            [serviceProvider, migrationsAssembly, schema, pluginId])
+        return (DbContext)(genericMethod.Invoke(null, [serviceProvider, migrationsAssembly, schema, pluginId])
             ?? throw new InvalidOperationException($"Plugin DbContext '{dbContextType.FullName}' could not be created."));
     }
 
@@ -77,12 +67,8 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
         where TDbContext : DbContext
     {
         var optionsBuilder = new DbContextOptionsBuilder<TDbContext>();
-        var provider = serviceProvider.GetRequiredService<IDatabaseProvider>();
-        provider.ConfigureDbContext(
-            optionsBuilder,
-            migrationsAssembly,
-            "__EFMigrationsHistory",
-            schema);
+        var provider = serviceProvider.GetRequiredService<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>();
+        provider.ConfigureDbContext(optionsBuilder, migrationsAssembly, "__EFMigrationsHistory", schema);
 
         var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
         optionsBuilder.AddInterceptors(new PluginOperationHistoryInterceptor(
@@ -109,12 +95,8 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
     public static string GetDefaultSchema(string pluginId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
-        var normalized = new string(pluginId
-            .Trim()
-            .ToLowerInvariant()
-            .Select(character => char.IsLetterOrDigit(character) || character == '_' ? character : '_')
-            .ToArray());
-
+        var normalized = new string(pluginId.Trim().ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) || character == '_' ? character : '_').ToArray());
         return $"rc_plugin_{normalized}";
     }
 }
