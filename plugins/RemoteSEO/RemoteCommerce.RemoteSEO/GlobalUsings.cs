@@ -1,0 +1,7 @@
+global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Migrations;
+global using MudBlazor;
+global using RemoteCommerce.Plugins.Abstractions;
+global using System.Text.Json;

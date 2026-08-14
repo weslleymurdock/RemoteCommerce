@@ -1,0 +1,8 @@
+@page "/admin/remote-visitors"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+
+<PageTitle>RemoteVisitors</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
+    <MudText Typo="Typo.h4">RemoteVisitors</MudText>
+    <MudText>Visitor and access telemetry is available through <code>/api/rp/v1/remote-visitors</code>. A visitor is a browser identity/session, while an access is an individual tracked page/resource request.</MudText>
+</MudContainer>

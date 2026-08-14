@@ -1,0 +1,9 @@
+@page "/admin/remote-seo"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+
+<PageTitle>RemoteSEO</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
+    <MudText Typo="Typo.h4">RemoteSEO</MudText>
+    <MudText Class="mb-4">SEO analysis is available through the plugin API at <code>/api/rp/v1/remote-seo</code>. The plugin persists analysis per rendered product/page route.</MudText>
+    <MudAlert Severity="MudSeverity.Info">Use the plugin controller to submit a route, title, description, canonical URL and content for analysis.</MudAlert>
+</MudContainer>

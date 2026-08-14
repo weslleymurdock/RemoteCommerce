@@ -1,0 +1,22 @@
+{
+  "id": "remote_seo",
+  "name": "RemoteSEO",
+  "license": "LICENSE.md",
+  "readme": "README.md",
+  "version": "1.0.0",
+  "entryAssembly": "lib/net10.0/RemoteCommerce_RemoteSEO.dll",
+  "entryType": "RemoteCommerce_RemoteSEO.PluginEntry",
+  "minHostVersion": "1.0.0",
+  "description": "SEO analysis for rendered pages and product representations.",
+  "packageId": "RemoteCommerce.RemoteSEO",
+  "packageTags": "remotecommerce;seo;yoast;plugin",
+  "title": "RemoteSEO",
+  "authors": "RemoteCommerce",
+  "company": "RemoteCommerce",
+  "repositoryUrl": "https://github.com/weslleymurdock/RemoteCommerce.git",
+  "repositoryType": "git",
+  "packageRequireLicenseAcceptance": false,
+  "packageProjectUrl": "https://github.com/weslleymurdock/RemoteCommerce",
+  "dependencies": [],
+  "efCoreVersion": "10.0"
+}

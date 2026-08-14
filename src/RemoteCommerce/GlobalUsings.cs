@@ -60,6 +60,7 @@ global using RemoteCommerce.Domain.Site.Entities;
 global using RemoteCommerce.Infrastructure.Common.Behaviors;
 global using RemoteCommerce.Infrastructure.Identity;
 global using RemoteCommerce.Infrastructure.Localization.Services;
+global using RemoteCommerce.Infrastructure.Logging;
 global using RemoteCommerce.Infrastructure.Media.Services;
 global using RemoteCommerce.Infrastructure.Persistence;
 global using RemoteCommerce.Infrastructure.Persistence.Entities;
