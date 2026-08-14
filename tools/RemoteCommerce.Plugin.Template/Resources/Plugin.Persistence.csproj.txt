@@ -26,6 +26,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="{{BaseReference}}" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="{{EfCorePackageVersion}}" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="{{EfCorePackageVersion}}" PrivateAssets="all" />
     <PackageReference Include="MudBlazor" Version="9.8.0" />
     <None Include="plugin.manifest.json" Pack="true" PackagePath="" CopyToOutputDirectory="PreserveNewest" />
     <None Update="LICENSE.md" Pack="true" PackagePath="" />
