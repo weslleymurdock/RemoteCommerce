@@ -9,7 +9,8 @@ public sealed class CatalogHandlers(ICatalogService catalog) :
     IRequestHandler<CreateTagCommand, TagModel>, IRequestHandler<UpdateTagCommand, TagModel?>, IRequestHandler<DeleteTagCommand>,
     IRequestHandler<CreateProductVariantCommand, ProductVariantModel>, IRequestHandler<UpdateProductVariantCommand, ProductVariantModel?>, IRequestHandler<DeleteProductVariantCommand>,
     IRequestHandler<ProductVariantListQuery, IReadOnlyList<ProductVariantModel>>, IRequestHandler<ProductMetadataQuery, IReadOnlyList<ProductMetadataModel>>,
-    IRequestHandler<UpsertProductMetadataCommand, ProductMetadataModel>, IRequestHandler<DeleteProductMetadataCommand>
+    IRequestHandler<UpsertProductMetadataCommand, ProductMetadataModel>, IRequestHandler<DeleteProductMetadataCommand>, IRequestHandler<GetProductQuery, ProductModel?>,
+    IRequestHandler<GetCategoriesQuery, IReadOnlyList<CategoryModel>>, IRequestHandler<GetBrandsQuery, IReadOnlyList<BrandModel>>, IRequestHandler<GetTagsQuery, IReadOnlyList<TagModel>>, IRequestHandler<GetAttributesQuery, IReadOnlyList<AttributeModel>>
 {
     /// <inheritdoc />
     public Task<ProductModel> Handle(CreateProductCommand r, CancellationToken c) => catalog.CreateProductAsync(r, c);
@@ -55,7 +56,16 @@ public sealed class CatalogHandlers(ICatalogService catalog) :
     public Task<ProductMetadataModel> Handle(UpsertProductMetadataCommand r, CancellationToken c) => catalog.UpsertMetadataAsync(r, c);
     /// <inheritdoc />
     public Task Handle(DeleteProductMetadataCommand r, CancellationToken c) => catalog.DeleteMetadataAsync(r.ProductId, r.Key, c);
-
+    /// <inheritdoc />
+    public Task<ProductModel?> Handle(GetProductQuery request, CancellationToken cancellationToken) => catalog.GetProductAsync(request.Id, cancellationToken);
+    /// <inheritdoc />
+    public Task<IReadOnlyList<CategoryModel>> Handle(GetCategoriesQuery r, CancellationToken c) => catalog.GetCategoriesAsync(c);
+    /// <inheritdoc />
+    public Task<IReadOnlyList<BrandModel>> Handle(GetBrandsQuery r, CancellationToken c) => catalog.GetBrandsAsync(c);
+    /// <inheritdoc />
+    public Task<IReadOnlyList<TagModel>> Handle(GetTagsQuery r, CancellationToken c) => catalog.GetTagsAsync(c);
+    /// <inheritdoc />
+    public Task<IReadOnlyList<AttributeModel>> Handle(GetAttributesQuery r, CancellationToken c) => catalog.GetAttributesAsync(c);
     private async Task<ProductModel?> ChangeStatus(Guid id, ProductStatus status, CancellationToken cancellationToken)
     {
         var current = await catalog.GetProductAsync(id, cancellationToken);
@@ -64,71 +74,4 @@ public sealed class CatalogHandlers(ICatalogService catalog) :
         if (current.Status == status) return current;
         return await catalog.UpdateProductAsync(new UpdateProductCommand(current.Id, current.Name, current.Slug, current.Sku, current.ShortDescription, current.Description, status, current.ProductType, current.Price, current.CompareAtPrice, current.Currency, current.BrandId), cancellationToken);
     }
-}
-
-/// <summary>Validates product creation.</summary>
-public sealed class ProductCommandValidator : AbstractValidator<CreateProductCommand>
-{
-    /// <summary>Initializes product rules.</summary>
-    public ProductCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.Sku).MaximumLength(100).When(x => x.Sku is not null); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue); RuleFor(x => x.Currency).Length(3); }
-}
-/// <summary>Validates product updates.</summary>
-public sealed class UpdateProductCommandValidator : AbstractValidator<UpdateProductCommand>
-{
-    /// <summary>Initializes product update rules.</summary>
-    public UpdateProductCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue); RuleFor(x => x.Currency).Length(3); }
-}
-/// <summary>Validates category creation.</summary>
-public sealed class CategoryCommandValidator : AbstractValidator<CreateCategoryCommand>
-{
-    /// <summary>Initializes category creation rules.</summary>
-    public CategoryCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0); }
-}
-/// <summary>Validates category updates.</summary>
-public sealed class UpdateCategoryCommandValidator : AbstractValidator<UpdateCategoryCommand>
-{
-    /// <summary>Initializes category update rules.</summary>
-    public UpdateCategoryCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0); }
-}
-/// <summary>Validates brand creation.</summary>
-public sealed class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
-{
-    /// <summary>Initializes brand creation rules.</summary>
-    public CreateBrandCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
-}
-/// <summary>Validates brand updates.</summary>
-public sealed class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
-{
-    /// <summary>Initializes brand update rules.</summary>
-    public UpdateBrandCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
-}
-/// <summary>Validates tag creation.</summary>
-public sealed class CreateTagCommandValidator : AbstractValidator<CreateTagCommand>
-{
-    /// <summary>Initializes tag creation rules.</summary>
-    public CreateTagCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
-}
-/// <summary>Validates tag updates.</summary>
-public sealed class UpdateTagCommandValidator : AbstractValidator<UpdateTagCommand>
-{
-    /// <summary>Initializes tag update rules.</summary>
-    public UpdateTagCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
-}
-/// <summary>Validates variant creation.</summary>
-public sealed class CreateProductVariantCommandValidator : AbstractValidator<CreateProductVariantCommand>
-{
-    /// <summary>Initializes variant rules.</summary>
-    public CreateProductVariantCommandValidator() { RuleFor(x => x.ProductId).NotEmpty(); RuleFor(x => x.Sku).NotEmpty().MaximumLength(100); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue); RuleFor(x => x.StockQuantity).GreaterThanOrEqualTo(0); }
-}
-/// <summary>Validates variant updates.</summary>
-public sealed class UpdateProductVariantCommandValidator : AbstractValidator<UpdateProductVariantCommand>
-{
-    /// <summary>Initializes variant update rules.</summary>
-    public UpdateProductVariantCommandValidator() { RuleFor(x => x.ProductId).NotEmpty(); RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Sku).NotEmpty().MaximumLength(100); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.StockQuantity).GreaterThanOrEqualTo(0); }
-}
-/// <summary>Validates product metadata.</summary>
-public sealed class ProductMetadataValidator : AbstractValidator<UpsertProductMetadataCommand>
-{
-    /// <summary>Initializes metadata rules and rejects secret-like keys.</summary>
-    public ProductMetadataValidator() { RuleFor(x => x.ProductId).NotEmpty(); RuleFor(x => x.Key).NotEmpty().MaximumLength(200).Must(x => !x.Contains("password", StringComparison.OrdinalIgnoreCase) && !x.Contains("secret", StringComparison.OrdinalIgnoreCase) && !x.Contains("token", StringComparison.OrdinalIgnoreCase) && !x.Contains("connectionstring", StringComparison.OrdinalIgnoreCase)); RuleFor(x => x.Value).NotEmpty().MaximumLength(10000); }
 }

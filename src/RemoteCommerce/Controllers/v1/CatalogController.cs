@@ -3,32 +3,75 @@ namespace RemoteCommerce.Controllers.v1;
 /// <summary>Exposes the RemoteCommerce catalog REST API.</summary>
 [ApiController]
 [Route("api/rc/v1")]
+[Tags("Catalog")]
 public sealed class CatalogController(IMediator mediator) : ControllerBase
 {
     /// <summary>Lists catalog products with bounded pagination and filters.</summary>
-    /// <param name="query">Pagination and filtering parameters.</param><param name="cancellationToken">The cancellation token.</param><returns>A paged product collection.</returns>
-    [HttpGet("products")][AllowAnonymous]
-    public Task<PagedResult<ProductModel>> GetProducts([FromQuery] ProductListQuery query, CancellationToken cancellationToken) => mediator.Send(query, cancellationToken);
+    /// <param name="query">Pagination and filtering parameters.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A paged product collection.</returns>
+    [HttpGet("products")]
+    [AllowAnonymous]
+    [ProducesResponseType<PagedResult<ProductModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status405MethodNotAllowed)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status408RequestTimeout)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetProducts([FromQuery] ProductListQuery query, CancellationToken cancellationToken) 
+        => Ok(await mediator.Send(query, cancellationToken));
+
     /// <summary>Gets a product by identifier.</summary>
-    /// <param name="id">The product identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The product when found.</returns>
+    /// <param name="id">The product identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The product when found.</returns>
     [HttpGet("products/{id:guid}")][AllowAnonymous]
     public async Task<ActionResult<ProductModel>> GetProduct(Guid id, CancellationToken cancellationToken) { var result = await mediator.Send(new GetProductQuery(id), cancellationToken); return result is null ? NotFound() : Ok(result); }
+    
     /// <summary>Creates a product.</summary>
-    /// <param name="command">The product payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The created product.</returns>
-    [HttpPost("products")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<ProductModel>> CreateProduct(CreateProductCommand command, CancellationToken cancellationToken) { var result = await mediator.Send(command, cancellationToken); return CreatedAtAction(nameof(GetProduct), new { id = result.Id }, result); }
+    /// <param name="command">The product payload.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The created product.</returns>
+    [HttpPost("products")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    [ProducesResponseType<PagedResult<ProductModel>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status405MethodNotAllowed)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status408RequestTimeout)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ProductModel>> CreateProduct(CreateProductCommand command, CancellationToken cancellationToken) 
+    { 
+        var result = await mediator.Send(command, cancellationToken); 
+        return CreatedAtAction(nameof(GetProduct), new { id = result.Id }, result); 
+    }
+    
     /// <summary>Updates a product.</summary>
-    /// <param name="id">The product identifier.</param><param name="command">The product payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The updated product.</returns>
+    /// <param name="id">The product identifier.</param>
+    /// <param name="command">The product payload.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The updated product.</returns>
     [HttpPut("products/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<ProductModel>> UpdateProduct(Guid id, UpdateProductCommand command, CancellationToken cancellationToken) { if (id != command.Id) return BadRequest(); var result = await mediator.Send(command, cancellationToken); return result is null ? NotFound() : Ok(result); }
+    public async Task<ActionResult<ProductModel>> UpdateProduct(Guid id, UpdateProductCommand command, CancellationToken cancellationToken) 
+    { 
+        if (id != command.Id) return BadRequest(); 
+        var result = await mediator.Send(command, cancellationToken); 
+        return result is null ? NotFound() : Ok(result); 
+    }
+    
     /// <summary>Soft-deletes a product.</summary>
     /// <param name="id">The product identifier.</param><param name="cancellationToken">The cancellation token.</param>
-    [HttpDelete("products/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)][ProducesResponseType(StatusCodes.Status204NoContent)]
+    [HttpDelete("products/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> DeleteProduct(Guid id, CancellationToken cancellationToken) { await mediator.Send(new DeleteProductCommand(id), cancellationToken); return NoContent(); }
 
     /// <summary>Lists categories.</summary>
     /// <param name="cancellationToken">The cancellation token.</param><returns>The categories.</returns>
-    [HttpGet("categories")][AllowAnonymous]
+    [HttpGet("categories")]
+    [AllowAnonymous]
     public Task<IReadOnlyList<CategoryModel>> GetCategories(CancellationToken cancellationToken) => mediator.Send(new GetCategoriesQuery(), cancellationToken);
     /// <summary>Gets a category.</summary>
     /// <param name="id">The category identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The category.</returns>
@@ -137,23 +180,3 @@ public sealed class CatalogController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> DeleteMetadata(Guid productId, string key, CancellationToken cancellationToken) { await mediator.Send(new DeleteProductMetadataCommand(productId, key), cancellationToken); return NoContent(); }
 }
 
-/// <summary>Reads categories.</summary>
-public sealed record GetCategoriesQuery : IRequest<IReadOnlyList<CategoryModel>>;
-/// <summary>Reads brands.</summary>
-public sealed record GetBrandsQuery : IRequest<IReadOnlyList<BrandModel>>;
-/// <summary>Reads tags.</summary>
-public sealed record GetTagsQuery : IRequest<IReadOnlyList<TagModel>>;
-/// <summary>Reads attributes.</summary>
-public sealed record GetAttributesQuery : IRequest<IReadOnlyList<AttributeModel>>;
-/// <summary>Handles catalog read queries.</summary>
-public sealed class CatalogQueryHandlers(ICatalogService catalog) : IRequestHandler<GetCategoriesQuery, IReadOnlyList<CategoryModel>>, IRequestHandler<GetBrandsQuery, IReadOnlyList<BrandModel>>, IRequestHandler<GetTagsQuery, IReadOnlyList<TagModel>>, IRequestHandler<GetAttributesQuery, IReadOnlyList<AttributeModel>>
-{
-    /// <inheritdoc />
-    public Task<IReadOnlyList<CategoryModel>> Handle(GetCategoriesQuery r, CancellationToken c) => catalog.GetCategoriesAsync(c);
-    /// <inheritdoc />
-    public Task<IReadOnlyList<BrandModel>> Handle(GetBrandsQuery r, CancellationToken c) => catalog.GetBrandsAsync(c);
-    /// <inheritdoc />
-    public Task<IReadOnlyList<TagModel>> Handle(GetTagsQuery r, CancellationToken c) => catalog.GetTagsAsync(c);
-    /// <inheritdoc />
-    public Task<IReadOnlyList<AttributeModel>> Handle(GetAttributesQuery r, CancellationToken c) => catalog.GetAttributesAsync(c);
-}

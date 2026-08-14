@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Catalog;
+namespace RemoteCommerce.Application.Catalog.Abstractions;
 
 /// <summary>Defines the application boundary for catalog use cases.</summary>
 public interface ICatalogService
@@ -54,66 +54,3 @@ public interface ICatalogService
     /// <summary>Deletes product metadata.</summary><param name="productId">The product identifier.</param><param name="key">The metadata key.</param><param name="cancellationToken">The cancellation token.</param>
     Task DeleteMetadataAsync(Guid productId, string key, CancellationToken cancellationToken);
 }
-
-/// <summary>Represents a bounded page of records.</summary>
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
-/// <summary>Represents a product.</summary>
-public sealed record ProductModel(Guid Id, string Name, string Slug, string? Sku, string ShortDescription, string Description, ProductStatus Status, ProductType ProductType, decimal Price, decimal? CompareAtPrice, string Currency, Guid? BrandId, DateTime CreatedAt, DateTime UpdatedAt);
-/// <summary>Represents a category.</summary>
-public sealed record CategoryModel(Guid Id, string Name, string Slug, string Description, Guid? ParentId, int DisplayOrder);
-/// <summary>Represents a brand.</summary>
-public sealed record BrandModel(Guid Id, string Name, string Slug, string Description, Guid? LogoMediaId);
-/// <summary>Represents a tag.</summary>
-public sealed record TagModel(Guid Id, string Name, string Slug, string Description);
-/// <summary>Represents an attribute.</summary>
-public sealed record AttributeModel(Guid Id, string Name, string Slug, IReadOnlyList<AttributeValueModel> Values);
-/// <summary>Represents an attribute value.</summary>
-public sealed record AttributeValueModel(Guid Id, string Value, string Slug);
-/// <summary>Represents a product variant.</summary>
-public sealed record ProductVariantModel(Guid Id, Guid ProductId, string Sku, decimal Price, decimal? CompareAtPrice, decimal StockQuantity, bool ManageStock, ProductVariantStatus Status);
-/// <summary>Represents product metadata.</summary>
-public sealed record ProductMetadataModel(Guid Id, Guid ProductId, string Key, MetadataValueType Type, string Value);
-/// <summary>Creates a product.</summary>
-public sealed record CreateProductCommand(string Name, string Slug, string? Sku, string ShortDescription, string Description, ProductStatus Status, ProductType ProductType, decimal Price, decimal? CompareAtPrice, string Currency, Guid? BrandId) : IRequest<ProductModel>, ITransactionalCommand;
-/// <summary>Updates a product.</summary>
-public sealed record UpdateProductCommand(Guid Id, string Name, string Slug, string? Sku, string ShortDescription, string Description, ProductStatus Status, ProductType ProductType, decimal Price, decimal? CompareAtPrice, string Currency, Guid? BrandId) : IRequest<ProductModel?>, ITransactionalCommand;
-/// <summary>Deletes a product.</summary>
-public sealed record DeleteProductCommand(Guid Id) : IRequest, ITransactionalCommand;
-/// <summary>Publishes a product.</summary>
-public sealed record PublishProductCommand(Guid Id) : IRequest<ProductModel?>, ITransactionalCommand;
-/// <summary>Archives a product.</summary>
-public sealed record ArchiveProductCommand(Guid Id) : IRequest<ProductModel?>, ITransactionalCommand;
-/// <summary>Lists products.</summary>
-public sealed record ProductListQuery(int Page = 1, int PageSize = 20, string? Search = null, ProductStatus? Status = null, Guid? CategoryId = null, Guid? BrandId = null, string? Tag = null, string? Sku = null, ProductType? ProductType = null) : IRequest<PagedResult<ProductModel>>;
-/// <summary>Creates a category.</summary>
-public sealed record CreateCategoryCommand(string Name, string Slug, string Description, Guid? ParentId, int DisplayOrder) : IRequest<CategoryModel>, ITransactionalCommand;
-/// <summary>Updates a category.</summary>
-public sealed record UpdateCategoryCommand(Guid Id, string Name, string Slug, string Description, Guid? ParentId, int DisplayOrder) : IRequest<CategoryModel?>, ITransactionalCommand;
-/// <summary>Deletes a category.</summary>
-public sealed record DeleteCategoryCommand(Guid Id) : IRequest, ITransactionalCommand;
-/// <summary>Creates a brand.</summary>
-public sealed record CreateBrandCommand(string Name, string Slug, string Description, Guid? LogoMediaId) : IRequest<BrandModel>, ITransactionalCommand;
-/// <summary>Updates a brand.</summary>
-public sealed record UpdateBrandCommand(Guid Id, string Name, string Slug, string Description, Guid? LogoMediaId) : IRequest<BrandModel?>, ITransactionalCommand;
-/// <summary>Deletes a brand.</summary>
-public sealed record DeleteBrandCommand(Guid Id) : IRequest, ITransactionalCommand;
-/// <summary>Creates a tag.</summary>
-public sealed record CreateTagCommand(string Name, string Slug, string Description) : IRequest<TagModel>, ITransactionalCommand;
-/// <summary>Updates a tag.</summary>
-public sealed record UpdateTagCommand(Guid Id, string Name, string Slug, string Description) : IRequest<TagModel?>, ITransactionalCommand;
-/// <summary>Deletes a tag.</summary>
-public sealed record DeleteTagCommand(Guid Id) : IRequest, ITransactionalCommand;
-/// <summary>Creates a product variant.</summary>
-public sealed record CreateProductVariantCommand(Guid ProductId, string Sku, decimal Price, decimal? CompareAtPrice, decimal StockQuantity, bool ManageStock, ProductVariantStatus Status) : IRequest<ProductVariantModel>, ITransactionalCommand;
-/// <summary>Updates a product variant.</summary>
-public sealed record UpdateProductVariantCommand(Guid ProductId, Guid Id, string Sku, decimal Price, decimal? CompareAtPrice, decimal StockQuantity, bool ManageStock, ProductVariantStatus Status) : IRequest<ProductVariantModel?>, ITransactionalCommand;
-/// <summary>Deletes a product variant.</summary>
-public sealed record DeleteProductVariantCommand(Guid ProductId, Guid Id) : IRequest, ITransactionalCommand;
-/// <summary>Lists variants.</summary>
-public sealed record ProductVariantListQuery(Guid ProductId) : IRequest<IReadOnlyList<ProductVariantModel>>;
-/// <summary>Lists product metadata.</summary>
-public sealed record ProductMetadataQuery(Guid ProductId) : IRequest<IReadOnlyList<ProductMetadataModel>>;
-/// <summary>Creates or replaces product metadata.</summary>
-public sealed record UpsertProductMetadataCommand(Guid ProductId, string Key, MetadataValueType Type, string Value) : IRequest<ProductMetadataModel>, ITransactionalCommand;
-/// <summary>Deletes product metadata.</summary>
-public sealed record DeleteProductMetadataCommand(Guid ProductId, string Key) : IRequest, ITransactionalCommand;

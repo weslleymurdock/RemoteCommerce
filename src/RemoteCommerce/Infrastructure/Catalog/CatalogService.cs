@@ -4,7 +4,27 @@ namespace RemoteCommerce.Infrastructure.Catalog;
 public sealed class CatalogService(CommerceDbContext db) : ICatalogService
 {
     /// <inheritdoc />
-    public async Task<ProductModel> CreateProductAsync(CreateProductCommand command, CancellationToken cancellationToken) { await EnsureUniqueProductAsync(command.Slug, command.Sku, null, cancellationToken); var product = new Product { Name = command.Name.Trim(), Slug = command.Slug, Sku = command.Sku, ShortDescription = command.ShortDescription, Description = command.Description, Status = command.Status, ProductType = command.ProductType, Price = command.Price, CompareAtPrice = command.CompareAtPrice, Currency = command.Currency.ToUpperInvariant(), BrandId = command.BrandId }; db.Products.Add(product); await db.SaveChangesAsync(cancellationToken); return Map(product); }
+    public async Task<ProductModel> CreateProductAsync(CreateProductCommand command, CancellationToken cancellationToken)
+    {
+        await EnsureUniqueProductAsync(command.data.Slug, command.data.Sku, null, cancellationToken);
+        var product = new Product
+        {
+            Name = command.data.Name.Trim(),
+            Slug = command.data.Slug,
+            Sku = command.data.Sku,
+            ShortDescription = command.data.ShortDescription,
+            Description = command.data.Description,
+            Status = command.data.Status,
+            ProductType = command.data.ProductType,
+            Price = command.data.Price,
+            CompareAtPrice = command.data.CompareAtPrice,
+            Currency = command.data.Currency.ToUpperInvariant(),
+            BrandId = command.data.BrandId
+        }; 
+        db.Products.Add(product); 
+        await db.SaveChangesAsync(cancellationToken); 
+        return Map(product);
+    }
     /// <inheritdoc />
     public async Task<ProductModel?> UpdateProductAsync(UpdateProductCommand command, CancellationToken cancellationToken) { var product = await db.Products.SingleOrDefaultAsync(x => x.Id == command.Id, cancellationToken); if (product is null) return null; await EnsureUniqueProductAsync(command.Slug, command.Sku, command.Id, cancellationToken); Apply(product, command); await db.SaveChangesAsync(cancellationToken); return Map(product); }
     /// <inheritdoc />
@@ -12,7 +32,12 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
     /// <inheritdoc />
     public async Task<ProductModel?> GetProductAsync(Guid id, CancellationToken cancellationToken) { var product = await db.Products.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, cancellationToken); return product is null ? null : Map(product); }
     /// <inheritdoc />
-    public async Task<PagedResult<ProductModel>> ListProductsAsync(ProductListQuery query, CancellationToken cancellationToken) { var page = Math.Max(1, query.Page); var pageSize = Math.Clamp(query.PageSize, 1, 100); IQueryable<Product> products = db.Products.AsNoTracking(); if (!string.IsNullOrWhiteSpace(query.Search)) products = products.Where(x => x.Name.Contains(query.Search) || x.Description.Contains(query.Search)); if (query.Status.HasValue) products = products.Where(x => x.Status == query.Status.Value); if (query.BrandId.HasValue) products = products.Where(x => x.BrandId == query.BrandId.Value); if (!string.IsNullOrWhiteSpace(query.Sku)) products = products.Where(x => x.Sku == query.Sku); if (query.ProductType.HasValue) products = products.Where(x => x.ProductType == query.ProductType.Value); if (query.CategoryId.HasValue) products = products.Where(x => x.Categories.Any(c => c.CategoryId == query.CategoryId.Value)); if (!string.IsNullOrWhiteSpace(query.Tag)) products = products.Where(x => x.Tags.Any(t => t.Tag!.Slug == query.Tag || t.Tag!.Name == query.Tag)); var total = await products.CountAsync(cancellationToken); var items = await products.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).Select(x => new ProductModel(x.Id, x.Name, x.Slug, x.Sku, x.ShortDescription, x.Description, x.Status, x.ProductType, x.Price, x.CompareAtPrice, x.Currency, x.BrandId, x.CreatedAt, x.UpdatedAt)).ToListAsync(cancellationToken); return new(items, page, pageSize, total); }
+    public async Task<PagedResult<ProductModel>> ListProductsAsync(ProductListQuery query, CancellationToken cancellationToken)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        IQueryable<Product> products = db.Products.AsNoTracking(); if (!string.IsNullOrWhiteSpace(query.Search)) products = products.Where(x => x.Name.Contains(query.Search) || x.Description.Contains(query.Search)); if (query.Status.HasValue) products = products.Where(x => x.Status == query.Status.Value); if (query.BrandId.HasValue) products = products.Where(x => x.BrandId == query.BrandId.Value); if (!string.IsNullOrWhiteSpace(query.Sku)) products = products.Where(x => x.Sku == query.Sku); if (query.ProductType.HasValue) products = products.Where(x => x.ProductType == query.ProductType.Value); if (query.CategoryId.HasValue) products = products.Where(x => x.Categories.Any(c => c.CategoryId == query.CategoryId.Value)); if (!string.IsNullOrWhiteSpace(query.Tag)) products = products.Where(x => x.Tags.Any(t => t.Tag!.Slug == query.Tag || t.Tag!.Name == query.Tag)); var total = await products.CountAsync(cancellationToken); var items = await products.OrderByDescending(x => x.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize).Select(x => new ProductModel(x.Id, x.Name, x.Slug, x.Sku, x.ShortDescription, x.Description, x.Status, x.ProductType, x.Price, x.CompareAtPrice, x.Currency, x.BrandId, x.CreatedAt, x.UpdatedAt)).ToListAsync(cancellationToken); return new(items, page, pageSize, total);
+    }
     /// <inheritdoc />
     public async Task<IReadOnlyList<CategoryModel>> GetCategoriesAsync(CancellationToken c) => await db.Categories.AsNoTracking().OrderBy(x => x.DisplayOrder).ThenBy(x => x.Name).Select(x => new CategoryModel(x.Id, x.Name, x.Slug, x.Description, x.ParentId, x.DisplayOrder)).ToListAsync(c);
     /// <inheritdoc />
@@ -34,13 +59,20 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
     /// <inheritdoc />
     public async Task DeleteBrandAsync(Guid id, CancellationToken c) { var entity = await db.Brands.SingleOrDefaultAsync(x => x.Id == id, c); if (entity is not null) { db.Brands.Remove(entity); await db.SaveChangesAsync(c); } }
     /// <inheritdoc />
-    public async Task<TagModel> CreateTagAsync(CreateTagCommand command, CancellationToken c) { var entity = new Tag { Name = command.Name.Trim(), Slug = command.Slug, Description = command.Description }; db.Tags.Add(entity); await db.SaveChangesAsync(c); return Map(entity); }
+    public async Task<TagModel> CreateTagAsync(CreateTagCommand command, CancellationToken c) { var entity = new RemoteTag { Name = command.Name.Trim(), Slug = command.Slug, Description = command.Description }; db.Tags.Add(entity); await db.SaveChangesAsync(c); return Map(entity); }
     /// <inheritdoc />
     public async Task<TagModel?> UpdateTagAsync(UpdateTagCommand command, CancellationToken c) { var entity = await db.Tags.SingleOrDefaultAsync(x => x.Id == command.Id, c); if (entity is null) return null; entity.Name = command.Name.Trim(); entity.Slug = command.Slug; entity.Description = command.Description; entity.UpdatedAt = DateTime.UtcNow; await db.SaveChangesAsync(c); return Map(entity); }
     /// <inheritdoc />
     public async Task DeleteTagAsync(Guid id, CancellationToken c) { var entity = await db.Tags.SingleOrDefaultAsync(x => x.Id == id, c); if (entity is not null) { db.Tags.Remove(entity); await db.SaveChangesAsync(c); } }
     /// <inheritdoc />
-    public async Task<ProductVariantModel> CreateVariantAsync(CreateProductVariantCommand command, CancellationToken c) { if (!await db.Products.AnyAsync(x => x.Id == command.ProductId, c)) throw new ValidationException("The product does not exist."); if (await db.ProductVariants.AnyAsync(x => x.Sku == command.Sku, c)) throw new ValidationException("The variant SKU is already in use."); var v = new ProductVariant { ProductId = command.ProductId, Sku = command.Sku, Price = command.Price, CompareAtPrice = command.CompareAtPrice, StockQuantity = command.StockQuantity, ManageStock = command.ManageStock, Status = command.Status }; db.ProductVariants.Add(v); await db.SaveChangesAsync(c); return Map(v); }
+    public async Task<ProductVariantModel> CreateVariantAsync(CreateProductVariantCommand command, CancellationToken c)
+    {
+        if (!await db.Products.AnyAsync(x => x.Id == command.ProductId, c))
+            throw new ValidationException("The product does not exist.");
+        if (await db.ProductVariants.AnyAsync(x => x.Sku == command.Sku, c))
+            throw new ValidationException("The variant SKU is already in use.");
+        var v = new ProductVariant { ProductId = command.ProductId, Sku = command.Sku, Price = command.Price, CompareAtPrice = command.CompareAtPrice, StockQuantity = command.StockQuantity, ManageStock = command.ManageStock, Status = command.Status }; db.ProductVariants.Add(v); await db.SaveChangesAsync(c); return Map(v);
+    }
     /// <inheritdoc />
     public async Task<ProductVariantModel?> UpdateVariantAsync(UpdateProductVariantCommand command, CancellationToken c) { var v = await db.ProductVariants.SingleOrDefaultAsync(x => x.Id == command.Id && x.ProductId == command.ProductId, c); if (v is null) return null; if (await db.ProductVariants.AnyAsync(x => x.Sku == command.Sku && x.Id != command.Id, c)) throw new ValidationException("The variant SKU is already in use."); v.Sku = command.Sku; v.Price = command.Price; v.CompareAtPrice = command.CompareAtPrice; v.StockQuantity = command.StockQuantity; v.ManageStock = command.ManageStock; v.Status = command.Status; v.UpdatedAt = DateTime.UtcNow; await db.SaveChangesAsync(c); return Map(v); }
     /// <inheritdoc />
@@ -60,7 +92,7 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
     private static ProductModel Map(Product p) => new(p.Id, p.Name, p.Slug, p.Sku, p.ShortDescription, p.Description, p.Status, p.ProductType, p.Price, p.CompareAtPrice, p.Currency, p.BrandId, p.CreatedAt, p.UpdatedAt);
     private static CategoryModel Map(Category x) => new(x.Id, x.Name, x.Slug, x.Description, x.ParentId, x.DisplayOrder);
     private static BrandModel Map(Brand x) => new(x.Id, x.Name, x.Slug, x.Description, x.LogoMediaId);
-    private static TagModel Map(Tag x) => new(x.Id, x.Name, x.Slug, x.Description);
+    private static TagModel Map(RemoteTag x) => new(x.Id, x.Name, x.Slug, x.Description);
     private static ProductVariantModel Map(ProductVariant x) => new(x.Id, x.ProductId, x.Sku, x.Price, x.CompareAtPrice, x.StockQuantity, x.ManageStock, x.Status);
     private static ProductMetadataModel Map(ProductMetadata x) => new(x.Id, x.ProductId, x.Key, x.Type, x.Value);
 }

@@ -27,7 +27,13 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Infrastructure\Persistence\Migrations\" />
-  </ItemGroup>
+  <Target Name="AddMigration">
+    <PropertyGroup>
+      <MigrationName>$(Name)</MigrationName>
+    </PropertyGroup>
+
+    <Error Condition="'$(MigrationName)' == ''" Text="Missing migration name. Example: dotnet build -t:AddMigration &quot;-p:Name=MyMigration&quot;" />
+
+    <Exec Command="dotnet ef migrations add $(MigrationName) --output-dir Infrastructure\Persistence\Migrations" />
+  </Target> 
 </Project>

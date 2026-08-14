@@ -156,20 +156,25 @@ public sealed class Stage06ProviderStrategyTests
             configuration,
             CreateEnvironment(root));
 
-        await using var input = new MemoryStream("media"u8.ToArray());
-        var id = await provider.StoreAsync(
-            new MediaUpload("image.png", "image/png", input),
-            TestContext.Current.CancellationToken);
+        await using (var input = new MemoryStream("media"u8.ToArray()))
+        {
+            var id = await provider.StoreAsync(
+                new MediaUpload("image.png", "image/png", input),
+                TestContext.Current.CancellationToken);
+             
+            {
+                await using var media = await provider.RetrieveAsync(
+                    id,
+                    TestContext.Current.CancellationToken);
 
-        await using var media = await provider.RetrieveAsync(
-            id,
-            TestContext.Current.CancellationToken);
-        Assert.NotNull(media);
-        Assert.Equal("image.png", media.Descriptor.FileName);
-        Assert.Equal("image/png", media.Descriptor.ContentType);
-
-        await provider.DeleteAsync(id, TestContext.Current.CancellationToken);
-        Assert.Null(await provider.RetrieveAsync(id, TestContext.Current.CancellationToken));
+                Assert.NotNull(media);
+                Assert.Equal("image.png", media.Descriptor.FileName);
+                Assert.Equal("image/png", media.Descriptor.ContentType);
+            }  
+             
+            await provider.DeleteAsync(id, TestContext.Current.CancellationToken);
+            Assert.Null(await provider.RetrieveAsync(id, TestContext.Current.CancellationToken));
+        }
 
         Directory.Delete(root, true);
     }

@@ -7,7 +7,7 @@ public sealed class Stage05FoundationTests
     {
         await using var db = CreateDbContext();
         var service = CreateSiteSettingsService(db);
-        var settings = await service.GetAsync();
+        var settings = await service.GetAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("RemoteCommerce", settings.SiteName);
         Assert.Equal("en-US", settings.Culture);
@@ -289,7 +289,9 @@ public sealed class Stage05FoundationTests
         var user = new ApplicationUser
         {
             UserName = "admin@example.test",
+            NormalizedUserName = "ADMIN@EXAMPLE.TEST",
             Email = "admin@example.test",
+            NormalizedEmail = "ADMIN@EXAMPLE.TEST",
             DisplayName = "Admin",
             PasswordHash = "secret-hash"
         };

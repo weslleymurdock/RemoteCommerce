@@ -23,7 +23,11 @@
 </MudStack>
 
 @code {
-    private CreateProductCommand model = new("", "", null, "", "", ProductStatus.Draft, ProductType.Simple, 0, null, "USD", null);
+    private CreateProductRequest model = new("", "", null, "", "", ProductStatus.Draft, ProductType.Simple, 0, null, "USD", null);
     private string Get(string key) => Localizer.Get<CatalogResources>(key);
-    private async Task Save() { await Mediator.Send(model); Navigation.NavigateTo("/admin/catalog/products"); }
+    private async Task Save() 
+    { 
+        await Mediator.Send(new CreateProductCommand(model)); 
+        Navigation.NavigateTo("/admin/catalog/products"); 
+    }
 }
