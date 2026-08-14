@@ -16,6 +16,15 @@ else if (_setupRequired && !IsSetupRoute)
         </MudPaper>
     </MudContainer>
 }
+else if (_databaseSetupRequired && !IsDatabaseSetupRoute)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+        <MudPaper Elevation="2" Class="pa-8">
+            <MudText Typo="Typo.h5">Database setup required</MudText>
+            <MudText Class="mt-2">The configured database topology requires validation and replication initialization before normal use.</MudText>
+        </MudPaper>
+    </MudContainer>
+}
 else
 {
     <CascadingAuthenticationState>
@@ -42,8 +51,10 @@ else
 
 @code {
     private const string SetupPath = "/admin/setup";
+    private const string DatabaseSetupPath = "/admin/setup/database";
 
     private bool _setupRequired;
+    private bool _databaseSetupRequired;
     private bool _setupStateLoaded;
     private bool _redirecting;
 
@@ -51,6 +62,12 @@ else
         => string.Equals(
             new Uri(Navigation.Uri).AbsolutePath,
             SetupPath,
+            StringComparison.OrdinalIgnoreCase);
+
+    private bool IsDatabaseSetupRoute
+        => string.Equals(
+            new Uri(Navigation.Uri).AbsolutePath,
+            DatabaseSetupPath,
             StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -61,6 +78,15 @@ else
         }
 
         _setupRequired = await Mediator.Send(new GetSetupStatusQuery());
+        if (!_setupRequired)
+        {
+            var databaseState = await Mediator.Send(new GetDatabaseSetupStateQuery());
+            _databaseSetupRequired = databaseState is
+                DatabaseSetupState.Required
+                or DatabaseSetupState.InProgress
+                or DatabaseSetupState.Failed;
+        }
+
         _setupStateLoaded = true;
 
         if (_setupRequired && !IsSetupRoute)
@@ -72,6 +98,24 @@ else
         }
 
         if (!_setupRequired && IsSetupRoute)
+        {
+            _redirecting = true;
+            StateHasChanged();
+            Navigation.NavigateTo(
+                _databaseSetupRequired ? DatabaseSetupPath : "/admin",
+                forceLoad: true);
+            return;
+        }
+
+        if (!_setupRequired && _databaseSetupRequired && !IsDatabaseSetupRoute)
+        {
+            _redirecting = true;
+            StateHasChanged();
+            Navigation.NavigateTo(DatabaseSetupPath, forceLoad: true);
+            return;
+        }
+
+        if (!_databaseSetupRequired && IsDatabaseSetupRoute)
         {
             _redirecting = true;
             StateHasChanged();

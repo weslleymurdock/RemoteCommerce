@@ -3,10 +3,10 @@ namespace RemoteCommerce.Infrastructure.Persistence;
 /// <summary>Creates <see cref="CommerceDbContext"/> instances for EF Core design-time operations.</summary>
 public sealed class CommerceDbContextDesignTimeFactory : IDesignTimeDbContextFactory<CommerceDbContext>
 {
-    /// <summary>Creates a database context using the repository application configuration.</summary>
+    /// <summary>Creates a context using the configured database provider strategy.</summary>
     /// <param name="args">Optional EF Core design-time arguments.</param>
     /// <returns>A configured commerce database context.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the Commerce connection string is missing.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the configured provider cannot be resolved.</exception>
     public CommerceDbContext CreateDbContext(string[] args)
     {
         var root = Directory.GetCurrentDirectory();
@@ -21,11 +21,9 @@ public sealed class CommerceDbContextDesignTimeFactory : IDesignTimeDbContextFac
             .AddEnvironmentVariables()
             .Build();
 
-        var connectionString = configuration.GetConnectionString("Commerce");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("The Commerce connection string is required for EF Core design-time operations.");
-        }
+        var secretProvider = new ConfigurationSecretProvider(configuration);
+        var databaseProvider = new DatabaseProviderResolver(configuration, secretProvider).Resolve();
+        var connectionString = databaseProvider.GetConnectionString(DatabaseEndpoint.Primary);
 
         var options = new DbContextOptionsBuilder<CommerceDbContext>()
             .UseSqlServer(connectionString)

@@ -1,0 +1,66 @@
+@page "/admin/setup/database"
+
+<PageTitle>Database setup | RemoteCommerce</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h4" GutterBottom="true">Database topology setup</MudText>
+        <MudText Typo="Typo.body2" Class="mb-6">
+            RemoteCommerce detected a Primary/Replica database topology. Validate both endpoints and initialize the provider-aware replication boundary before normal application use is released.
+        </MudText>
+
+        @if (_state is DatabaseSetupState.Failed)
+        {
+            <MudAlert Severity="MudSeverity.Error" Class="mb-4">
+                The previous setup attempt failed. Correct the deployment configuration and retry.
+            </MudAlert>
+        }
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="MudSeverity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudButton
+            Variant="Variant.Filled"
+            Color="Color.Primary"
+            FullWidth="true"
+            Disabled="_busy"
+            OnClick="ConfigureAsync">
+            @(_busy ? "Validating..." : "Validate and initialize")
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private DatabaseSetupState _state;
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _state = await Mediator.Send(new GetDatabaseSetupStateQuery());
+    }
+
+    private async Task ConfigureAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            await Mediator.Send(new ConfigureDatabaseReplicationCommand());
+            Navigation.NavigateTo("/admin", forceLoad: true);
+        }
+        catch (Exception exception)
+        {
+            _state = DatabaseSetupState.Failed;
+            _error = "Database setup failed. Review the deployment configuration and retry.";
+            Console.Error.WriteLine(exception.GetType().FullName);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

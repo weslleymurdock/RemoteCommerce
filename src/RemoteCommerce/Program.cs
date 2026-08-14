@@ -20,8 +20,20 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddControllers();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
-builder.Services.AddDbContextFactory<CommerceDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Commerce")));
+builder.Services.AddSingleton<ISecretProvider, ConfigurationSecretProvider>();
+builder.Services.AddSingleton<DatabaseProviderResolver>();
+builder.Services.AddSingleton<IDatabaseProvider>(
+    services => services.GetRequiredService<DatabaseProviderResolver>().Resolve());
+builder.Services.AddScoped<IDatabaseReplicationProvider, SqlServerReplicationProvider>();
+builder.Services.AddSingleton<DatabaseSetupStateStore>();
+builder.Services.AddScoped<IDatabaseSetupService, DatabaseSetupService>();
+builder.Services.AddSingleton<MediaStorageProviderResolver>();
+builder.Services.AddScoped<IMediaStorageProvider>(
+    services => services.GetRequiredService<MediaStorageProviderResolver>().Resolve());
+builder.Services.AddHostedService<ProviderConfigurationValidationService>();
+builder.Services.AddDbContextFactory<CommerceDbContext>(
+    (services, options) => options.UseSqlServer(
+        services.GetRequiredService<IDatabaseProvider>().GetConnectionString(DatabaseEndpoint.Primary)));
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
@@ -196,7 +208,6 @@ builder.Services.AddScoped<LocalizationResourceService>();
 builder.Services.AddScoped<ILocalizationResourceService>(
     serviceProvider => serviceProvider.GetRequiredService<LocalizationResourceService>());
 builder.Services.AddScoped<ILocalizer, RemoteCommerceLocalizer>();
-builder.Services.AddScoped<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<AccountHandlers>();
