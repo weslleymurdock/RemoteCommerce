@@ -1,0 +1,34 @@
+@page "/admin/catalog/products/new"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject ILocalizer Localizer
+
+<PageTitle>@Localizer.Get<CatalogResources>("Catalog.CreateProduct")</PageTitle>
+
+<MudStack Spacing="3" MaxWidth="MaxWidth.Medium">
+    <MudText Typo="Typo.h4">@Localizer.Get<CatalogResources>("Catalog.CreateProduct")</MudText>
+    <MudTextField @bind-Value="model.Name" Label="@Localizer.Get<CatalogResources>("Catalog.Name")" Required="true" />
+    <MudTextField @bind-Value="model.Slug" Label="@Localizer.Get<CatalogResources>("Catalog.Slug")" Required="true" />
+    <MudTextField @bind-Value="model.Sku" Label="@Localizer.Get<CatalogResources>("Catalog.Sku")" />
+    <MudTextField @bind-Value="model.ShortDescription" Label="@Localizer.Get<CatalogResources>("Catalog.ShortDescription")" />
+    <MudTextField @bind-Value="model.Description" Label="@Localizer.Get<CatalogResources>("Catalog.Description")" Lines="5" />
+    <MudNumericField @bind-Value="model.Price" Label="@Localizer.Get<CatalogResources>("Catalog.Price")" Min="0" />
+    <MudSelect @bind-Value="model.Status" Label="@Localizer.Get<CatalogResources>("Catalog.Status")">
+        @foreach (var status in Enum.GetValues<ProductStatus>()) { <MudSelectItem Value="status">@status</MudSelectItem> }
+    </MudSelect>
+    <MudSelect @bind-Value="model.ProductType" Label="@Localizer.Get<CatalogResources>("Catalog.ProductType")">
+        @foreach (var type in Enum.GetValues<ProductType>()) { <MudSelectItem Value="type">@type</MudSelectItem> }
+    </MudSelect>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">@Localizer.Get<CatalogResources>("Catalog.Save")</MudButton>
+</MudStack>
+
+@code {
+    private CreateProductCommand model = new("", "", null, "", "", ProductStatus.Draft, ProductType.Simple, 0, null, "USD", null);
+
+    private async Task Save()
+    {
+        var product = await Mediator.Send(model);
+        Navigation.NavigateTo($"/admin/catalog/products");
+    }
+}
