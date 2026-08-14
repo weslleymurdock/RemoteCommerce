@@ -8,120 +8,114 @@ RemoteCommerce is a .NET 10 ASP.NET Core application with Interactive Server Bla
 RemoteCommerce
 ├── Components/                 Blazor UI and administration
 ├── Application/                commands, queries, validators, contracts
+│   ├── Catalog/                product catalog use cases and models
+│   └── Presentation/           theme and dynamic menu contracts
 ├── Domain/                     host-owned domain models
+│   ├── Catalog/                products, taxonomy, variants, metadata, media refs
+│   └── Shared/                 reusable soft-delete contract
 ├── Infrastructure/
 │   ├── Persistence/            EF Core, provider strategy, history, soft-delete
-│   ├── Logging/                structured application file logging
+│   ├── Catalog/                catalog persistence application service
 │   ├── Media/                  filesystem and MongoDB/GridFS providers
 │   └── Security/               JWT/secret boundaries
 ├── Plugins/                    runtime loading, lifecycle, persistence orchestration
 └── Plugin.Abstractions/        stable SDK contract consumed by plugins
 ```
 
-The host owns `CommerceDbContext`, `IDatabaseProvider`, `DatabaseTopology`, `ISecretProvider`, `TransactionalBehavior`, and host operation history. A plugin never receives `CommerceDbContext`, arbitrary connection strings, `SqlConnection`, `SqlCommand`, MongoDB types, or provider-specific infrastructure contracts.
+The host owns `CommerceDbContext`, `IDatabaseProvider`, `DatabaseTopology`, `ISecretProvider`, `TransactionalBehavior`, and operation history. Plugins never receive `CommerceDbContext`, arbitrary connection strings, provider-specific database objects, or host implementation details.
 
-## Application pipeline
-
-Commands and queries use MediatR 12.5.0. Controllers are HTTP adapters and dispatch application work through MediatR. FluentValidation executes through `ValidationBehavior`. `LoggingBehavior` supplies application request diagnostics and `TransactionalBehavior` owns write transactions. A command that mutates persistence either commits all participating relational changes or rolls them back.
-
-## Database provider strategy
-
-`IDatabaseProvider` is the stable Application persistence contract. Infrastructure selects the implementation through `DatabaseProviderResolver`. SQL Server is the initial provider. `DatabaseTopology.Single` represents one writable store database and `PrimaryReplica` represents one writable primary plus provider-defined replicas.
-
-Connection strings are deployment secrets resolved through `ISecretProvider`. Plugins consume provider configuration indirectly through `IPluginPersistenceBuilder`; they cannot select another store database or supply arbitrary connection strings.
-
-## Plugin persistence
-
-Plugin persistence is deliberately separate from host persistence:
+## Application request pipeline
 
 ```text
-PluginEntry
-    │
-    └── IRemoteCommercePluginPersistence
-             │
-             ▼
-      IPluginPersistenceBuilder
-             │
-             ▼
-        PluginDbContext
-             │
-             ▼
-      IDatabaseProvider
-             │
-             ▼
-   current store database
+Controller / Razor page
+    ↓
+IMediator.Send
+    ↓
+LoggingBehavior
+    ↓
+ValidationBehavior
+    ↓
+TransactionalBehavior
+    ↓
+Catalog handler
+    ↓
+ICatalogService
+    ↓
+CommerceDbContext / provider boundary
 ```
 
-A persistence-capable plugin owns its `DbContext`, entities, EF configurations, and migrations in its own assembly. The host only receives the context type and migration assembly through the provider-independent abstraction.
+Controllers remain HTTP adapters. Catalog Razor components dispatch application requests through MediatR and do not access EF Core directly.
 
-The stable plugin identifier determines the relational schema. For example `remote_seo` maps to `rc_plugin_remote_seo`. Display names are never used to derive database identifiers. Plugin migration history uses the same deterministic schema and the host-selected provider.
+## Product Catalog
 
-The host applies provider configuration when creating a plugin context. SQL Server configuration is not copied into plugin projects. Future relational providers can implement the same `IDatabaseProvider` contract without changing plugin code.
+Stage 08 adds a host-owned catalog model without copying WooCommerce's internal PHP storage model. The core aggregate is `Product`; related entities represent variants, taxonomy, attributes, metadata, and media references.
 
-When a host `CommerceDbContext` transaction is active, the runtime can attach the plugin context to the same relational transaction. This is limited to the current store database and does not create distributed transactions. Cross-database atomicity is not promised.
+`Product` supports name, URL slug, optional SKU, descriptions, lifecycle status, product type, prices, currency, optional brand, categories, tags, attributes, variants, metadata, and media references. Product types are `Simple`, `Variable`, `Virtual`, and `Downloadable`. Statuses are `Draft`, `Published`, and `Archived`.
 
-Plugin mutation entities can implement `IPluginSoftDeletable`. The runtime persistence infrastructure applies the same soft-delete policy used by the host, and plugin contexts use query filters to exclude disabled records.
+`Category` is hierarchical through `ParentId` and uses restrictive parent deletion to prevent accidental tree corruption. `Brand` and `Tag` have unique slugs. Product and variant SKUs are database-unique. `ProductAttribute` and `ProductAttributeValue` provide extensible values such as Color, Size, and Material without hardcoding attributes into `Product`.
 
-Plugin changes participate in the reusable operation-history interceptor. History is associated with the plugin identity and records entity, operation, previous/new state, actor, correlation/request context, and UTC timestamp with sensitive values redacted.
+Product metadata is represented by explicit `ProductMetadata` records containing a validated key, scalar/JSON type, and value. Secrets are not a catalog metadata capability. Product media contains only a `MediaId`, role, order, and alternative text; binary content remains owned by `IMediaStorageProvider`.
 
-## Plugin lifecycle and migrations
+The catalog uses the existing host `CommerceDbContext` and provider strategy. It does not introduce a second context or provider-specific database API. Catalog entities participate in the shared soft-delete contract and EF query filtering. The Stage 08 migration creates catalog tables under the existing `commerce` schema.
 
-Installation follows:
+## Catalog API
+
+RemoteCommerce-owned resources use `/api/rc/v1`. Plugin resources remain under `/api/rp/v1`.
+
+Stage 08 provides product collection/detail and administrative mutation endpoints plus category, brand, tag, and attribute resources. Product collections are paged with a safe maximum page size of 100 and support search/status/brand/SKU/product-type filters. Administrative mutations require the existing Administrator policy. Controllers dispatch through MediatR and return application models rather than EF entities.
+
+OpenAPI and Scalar continue using the host configuration. The catalog controller is in the host MVC application and therefore participates in the existing API discovery pipeline.
+
+## Administration UI and theming
+
+The administration UI is layered as:
 
 ```text
-upload → package validation → manifest validation → compatibility validation
-       → persist installation → restart → activation
-       → persistence initialization/migration → Loaded
+Application use case
+    ↓
+Page/View model
+    ↓
+UI components
+    ↓
+Theme / presentation contracts
+    ↓
+MudBlazor implementation
 ```
 
-Package validation is metadata-only. It never instantiates plugin code, creates a `DbContext`, or executes migrations.
+`IThemeProvider` and `ThemeDefinition` define theme identity, version, author, layouts, assets, stylesheets, scripts, component override metadata, and other presentation metadata. The Application/Domain catalog model has no reference to MudBlazor or the theme implementation. Stage 08 does not implement remote theme downloads or arbitrary code execution.
 
-During activation, the runtime discovers `IRemoteCommercePluginPersistence`, configures the declared context, discovers migrations from the plugin assembly, and applies pending migrations. Migration failure persists lifecycle diagnostics and prevents the plugin from reaching `Loaded`; restart provides a retry path. Uninstall removes runtime/package state but does not purge plugin data. Destructive purge is intentionally outside normal uninstall.
+MudBlazor remains a component library used by the host UI. It is not the RemoteCommerce theme contract, allowing a future theme implementation to replace layouts and presentation assets without changing catalog use cases.
 
-Plugin EF compatibility uses the existing `plugin.manifest.json` `efCoreVersion` field. Plugins without persistence leave this field null and continue to work. Persisted plugins declare the supported EF Core major/minor version and are rejected when incompatible.
+## Dynamic menu system
 
-## Plugin packaging
+Administration navigation is composed through `IMenuProvider`, `IMenuContributor`, and `MenuItemDefinition`. Core navigation registers the catalog tree and existing administration destinations as contributions instead of making the catalog page itself the navigation contract.
 
-A plugin package contains `plugin.manifest.json`, README/LICENSE, the `lib/net10.0` entry assembly, and required dependencies. Database files, connection strings, and secrets are never packaged.
+The stable plugin SDK exposes `IRemoteCommercePluginMenuContributor` and `PluginMenuItem`. A plugin can register its contributor during normal startup without referencing host Razor components. Runtime plugin loading only activates enabled/valid plugins, so disabled, uninstalled, or failed plugins do not leave an active menu contribution in the service collection.
 
-`RemoteCommerce.Plugins.slnx` builds the sample plugin plus the three Stage 07 reference plugins. CI also packs all four and validates their `.nupkg` artifacts. The template continues to support both non-persistent and persistence-capable generated plugins.
+Menu filtering is presentation visibility only. Every sensitive route and API mutation continues to use ASP.NET Core authorization policies. A hidden menu item is never considered authorization.
 
-## Stage 07 reference plugins
+## Localization
 
-### RemoteSEO
+Catalog UI labels use the existing `ILocalizer` boundary and a `CatalogResources` resource marker. Initial supported cultures remain `en-US` and `pt-BR`. No catalog page treats Portuguese text as an authorization or domain contract.
 
-`RemoteSEO` analyzes rendered page/product representations using route, title, meta description, canonical URL, and content. It calculates a deterministic score, records recommendations, and persists each analysis in `rc_plugin_remote_seo`. Its API is `/api/rp/v1/remote-seo/analyze` and its interactive plugin page is `/remote-seo`.
+## Plugin extension points
 
-### RemoteAdSense
+Stage 08 establishes narrow plugin extension points rather than arbitrary component injection:
 
-`RemoteAdSense` stores public Google AdSense placement metadata, never publisher secrets. It provides placement management and render-markup endpoints under `/api/rp/v1/remote-adsense`. The storefront integration script loads configured public placement metadata and Google AdSense client script only when placements exist. Its interactive plugin page is `/remote-adsense`.
+- administration menu contributions through the stable SDK;
+- catalog metadata through explicit `ProductMetadata` records;
+- future product UI extensions can be added as typed application/presentation contracts without coupling Domain to Razor or MudBlazor.
 
-### RemoteVisitors
-
-`RemoteVisitors` distinguishes three concepts: a **visitor** is a long-lived anonymous browser identity, a **visit** is a session separated by thirty minutes of inactivity, and an **access** is an individual tracked request/page access. Network information is hashed before persistence. It exposes tracking and aggregate statistics under `/api/rp/v1/remote-visitors`, persists data in `rc_plugin_remote_visitors`, and provides `/remote-visitors` for plugin validation.
-
-The visitor integration script is intentionally failure-tolerant: telemetry failures never block storefront navigation.
-
-## Internal application log viewer
-
-The host writes application logs to `App_Data/logs/application.log` using the mandatory format:
-
-```text
-[DATETIME][LEVEL][NAMESPACE.CLASS][MESSAGE]
-```
-
-The file logger uses UTC timestamps and the logger category as the namespace/class segment. Exceptions append type/message metadata without changing the required prefix. `/admin/logs` is administrator-only and displays recent formatted records through `ApplicationLogReader`.
-
-The viewer is an operational validation surface, not a replacement for external observability/SIEM tooling. Secrets are not intentionally written by the logging infrastructure.
+The plugin runtime, manifest, package validator, generator, persistence contract, and restart lifecycle remain unchanged.
 
 ## Soft-delete and operation history
 
-Host and plugin mutable persistence use the same soft-delete contract. Operation history is infrastructure-owned and independent of controllers. Plugin history is recorded in the host operation-history boundary with plugin identity and redaction.
+Catalog entities implement the same `ISoftDeletable` contract used by the host. Normal EF queries exclude disabled records. Deletions flow through the existing persistence preparation path and are represented as soft-delete state changes. Operation history remains infrastructure-owned and uses the existing redaction rules; catalog code does not create a second audit system.
 
-## API namespaces
+## Provider and media boundaries
 
-- `/api/rp/v1/...` is reserved for plugin APIs.
-- `/api/rc/v1/...` remains reserved for future WooCommerce-compatible APIs.
-- `/api/identity/...` is the RemoteCommerce-owned authentication boundary.
+Catalog persistence uses the Stage 06/07 `IDatabaseProvider` strategy and the host `CommerceDbContext`. Media references do not know whether content is stored in the filesystem or MongoDB/GridFS. No catalog code creates `SqlConnection`, `SqlCommand`, or MongoDB driver objects.
 
-No Stage 07 implementation introduces Product Catalog, Customers, Cart, Checkout, Orders, Payments, Shipping, Taxes, WooCommerce REST, storefront themes, federation, or hot reload.
+## Plugin persistence
+
+Plugin persistence remains separate from host catalog persistence. Plugin-owned contexts, migrations, schema names, transactions, soft-delete, and operation history continue to follow the Stage 07 contract. The host catalog does not expose its EF context to plugins.
