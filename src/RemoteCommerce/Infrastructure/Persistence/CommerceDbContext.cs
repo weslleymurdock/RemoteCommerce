@@ -77,14 +77,9 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
 
     private static void ConfigureCatalog(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<CatalogEntity>().UseTpcMappingStrategy();
         modelBuilder.Entity<CatalogEntity>().HasKey(x => x.Id);
-        foreach (var type in new[] { typeof(Product), typeof(Category), typeof(Brand), typeof(Tag), typeof(ProductAttribute), typeof(ProductAttributeValue), typeof(ProductAttributeAssignment), typeof(ProductVariant), typeof(ProductVariantAttribute), typeof(ProductMetadata), typeof(ProductMedia), typeof(ProductCategory), typeof(ProductTag) })
-        {
-            modelBuilder.Entity(type).Property(nameof(CatalogEntity.CreatedAt)).IsRequired();
-            modelBuilder.Entity(type).Property(nameof(CatalogEntity.UpdatedAt)).IsRequired();
-            modelBuilder.Entity(type).Property(nameof(CatalogEntity.IsDisabled)).IsRequired();
-            modelBuilder.Entity(type).HasQueryFilter(Expression.Lambda(Expression.Not(Expression.Property(Expression.Parameter(type, "e"), nameof(CatalogEntity.IsDisabled))), Expression.Parameter(type, "e")));
-        }
+        modelBuilder.Entity<CatalogEntity>().HasQueryFilter(x => !x.IsDisabled);
         modelBuilder.Entity<Product>(entity => { entity.HasIndex(x => x.Slug).IsUnique(); entity.HasIndex(x => x.Sku).IsUnique().HasFilter("[Sku] IS NOT NULL"); entity.Property(x => x.Name).HasMaxLength(200).IsRequired(); entity.Property(x => x.Slug).HasMaxLength(200).IsRequired(); entity.Property(x => x.Sku).HasMaxLength(100); entity.Property(x => x.Currency).HasMaxLength(3).IsRequired(); entity.Property(x => x.Price).HasPrecision(18, 4); entity.Property(x => x.CompareAtPrice).HasPrecision(18, 4); entity.HasOne(x => x.Brand).WithMany().HasForeignKey(x => x.BrandId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<Category>(entity => { entity.HasIndex(x => x.Slug).IsUnique(); entity.HasIndex(x => x.ParentId); entity.Property(x => x.Name).HasMaxLength(200).IsRequired(); entity.Property(x => x.Slug).HasMaxLength(200).IsRequired(); entity.HasOne(x => x.Parent).WithMany(x => x.Children).HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<Brand>(entity => { entity.HasIndex(x => x.Slug).IsUnique(); entity.Property(x => x.Name).HasMaxLength(200).IsRequired(); entity.Property(x => x.Slug).HasMaxLength(200).IsRequired(); });
