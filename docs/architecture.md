@@ -12,10 +12,15 @@ RemoteCommerce host (single ASP.NET Core project)
 │   ├── ASP.NET Core Identity stores + authorization
 │   ├── Secret provider boundary
 │   ├── Localization/resource administration
-│   └── Administrative audit logging
+│   ├── Persistence provider contracts
+│   └── Media storage provider contracts
 ├── Infrastructure
 │   ├── EF Core + SQL Server
 │   ├── Transactional persistence behavior
+│   ├── Database provider selection and topology setup
+│   ├── SQL Server replication boundary
+│   ├── Filesystem media storage
+│   ├── MongoDB/GridFS media storage
 │   └── JWT authentication implementation
 ├── Plugin runtime
 |   ├── RemoteCommerce.Plugin.Abstractions SDK
@@ -26,7 +31,7 @@ RemoteCommerce host (single ASP.NET Core project)
 └── Tools runtime
 ```
 
-Every plugin is distributed as a `.nupkg` containing `plugin.manifest.json` at the package root and the entry assembly under `lib/net10.0/`. Installation persists the package state, while activation occurs only after the application restarts. The runtime never attempts to mutate the root DI container after `builder.Build()`.
+Every plugin is distributed as a `.nupkg` containing `plugin.manifest.json` at the package root and the entry assembly under `lib/net10.0/`. Installation persists the package state, while activation occurs after the application restarts. The runtime never attempts to mutate the root DI container after `builder.Build()`.
 
 ## Product model
 
@@ -87,7 +92,7 @@ RemoteCommerce exposes its own `IdentityController` and MudBlazor login, setup, 
 
 Successful authentication produces a signed, short-lived JWT access token together with a refresh token and their respective expiration metadata. Refresh requests validate the refresh token and its lifetime before issuing a new access/refresh pair. The browser administration session stores the access token only in an HTTP-only, secure, same-site cookie. The bearer handler also accepts a standard `Authorization: Bearer` token for API clients.
 
-JWT validation checks signature, issuer, audience, lifetime, user existence, disabled state, and the Identity security stamp. Logout/security-stamp changes invalidate previously issued sessions. Token signing configuration is deployment-managed and is never persisted in SQL or exposed through the administration UI.
+JWT validation checks signature, issuer, audience, lifetime, user existence, disabled state, and the Identity security stamp. JWT signing configuration is deployment-managed and is never persisted in SQL or exposed through the administration UI.
 
 The first administrator is created through the RemoteCommerce `/api/identity/setup` boundary when the user store is empty. The setup creates the `Administrator` role and baseline permission claims and then establishes the authentication session. The Blazor route boundary checks the persisted setup state before rendering the application: while the Identity store has no users, the setup page is the only available application page; once setup exists, the setup page is unavailable and normal application/admin routes are available. If the user store is subsequently emptied, setup is required again.
 
@@ -135,11 +140,41 @@ The current activation model uses application restart because the root DI contai
 
 ## Database providers
 
-Persistence must be abstracted behind application/provider contracts so the concrete database strategy can be selected through `IConfiguration`, with a documented default when no provider is configured.
+The transactional database is selected through a provider strategy while retaining SQL Server as the initial relational provider. Application and domain contracts do not expose `SqlConnection`, EF provider-specific commands, or other SQL Server APIs.
 
-The initial relational provider remains SQL Server. A strategy/provider pattern should allow additional providers without leaking provider-specific APIs into domain/application contracts. Provider selection must be validated at startup and migrations must be provider-aware.
+The Application persistence boundary contains `IDatabaseProvider`, `DatabaseTopology`, and `IDatabaseReplicationProvider`. Infrastructure currently provides `SqlServerDatabaseProvider` and `SqlServerReplicationProvider`. Provider selection is performed by `DatabaseProviderResolver` using deployment configuration and dependency injection. Unknown providers fail configuration resolution rather than silently falling back to an unrelated implementation.
 
-A separate document/blob provider boundary should support non-relational assets. MongoDB/GridFS is a candidate provider for media and potentially virtual-product payloads, but it must not become an implicit replacement for the transactional relational store.
+The default configuration is SQL Server with `Single` topology. When `ConnectionStrings` is empty, the SQL Server strategy uses the development LocalDB fallback. When exactly one connection string exists, that endpoint is treated as the primary regardless of its name. When multiple connection strings exist, topology must be explicit; the strategy never assumes that a second connection such as `Reporting` is a replica. `PrimaryReplica` requires explicitly named primary and replica endpoints.
+
+Connection string values are resolved through `ISecretProvider`; `IConfiguration` is used for non-secret provider and topology metadata. Connection strings are never returned by application/UI contracts, persisted in SQL, written to operation history, or intentionally logged.
+
+`CommerceDbContextDesignTimeFactory` resolves the same provider strategy for EF Core design-time operations. This keeps future provider-aware migrations at one explicit boundary while the current SQL Server migration set remains unchanged.
+
+### Database topology and replication
+
+`DatabaseTopology.Single` represents one writable database endpoint. `DatabaseTopology.PrimaryReplica` represents one writable primary and provider-defined read replicas. Multi-primary, multi-master, federation, and cross-store synchronization are outside Stage 06.
+
+Replication is deliberately separate from persistence. `IDatabaseReplicationProvider` represents provider-aware validation and initialization; it is not a generic table-copy service. The SQL Server implementation validates both endpoints and provides the initialization boundary that a later replication plugin can extend. Plugins must consume stable provider contracts rather than host `CommerceDbContext` internals.
+
+A `PrimaryReplica` topology requires setup before normal application use. `DatabaseSetupService` persists only non-secret setup state and coordinates provider validation, replication validation, and initialization. The existing Stage 05 setup gate is extended rather than replaced: identity setup remains the first gate, and database setup is applied immediately after identity initialization. Required, in-progress, and failed setup states keep normal routes blocked; successful configuration releases the application. An interrupted in-progress state is treated as required on the next attempt so setup cannot become permanently stuck.
+
+### Persistence invariants
+
+The existing `CommerceDbContext` remains the authoritative SQL persistence boundary. `TransactionalBehavior` continues to own EF Core transactions; provider selection does not introduce a second unit-of-work or transaction abstraction.
+
+Mutable SQL records continue to use the Stage 05 soft-delete behavior. `CommerceDbContext` converts deletes of `ISoftDeletable` entities into disabled state and normal query filters exclude those records. Administrative/history queries may explicitly use `IgnoreQueryFilters()`.
+
+Operation history remains in the relational database. `CommerceDbContext.SaveChanges` captures serialized before/after state, entity identity/type, operation, UTC timestamp, actor, correlation and request context, and redacts sensitive property names. Mutation and history remain in the same EF Core transaction managed by `TransactionalBehavior`.
+
+## Media storage
+
+Media and large assets use `IMediaStorageProvider` rather than the transactional database provider. The default provider is `FileSystemMediaStorageProvider`, rooted under an application-owned directory. Provider-generated identifiers are opaque GUID values and clients never receive physical paths.
+
+The filesystem provider validates file names and identifiers, stores metadata beside content, uses asynchronous I/O, and limits all access to generated provider identifiers. Directory traversal and arbitrary filesystem reads are rejected.
+
+`MongoGridFsMediaStorageProvider` implements the same `IMediaStorageProvider` contract using MongoDB GridFS. MongoDB is optional and is not the RemoteCommerce transactional database. MongoDB connection credentials are resolved through `ISecretProvider`; database name and bucket are deployment configuration. MongoDB is not contacted merely because its package is installed or because the default filesystem provider is selected.
+
+The MongoDB driver is isolated to Infrastructure. Domain and Application contracts do not reference `MongoDB.Driver`, `GridFSBucket`, BSON documents, or Mongo-specific identifiers. Media provider selection is performed by `MediaStorageProviderResolver` through DI.
 
 ## Localization
 
