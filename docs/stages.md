@@ -1,10 +1,8 @@
 # Implementation Stages
 
-Stages are sequential. Only one stage may be active/open as a PR at a time. A new stage starts from the latest `main` after the previous stage is successfully integrated.
+Stages are sequential. Only one stage may be active/open as a PR at a time, and stages start from the latest integrated `main`.
 
-## Stage goals index
-
-This file is the source of truth for the goals and exit conditions of every implementation stage. Each stage section describes its goal, implementation scope, explicit exclusions where relevant, and exit condition. Use the stage headings below as the roadmap index:
+## Roadmap
 
 1. Foundation
 2. Plugin Runtime
@@ -23,449 +21,146 @@ This file is the source of truth for the goals and exit conditions of every impl
 15. Runtime Plugin Hot Reload
 16. Production Readiness
 
-## Global implementation rules
+## Global rules
 
-- Public APIs must use complete XML documentation in en-US, including all applicable elements such as `<summary>`, `<param>`, `<returns>`, `<typeparam>`, `<exception>`, and `<remarks>`.
-- All C# projects must use `<ImplicitUsings>enable</ImplicitUsings>`. Namespace imports must be maintained as `global using` directives in the project's `GlobalUsings.cs`, organized by namespace. Source files must not contain ordinary `using` directives or additional `global using` directives outside `GlobalUsings.cs`.
-- `using` directives in .cs file other than `GlobalUsings.cs` are allowed only for resolve class-namespace or class-class conflict in that only file, like `using SomeLibClass = Some.Namespace.Some.Lib.Class;` and each class must that have this kind `using` directive must use the same class label in other file usages of the conflicted class.
-- Razor namespace imports and dependency injections must be centralized in `_Imports.razor`. Page-specific `@page`, `@attribute`, `@inherits`, and `@implements` directives remain on the individual component.
-- MediatR is mandatory for application commands, queries, notifications, and pipeline behaviors, fixed at version `12.5.0`.
-- Controllers must dispatch application work through MediatR rather than embedding business/application orchestration directly in controller actions.
-- Feature commands, queries, and notifications belong respectively under `Application.<Namespace>.<Feature>.Commands`, `Application.<Namespace>.<Feature>.Queries`, and `Application.<Namespace>.<Feature>.Notifications`. Their handlers belong under the corresponding feature `Handlers` namespace, and applicable validators belong under `Validators`.
-- FluentValidation is mandatory for command/query validation where validation is applicable, using `FluentValidation` and `FluentValidation.DependencyInjectionExtensions` with the repository-approved version. Validation must be executed through the MediatR validation behavior rather than duplicated manually in controllers or handlers.
-- Required MediatR behaviors include logging and validation behaviors. Commands that execute transactional SQL/application persistence operations must use a transactional behavior with rollback on failure. Queries must not be wrapped in write transactions unless explicitly required by their consistency semantics.
-- Application behaviors belong under `Application.Common.Behaviors` or `Infrastructure.Common.Behaviors` according to responsibility. Application-only behaviors such as validation belong in Application; EF Core transaction management belongs in Infrastructure.
-- SQL persistence strategies must implement soft-delete for mutable persisted records. Hard deletion is exceptional and must be explicitly justified by the persistence contract.
-- SQL persistence must provide an operation-history strategy for relevant mutations. Before an update/delete operation, the previous state must be captured as serialized metadata in a single history value/cell together with operation timestamp, user/actor, operation type, entity identity, and other relevant context available from the request/application context. The replacement/new state should likewise be serialized when applicable. History records must remain queryable independently from the current row state.
-- Persistence history must not depend on controller-specific code; it belongs in application/persistence infrastructure and must work for MediatR-driven commands.
-- New persistence code must preserve audit/history and soft-delete semantics consistently across supported SQL provider strategies.
-- Exactly one PR may be open at a time. Do not create parallel PRs or parallel Stage branches.
-- Do not merge PRs unless explicitly requested by the user. After a successful PR integration and passing required jobs, delete the Stage branch.
+- .NET 10 and repository-approved package versions are used.
+- Public APIs receive complete en-US XML documentation.
+- C# imports live in `GlobalUsings.cs`; Razor imports live in `_Imports.razor`.
+- MediatR 12.5.0 is mandatory for application commands, queries, notifications, and behaviors.
+- FluentValidation runs through the validation behavior.
+- Mutating persistence uses the transactional behavior.
+- Mutable persistence uses soft-delete and operation history.
+- Exactly one Stage branch and one PR may be open; PRs are not merged unless explicitly requested.
 
 ## Stage 01 — Foundation
 
-Implemented foundation for the RemoteCommerce host and its plugin architecture.
+Established the .NET 10 host, Blazor Server UI, ASP.NET Core controllers, EF Core foundation, MudBlazor, plugin abstractions, and repository conventions.
 
-- .NET 10 solution structure.
-- Main server/UI application with Blazor and ASP.NET Core controllers.
-- EF Core/SQL Server persistence foundation.
-- MudBlazor UI foundation.
-- Plugin abstractions and manifest model.
-- Initial plugin administration/runtime concepts.
-- XML documentation policy for public APIs.
-- OpenAPI/Scalar setup was established during the early foundation work.
-- Repository-wide global namespace policy is part of the repository conventions.
-
-**Exit condition:** host solution builds and provides the foundation required by the plugin runtime.
+**Exit condition:** host foundation builds and supports later stages.
 
 ## Stage 02 — Plugin Runtime
 
-Implemented the runtime plugin lifecycle on top of the foundation.
+Implemented plugin discovery, restart-based activation, DI registration, controller application parts, plugin Razor routing, dependencies, lifecycle state, and `/api/rp/v1` plugin APIs.
 
-- Plugin installation/persistence flow.
-- Plugin package/manifest discovery.
-- Plugin loading after host restart.
-- Dependency injection registration for plugin services/controllers.
-- Plugin assembly registry.
-- Blazor routing support for plugin Razor assemblies.
-- Plugin administration/information display.
-- Plugin README and LICENSE metadata support.
-- Standard plugin health endpoint pattern.
-- Runtime plugin API namespace `/api/rp/v1/...`.
-- WooCommerce-compatible API namespace reserved as `/api/rc/v1/...`.
-
-**Exit condition:** an installed plugin can be discovered, loaded on restart, participate in DI, expose controllers, and expose Razor pages.
+**Exit condition:** installed plugins load after restart and can expose services, controllers, and Razor pages.
 
 ## Stage 03 — NuGet Plugin Packaging and Template Tooling
 
-Implemented distributable plugin packaging and generation tooling.
+Implemented the `dotnet` plugin template tool, resource-based templates, `.nupkg` layout, README/LICENSE/manifest packaging, and independently buildable generated plugins.
 
-- Plugins are packaged as `.nupkg` artifacts.
-- Plugin manifest includes package metadata and required README/LICENSE references.
-- Plugin generator is a `dotnet tool` under `tools/`.
-- Templates are stored as text resources (`.cs.txt`, `.razor.txt`, `.csproj.txt`) so placeholders never enter the template tool compilation.
-- JSON and Markdown resources remain native documents.
-- Generated plugins contain plugin information UI and health controller by default.
-- Generated controller APIs follow `/api/rp/v1/<plugin_controller>`.
-- Generated plugins reference `RemoteCommerce.Plugin.Abstractions` by project reference during repository development.
-- Generated plugins use MudBlazor 9.8.0 and isolate package-version management where required by repository package props.
-- Plugin entry point can consume host `IConfiguration`.
-- Plugin Razor assemblies are registered through Blazor routing `AdditionalAssemblies`, while controllers are registered as MVC application parts.
-- Plugin projects can be built independently from the main solution.
-- Generated source projects follow the repository-wide global namespace and Razor `_Imports.razor` conventions.
-
-**Exit condition:** a generated plugin can be built, packed, installed, and loaded by the host after restart.
+**Exit condition:** generated plugins build and pack as installable packages.
 
 ## Stage 04 — Host Installation and Administration
 
-Implemented and validated in the Stage 04 PR.
+Implemented package upload/validation, installation/update/enable/disable/uninstall, dependency validation, retained versions, lifecycle diagnostics, integrity hashing, restart orchestration, and the plugin administration UI.
 
-- MudBlazor plugin administration list and details.
-- `.nupkg` upload, package validation, install, update, enable, disable, uninstall, and retained-version rollback.
-- Explicit desired state plus persisted lifecycle states including `ActivationPending`, `Disabled`, `Loaded`, and `Failed`.
-- Manifest validation for identity, version, entry point, package paths, required README/LICENSE declarations, dependencies, and optional EF compatibility metadata.
-- Package structure validation for `plugin.manifest.json`, `README.md`, `LICENSE.md`, target framework layout, and entry assembly metadata.
-- SHA-256 package integrity recording.
-- Host and EF Core compatibility validation without executing plugin code during package validation.
-- Dependency version validation, disabled dependency protection, duplicate dependency detection, and circular dependency detection.
-- SQL Server persistence for installation state, retained versions, dependencies, lifecycle errors, and plugin settings.
-- Trusted local package source abstraction through `PluginAdministration:TrustedPackageDirectory`.
-- Restart-required orchestration that persists desired lifecycle changes without attempting to mutate the root DI provider after host construction.
-- Startup activation diagnostics persisted to the database.
-- README.md and LICENSE.md remain package files and are read from the installed artifact rather than duplicated into database columns.
-- Host administration API at `/api/v1/plugins` with OpenAPI/Scalar metadata.
-- Automated tests covering package validation, missing required files, entry point/framework/host compatibility, integrity, dependency rules, lifecycle state transitions, uninstall dependency protection, and rollback.
-- CI builds the main solution, runs tests, builds tooling/plugin solutions, and packs a generated sample plugin and template tool successfully.
-
-Intentionally deferred from this stage:
-
-- Package signing/trusted signature verification; the current boundary records and validates SHA-256 integrity and leaves signing/source trust extensible.
-- A generic settings-schema/form generator UI; Stage 04 provides the persistence/service boundary for plugin settings.
-- Plugin navigation/menu contributions; this remains part of Stage 13 storefront/admin extension work.
-- Runtime hot reload; lifecycle changes continue to require host restart.
-
-**Exit condition:** an administrator can install and manage plugins from the RemoteCommerce UI without manually editing application files, with build/test/package validation passing in CI.
+**Exit condition:** administrators can manage plugins without mutating the root DI container after build.
 
 ## Stage 05 — Site, Identity, Configuration, Secrets, and Localization Foundation
 
-**Status: implemented in the open Stage 05 PR; CI build and tests are green.**
+Implemented site configuration, Identity-backed authentication, JWT/refresh sessions, authorization policies, secret-provider boundary, localization resources, MediatR 12.5.0 pipeline behaviors, soft-delete, and operation history.
 
-Goal: establish the application-level foundation required by every subsequent store capability, while introducing the repository-wide application pipeline and persistence rules that future commerce features must follow.
-
-### Site and application configuration
-
-- Site identity, name, description, public URL/base URL, locale, timezone, culture, date/time defaults, and general settings.
-- Persistent application/store settings with a clear distinction between deployment configuration and editable application configuration.
-- Typed configuration boundaries for settings consumed by application services.
-- Configuration validation and safe defaults.
-- A configuration model that can later host provider settings, media settings, payment settings, shipping settings, and federation settings without coupling those features into the current stage.
-
-### Application request pipeline
-
-- MediatR `12.5.0` is the application command/query/notification mediator.
-- Controllers remain thin and dispatch commands/queries through MediatR.
-- Feature handlers are the application boundary for use cases.
-- `LoggingBehavior`, `ValidationBehavior`, and transactional behavior are implemented in the appropriate Application/Infrastructure boundaries.
-- FluentValidation and `FluentValidation.DependencyInjectionExtensions` provide validator registration and command/query validation.
-- Validation behavior prevents invalid requests from reaching handlers and exposes predictable failures to API/UI boundaries.
-- Logging behavior captures request/handler context without logging secrets or sensitive credentials.
-- Transactional behavior commits successful mutating persistence operations and rolls them back on exceptions, while read-only queries are not wrapped in write transactions by default.
-
-### Identity and authorization
-
-- ASP.NET Core Identity is used for its EF Core schema, stores, `UserManager<TUser>`, `RoleManager<TRole>`, password hashing, lockout, security stamps, and related persistence primitives.
-- RemoteCommerce does not expose ASP.NET Core Identity API endpoints or Identity Account/Razor Pages.
-- A RemoteCommerce-owned `IdentityController` implements the authentication/account boundary through MediatR.
-- JWT access tokens are signed, short-lived, returned with refresh tokens, and renewed through the refresh-token flow while valid.
-- Browser administration authentication uses the secure HTTP-only session cookie, while API clients can use bearer authentication.
-- Security-stamp validation supports invalidation of previously issued authentication sessions.
-- Initial administrator bootstrap is available only while the Identity store has no configured users.
-- Setup is enforced at the Blazor route boundary: when setup has not been completed, only the setup experience is available; after setup, normal application/admin routes are available. If the user store is later emptied, setup becomes required again.
-- Login, setup, refresh, logout, registration, recovery, password, two-factor, profile, and related identity mutations use MediatR commands/queries and the common validation/logging/transaction pipeline where applicable.
-- Administrative authorization uses roles, claims, named policies, and permission boundaries.
-
-### Administration foundation
-
-- MudBlazor administration dashboard and navigation foundation.
-- Site/general settings, users, roles, localization, resource administration, and security/configuration status pages.
-- Consistent `/admin/**` navigation for administration routes while the public home remains outside the admin area.
-- Configuration status and setup-incomplete feedback.
-- Audit logging foundation for administrative configuration/security changes.
-- Administrative mutation operations participate in the common command, validation, logging, transaction, soft-delete, and history policies where applicable.
-
-### Secrets boundary
-
-- Application-level `ISecretProvider` abstraction backed initially by ASP.NET Core configuration/environment providers.
-- No proprietary secret store is introduced.
-- Plaintext application secrets are not persisted in SQL or returned by administrative APIs/UI.
-- Secret values are redacted from logs and operation history.
-- The abstraction remains compatible with future Docker Secrets, Swarm/Kubernetes Secrets, Azure Key Vault, or other external providers.
-- JWT signing configuration is deployment-managed rather than application-editable site data.
-
-### Localization
-
-- RemoteCommerce `ILocalizer` abstraction/wrapper over ASP.NET Core `IStringLocalizer<T>` infrastructure.
-- Resource resolution is resource-type-aware.
-- Initial cultures are `en-US` and `pt-BR`.
-- Explicit fallback behavior uses `en-US` as the application base/final fallback.
-- Administrators can import localization XML through the MudBlazor UI.
-- XML parsing is hardened against DTD/external-entity processing.
-- Imports validate XML structure, supported culture, resource keys, duplicates, and malformed resources before activation.
-- Imported resources are versioned/tracked and safely replace active resources without requiring source-code changes.
-- Resource mutation commands use FluentValidation and transactional behavior when SQL state is changed.
-
-### SQL persistence, soft-delete, and history
-
-- Mutable SQL records use `IsDisabled` as the persisted soft-delete state; a deleted EF entity is converted to a disabled/modified state before persistence rather than physically deleted by default.
-- Normal EF queries exclude disabled records through query filters.
-- Administrative/history queries can explicitly include disabled records with `IgnoreQueryFilters()` and then apply the required state predicate.
-- Operation history captures previous state, entity identity/type, operation, timestamp, actor/request context, and serialized state metadata before update/delete mutations.
-- New state is captured when applicable.
-- Mutation and history persistence share the same transaction so command failure rolls back both.
-- Sensitive values are redacted/protected before being persisted to history.
-
-### Architectural constraints
-
-- The host remains a single ASP.NET Core/Blazor Server project; no DDD project split was introduced.
-- No `TenantId` was introduced across entities.
-- No multi-store federation was implemented.
-- Database provider strategy is implemented by Stage 06; future commerce stages must consume its provider boundaries.
-- MongoDB/GridFS media storage is implemented by Stage 06 and remains separate from transactional persistence.
-- No Docker/Swarm/Kubernetes deployment implementation was introduced; only secret-provider compatibility boundaries were established.
-- Plugin runtime and Stage 04 plugin administration remain compatible with the Stage 05 application pipeline and authentication/authorization foundation.
-
-### Stage 05 validation
-
-- Main application build passes in CI.
-- Automated test suite passes in CI.
-- Plugin/tool build and packaging flow remains part of the CI validation.
-- Identity, setup gating, authorization, secret redaction, localization validation/fallback, MediatR behaviors, transaction rollback, soft-delete, and operation-history behavior are covered by automated tests.
-
-**Exit condition:** a fresh installation can be configured and administered through the UI, an initial administrator can authenticate and use authorized administration features, setup is enforced until the Identity store is initialized, commands/queries flow through MediatR `12.5.0` with FluentValidation and logging behaviors, mutating commands use transactional rollback semantics, SQL persistence uses soft-delete and atomic operation history, secrets are consumed through an abstraction without plaintext persistence, and application UI/services resolve localized strings through `ILocalizer` for `en-US` and `pt-BR` with validated resource XML imports.
+**Exit condition:** the application can be configured and administered through authenticated UI/API flows with transactional persistence and reusable security/persistence boundaries.
 
 ## Stage 06 — Database Provider Strategy and Media Storage
 
-**Status: implemented in Draft PR #8; CI build, test, plugin/tool build, and packaging validation are green.**
+Implemented `IDatabaseProvider`, `DatabaseTopology`, SQL Server provider selection, primary/replica setup boundaries, `ISecretProvider` connection-string resolution, provider-aware design-time persistence, filesystem media storage, and MongoDB/GridFS media storage.
 
-Goal: establish provider boundaries before commerce features create hard dependencies on a single persistence technology.
-
-### Database provider strategy
-
-- `IDatabaseProvider` and `DatabaseTopology` are Application persistence contracts.
-- SQL Server remains the initial/default relational provider.
-- Provider selection is configuration-driven through `Persistence:Database:Provider` and DI.
-- Unknown provider selections fail startup configuration validation rather than silently selecting another provider.
-- Zero connection strings use the SQL Server LocalDB development fallback.
-- Exactly one connection string is treated as the Primary endpoint for `Single` topology.
-- Multiple connection strings require explicit topology configuration; a second connection such as `Reporting` is never implicitly treated as a replica.
-- `PrimaryReplica` requires explicit Primary and Replica endpoints.
-- Connection-string values are resolved through `ISecretProvider`; provider/topology metadata is read from `IConfiguration`.
-- `CommerceDbContextDesignTimeFactory` resolves the same provider strategy for EF Core design-time operations.
-
-### Database topology and replication
-
-- `DatabaseTopology.Single` represents one writable endpoint.
-- `DatabaseTopology.PrimaryReplica` represents one writable Primary and provider-defined Replica endpoint(s).
-- `IDatabaseReplicationProvider` is independent from `IDatabaseProvider` and represents provider-aware replication validation/initialization.
-- `SqlServerReplicationProvider` is the initial provider-aware replication implementation.
-- Replication is not modeled as a generic table-copy mechanism.
-- Multi-primary, multi-master, federation, and cross-store synchronization remain out of scope.
-- Provider setup uses the existing Stage 05 setup gate rather than introducing a second setup framework.
-- Required/in-progress/failed setup states keep normal application routes blocked; successful configuration releases the application.
-- Interrupted setup is retryable and does not leave the application permanently stuck in `InProgress`.
-
-### Persistence invariants
-
-- The existing `CommerceDbContext` remains the authoritative relational persistence boundary.
-- `TransactionalBehavior` remains the transaction owner; Stage 06 does not introduce a second unit-of-work or transaction abstraction.
-- Existing soft-delete behavior remains authoritative for mutable SQL records.
-- Existing operation history remains in the relational database and continues to capture serialized mutation state, actor/request context, and redacted sensitive values.
-- Mutation and history continue to participate in the same EF Core transaction.
-- Secrets are not persisted, returned by UI/API contracts, intentionally logged, or included in operation history.
-
-### Media storage
-
-- `IMediaStorageProvider` is the provider-independent boundary for media/blob storage.
-- `FileSystemMediaStorageProvider` is the default provider and stores content under an application-owned configured root.
-- Filesystem identifiers are generated GUIDs; clients never receive physical filesystem paths.
-- Filename and identifier validation prevents path traversal and arbitrary filesystem access.
-- `MongoGridFsMediaStorageProvider` implements the same abstraction using MongoDB GridFS.
-- MongoDB is optional and is never used as the RemoteCommerce transactional database.
-- MongoDB configuration is validated at startup when selected, while MongoDB is not contacted when another media provider is selected.
-- MongoDB credentials are resolved through `ISecretProvider` and are not logged or persisted to SQL.
-- Domain/Application contracts do not reference MongoDB driver, BSON, or GridFS-specific types.
-
-### Setup UI and MediatR
-
-- Database setup state is exposed through `GetDatabaseSetupStateQuery`.
-- Topology initialization is executed through `ConfigureDatabaseReplicationCommand`.
-- Controllers remain unchanged/thin; the setup UI uses the application MediatR boundary.
-- FluentValidation/MediatR pipeline conventions remain available for future persistence setup requests.
-
-### Tests and validation
-
-- Provider selection/default provider.
-- Unknown provider rejection.
-- LocalDB fallback with zero connection strings.
-- Single connection string as Primary.
-- Multiple connections without explicit topology rejection.
-- Explicit Primary/Replica topology.
-- Missing Replica rejection.
-- Invalid topology rejection.
-- Secret-provider connection resolution.
-- Filesystem store/retrieve/delete.
-- Filesystem path traversal and arbitrary identifier rejection.
-- MongoGridFS provider selection without requiring an external MongoDB instance.
-- MongoGridFS missing connection/configuration validation.
-- Startup provider configuration validation.
-- Setup success, failure, retry, and persisted state behavior.
-- CI validates the main application build, plugin build, generated sample plugin pack, plugin template tool pack, plugin package validation, and the full automated test suite.
-
-**Exit condition:** the host can select a supported database provider through configuration, relational persistence remains isolated behind contracts, the SQL Server provider preserves soft-delete/history/transaction invariants, Primary/Replica setup is explicit and provider-aware, setup gating blocks normal use until successful initialization, and media can be stored through the provider abstraction using filesystem or optional MongoDB/GridFS storage. CI validation is green.
+**Exit condition:** the host selects database/media technology through stable contracts without leaking provider-specific APIs into Application/domain boundaries.
 
 ## Stage 07 — Plugin Persistence Compatibility
 
-Goal: make generated and installed plugins safe to build against the host persistence stack and common application pipeline.
+**Status: implementation in Draft PR #9; build and automated tests have passed after CI fixes. Final packaging/runtime validation is being completed in this PR.**
 
-- Pin the EF Core version used by plugin templates to the backend-compatible version.
-- Add `Microsoft.EntityFrameworkCore` and related required abstractions/packages explicitly to generated plugins where required.
-- Generate a placeholder plugin `DbContext` and registration boundary without imposing a database schema on every plugin.
-- Define plugin migration ownership and database naming/isolation rules.
-- Validate plugin EF versions against host compatibility metadata.
-- Permit plugins to use other third-party SQL/EF libraries when their feature requires them, while preventing incompatible runtime dependency graphs.
-- Plugin commands/queries must use the host MediatR `12.5.0` contract when participating in host application workflows.
-- Plugin validators should use the host FluentValidation pipeline where the plugin exposes command/query validation.
-- Plugin SQL persistence must obey the mandatory soft-delete and operation-history strategy or explicitly use a host-provided persistence service that guarantees those semantics.
-- Plugin mutations must participate in transaction boundaries and rollback semantics.
+### Persistence contract
 
-**Exit condition:** a generated plugin with persistence compiles independently and can opt into a supported plugin `DbContext` without taking ownership of the host's domain DbContext, while plugin application operations remain compatible with the host command/query, validation, transaction, soft-delete, and history rules.
+- Added `IRemoteCommercePluginPersistence` and `IPluginPersistenceBuilder`.
+- Plugins may own a `DbContext`, entities, EF configurations, and migrations in the plugin assembly.
+- Plugins never receive `CommerceDbContext` or arbitrary connection strings.
+- Provider selection remains host-owned through `IDatabaseProvider` and `DatabaseTopology`.
+- Plugin schema names are deterministic and derived from stable plugin IDs.
+- Plugin migration history is isolated by plugin schema.
+- Plugin contexts can participate in the active relational transaction when the current store database supports it.
+- Plugin entities can participate in the reusable soft-delete and operation-history infrastructure.
+- EF compatibility continues to use the existing manifest `efCoreVersion` field.
+- Package validation remains metadata-only and does not execute migrations or plugin code.
+
+### Lifecycle and migration behavior
+
+```text
+install/update
+    ↓
+package + manifest + EF compatibility validation
+    ↓
+persist installation
+    ↓
+restart
+    ↓
+plugin activation
+    ↓
+discover PluginDbContext + migrations
+    ↓
+apply pending migrations
+    ↓
+Loaded
+```
+
+Migration failure leaves the plugin inactive, persists lifecycle diagnostics, and can be retried after restart. Uninstall does not delete plugin data; purge remains a separate future administrative operation.
+
+### Reference plugins used for validation
+
+- **RemoteSEO** — deterministic SEO analysis for rendered page/product representations, persisted per store, with `/api/rp/v1/remote-seo` and `/remote-seo`.
+- **RemoteAdSense** — public AdSense placement metadata, markup contract, storefront integration, `/api/rp/v1/remote-adsense`, and `/remote-adsense`.
+- **RemoteVisitors** — anonymous visitor identity, thirty-minute visit sessions, individual access tracking, aggregate statistics, `/api/rp/v1/remote-visitors`, and `/remote-visitors`.
+
+All three reference plugins own their EF context and migration assembly and declare `efCoreVersion: 10.0`.
+
+### Operational validation surface
+
+Added an administrator-only `/admin/logs` viewer backed by structured file logging. Every application record begins with:
+
+`[DATETIME][LEVEL][NAMESPACE.CLASS][MESSAGE]`
+
+Visitor tracking is failure-tolerant and does not block storefront navigation. AdSense integration uses public placement metadata and never stores secrets.
+
+### CI/package validation
+
+The plugin solution builds Sample, RemoteSEO, RemoteAdSense, and RemoteVisitors. CI packs all four plugin packages and validates their `.nupkg` artifacts while preserving the existing test reporter and coverage summary steps.
+
+**Exit condition:** persistence-capable and non-persistent plugins remain installable, provider-independent, migration-capable, transaction-compatible, soft-delete/history-compatible, and package-valid, with the three reference plugins exercising the persistence boundary and the application log viewer providing an operational validation surface.
 
 ## Stage 08 — Product Catalog
 
-Goal: reach the WooCommerce catalog baseline.
-
-- Products and product lifecycle.
-- Simple and variable products.
-- Categories, tags, attributes, and variations.
-- SKU, pricing, sale pricing, tax class, stock status, and inventory quantities.
-- Product media/gallery using the configured storage provider.
-- Catalog search/filtering and admin CRUD.
-- Catalog commands and queries through MediatR.
-- FluentValidation for catalog mutations.
-- Transactional behavior for catalog commands.
-- Soft-delete for mutable catalog records.
-- Operation history for catalog mutations.
-
-**Exit condition:** administrators can create and manage a usable store catalog with validated, transactional, soft-deletable, and historically traceable mutations.
+Reserved for product/catalog domain implementation. Not implemented by Stage 07.
 
 ## Stage 09 — Customers, Cart, and Checkout
 
-Goal: implement the core commerce transaction flow.
-
-- Customers and customer addresses.
-- Anonymous and authenticated carts.
-- Cart items and pricing snapshots.
-- Checkout sessions.
-- Billing/shipping addresses.
-- Tax calculation boundary.
-- Shipping method boundary.
-- Coupon/discount boundary.
-- Commands/queries through MediatR with validation and transactional behavior where applicable.
-- Soft-delete and operation history for mutable SQL records.
-
-**Exit condition:** a customer can progress from catalog to a valid checkout/order request with consistent transaction and audit semantics.
+Reserved. Not implemented by Stage 07.
 
 ## Stage 10 — Orders and Payments
 
-Goal: implement WooCommerce-equivalent order management.
-
-- Orders, order items, totals, taxes, discounts, shipping, and fees.
-- Order status state machine.
-- Payment intent abstraction.
-- Payment provider plugin contracts.
-- Refunds and payment reconciliation.
-- Customer order history and admin order management.
-- MediatR commands/queries/notifications and required behaviors.
-- Transactional order mutations with rollback.
-- Soft-delete where semantically applicable.
-- Immutable/order-history requirements must complement, not weaken, the mandatory persistence operation history.
-
-**Exit condition:** a complete order can be created, paid through a provider, fulfilled, refunded, and audited.
+Reserved. Not implemented by Stage 07.
 
 ## Stage 11 — Shipping, Taxes, and Store Operations
 
-Goal: complete the operational commerce layer.
-
-- Shipping zones, methods, rates, and fulfillment states.
-- Tax zones/classes/rates.
-- Inventory reservation and stock adjustments.
-- Order fulfillment/shipping tracking.
-- Transactional background processing.
-- MediatR commands/queries/notifications for application workflows.
-- Validation, transaction, soft-delete, and operation-history rules for applicable SQL mutations.
-
-**Exit condition:** the system supports real store operations rather than only checkout simulation.
+Reserved. Not implemented by Stage 07.
 
 ## Stage 12 — WooCommerce-Compatible REST API
 
-Goal: provide the API surface required for WooCommerce-compatible integrations.
-
-- `/api/rc/v1` resource model.
-- Products, variations, categories, customers, orders, coupons, and reports as appropriate.
-- Authentication and authorization.
-- Pagination, filtering, sorting, error contracts, and versioning.
-- OpenAPI/Scalar documentation.
-- Controllers remain thin and dispatch application commands/queries through MediatR.
-- API validation uses the common FluentValidation pipeline.
-
-**Exit condition:** supported WooCommerce integrations can communicate with RemoteCommerce through the documented compatibility API.
+Reserved. `/api/rc/v1` remains unused by Stage 07.
 
 ## Stage 13 — Storefront and Theme/Extension Model
 
-Goal: provide a complete customer-facing store experience.
-
-- Storefront navigation.
-- Product listing/detail pages.
-- Cart and checkout pages.
-- Customer account pages.
-- Theme/layout extension points.
-- Plugin page/menu/widget contributions.
-- Application workflows use the common command/query, validation, transaction, soft-delete, and history policies where applicable.
-
-**Exit condition:** a fresh RemoteCommerce installation can present a functional store without custom development.
+Reserved. Stage 07 does not implement storefront themes or extension contracts.
 
 ## Stage 14 — Multi-Store Federation
 
-Goal: allow independently deployed RemoteCommerce stores to operate as one logical multi-store organization without sacrificing database isolation.
-
-- Organization/store identity and federation contracts.
-- Federation plugin distributed independently from the host.
-- Explicit API/event/command synchronization between stores.
-- Shared catalog policies.
-- Shared inventory reservations, transfers, and stock synchronization.
-- Shared configuration with clear ownership and override rules.
-- Idempotency, conflict detection, retries, ordering, and eventual-consistency semantics.
-- Secure store-to-store authentication and authorization.
-- Optional control-plane metadata that does not contain transactional store data.
-- Docker Compose/Swarm deployment guidance for multiple independent store stacks.
-- Federation mutations must preserve local soft-delete/history/transaction semantics; synchronization must never bypass local persistence policies.
-
-**Exit condition:** two or more stores with exclusive databases can be operated independently while exposing a controlled logical multi-store experience for supported shared capabilities.
+Reserved. Stage 07 preserves one application instance = one store = one exclusive database.
 
 ## Stage 15 — Runtime Plugin Hot Reload
 
-Goal: investigate and, where technically safe, enable plugin installation/activation/deactivation/update without restarting the host process.
-
-- Collectible `AssemblyLoadContext` for plugin assemblies.
-- Plugin service registry and isolated service scopes.
-- Dynamic controller/application-part refresh.
-- Dynamic Blazor additional-assembly routing strategy.
-- Background service lifecycle cancellation.
-- Endpoint and cache invalidation.
-- Safe unload verification and assembly leak detection.
-- Atomic activation/update and rollback.
-- Explicit capability matrix for plugins that cannot be hot reloaded.
-- Hot reload must respect active MediatR handlers, notification subscriptions, pipeline behaviors, EF contexts, transactions, and persistence history services.
-
-The restart-based model remains the safe fallback. Hot reload must not compromise DI lifetime correctness, routing, memory safety, security, or in-flight requests.
-
-**Exit condition:** compatible plugins can be installed, enabled, disabled, updated, and unloaded without process restart; unsupported plugins clearly require restart.
+Reserved. Stage 07 continues to require restart-based activation.
 
 ## Stage 16 — Production Readiness
 
-Goal: make the platform suitable for production deployment.
-
-- Database migrations and upgrade strategy.
-- Secrets/configuration guidance.
-- Structured logging, metrics, health checks, and tracing.
-- Caching and performance baselines.
-- Concurrency/idempotency safeguards.
-- Security hardening.
-- Backup/restore guidance.
-- Automated integration/end-to-end tests.
-- Upgrade compatibility and plugin API compatibility policy.
-- Disaster recovery and multi-store federation operational guidance.
-- Production validation of soft-delete retention, operation-history growth, archival, and privacy/redaction policies.
-- Production validation of MediatR behavior ordering and transactional rollback guarantees.
-
-**Final exit condition:** a fresh RemoteCommerce installation can be configured and operated as a functional WordPress + WooCommerce-equivalent application, with plugins installed and managed through the application UI and supported commerce workflows available end to end.
+Reserved for future production hardening and operational requirements.
