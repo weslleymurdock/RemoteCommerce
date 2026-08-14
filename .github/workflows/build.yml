@@ -96,6 +96,10 @@ jobs:
           path: 'TestResults/*.trx'
           reporter: 'dotnet-trx'
 
+      - name: Tool Restore
+        if: always()
+        run: dotnet tool restore
+
       - name: Generate Coverage Markdown Report
         if: always()
         run: |
