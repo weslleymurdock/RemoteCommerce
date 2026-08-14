@@ -41,11 +41,17 @@ public sealed class SqlServerDatabaseProvider(
     }
 
     /// <inheritdoc />
+    public void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null)
+    {
+        ConfigureDbContext(options, migrationsAssembly, "__EFMigrationsHistory", null);
+    }
+
+    /// <inheritdoc />
     public void ConfigureDbContext(
         DbContextOptionsBuilder options,
-        string? migrationsAssembly = null,
-        string migrationsHistoryTable = "__EFMigrationsHistory",
-        string? migrationsHistorySchema = null)
+        string? migrationsAssembly,
+        string migrationsHistoryTable,
+        string? migrationsHistorySchema)
     {
         options.UseSqlServer(
             GetConnectionString(DatabaseEndpoint.Primary),
