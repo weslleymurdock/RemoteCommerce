@@ -39,7 +39,7 @@ public static class PluginServiceCollectionExtensions
             dbFactory,
             bootstrapProvider.GetRequiredService<IPluginManifestValidator>(),
             bootstrapProvider.GetRequiredService<IPluginCompatibilityValidator>(),
-            bootstrapProvider.GetRequiredService<IDatabaseProvider>());
+            bootstrapProvider.GetRequiredService<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>());
         loader.Load(services, pluginsRoot);
     }
 }
