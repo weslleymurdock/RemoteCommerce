@@ -1,23 +1,17 @@
-using System.Reflection;
-using System.Runtime.Loader;
-using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Infrastructure.Persistence;
-using RemoteCommerce.Infrastructure.Persistence.Entities;
-using RemoteCommerce.Plugins.Abstractions;
-
 namespace RemoteCommerce.Plugins;
 
-/// <summary>Discovers, validates, and registers installed plugins before the application host is built.</summary>
+/// <summary>Discovers, validates, initializes, and registers installed plugins before the application host is built.</summary>
 /// <param name="logger">The logger used to report plugin discovery and activation failures.</param>
 /// <param name="dbFactory">The factory used to read and persist plugin activation state.</param>
 /// <param name="manifestValidator">The validator used to revalidate persisted manifests at startup.</param>
 /// <param name="compatibilityValidator">The validator used to revalidate host compatibility at startup.</param>
+/// <param name="databaseProvider">The selected relational provider used to configure plugin DbContexts.</param>
 public sealed class PluginLoader(
     ILogger<PluginLoader> logger,
     IDbContextFactory<CommerceDbContext> dbFactory,
     IPluginManifestValidator manifestValidator,
-    IPluginCompatibilityValidator compatibilityValidator)
+    IPluginCompatibilityValidator compatibilityValidator,
+    IDatabaseProvider databaseProvider)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -28,7 +22,10 @@ public sealed class PluginLoader(
     public IReadOnlyList<PluginManifest> Load(IServiceCollection services, string pluginsRoot)
     {
         CleanupPendingDeletes(pluginsRoot);
-        if (!Directory.Exists(pluginsRoot)) return [];
+        if (!Directory.Exists(pluginsRoot))
+        {
+            return [];
+        }
 
         var configuration = services.LastOrDefault(x => x.ServiceType == typeof(IConfiguration))?.ImplementationInstance as IConfiguration
             ?? throw new InvalidOperationException("IConfiguration must be registered in the host service collection before loading RemoteCommerce plugins.");
@@ -73,35 +70,80 @@ public sealed class PluginLoader(
         HashSet<string> loadedIds,
         List<PluginManifest> loaded)
     {
-        if (loadedIds.Contains(pluginId)) return;
-        if (!loading.Add(pluginId)) throw new InvalidOperationException($"Circular plugin dependency detected at '{pluginId}'.");
+        if (loadedIds.Contains(pluginId))
+        {
+            return;
+        }
+
+        if (!loading.Add(pluginId))
+        {
+            throw new InvalidOperationException($"Circular plugin dependency detected at '{pluginId}'.");
+        }
 
         try
         {
             if (!installations.TryGetValue(pluginId, out var installation))
+            {
                 throw new InvalidOperationException($"Plugin '{pluginId}' is not installed.");
+            }
+
             if (installation.DesiredState == PluginDesiredState.Disabled)
+            {
                 throw new InvalidOperationException($"Plugin '{pluginId}' is disabled but is required by another enabled plugin.");
+            }
 
             var manifestPath = Path.Combine(installation.PackagePath, "plugin.manifest.json");
-            if (!File.Exists(manifestPath)) throw new FileNotFoundException("Plugin manifest was not found.", manifestPath);
-            var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath), JsonOptions) ?? throw new InvalidOperationException("Plugin manifest is empty.");
-            var manifestIssues = manifestValidator.Validate(manifest).Concat(compatibilityValidator.Validate(manifest)).Where(x => x.Severity == PluginValidationSeverity.Error).ToArray();
-            if (manifestIssues.Length > 0) throw new InvalidOperationException(string.Join(Environment.NewLine, manifestIssues.Select(x => $"[{x.Code}] {x.Message}")));
+            if (!File.Exists(manifestPath))
+            {
+                throw new FileNotFoundException("Plugin manifest was not found.", manifestPath);
+            }
+
+            var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath), JsonOptions)
+                ?? throw new InvalidOperationException("Plugin manifest is empty.");
+            var manifestIssues = manifestValidator.Validate(manifest)
+                .Concat(compatibilityValidator.Validate(manifest))
+                .Where(x => x.Severity == PluginValidationSeverity.Error)
+                .ToArray();
+            if (manifestIssues.Length > 0)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, manifestIssues.Select(x => $"[{x.Code}] {x.Message}")));
+            }
 
             foreach (var dependency in manifest.DependencyDeclarations)
+            {
                 LoadPlugin(dependency.PluginId, installations, services, configuration, loading, loadedIds, loaded);
+            }
 
             var assemblyPath = Path.GetFullPath(Path.Combine(installation.PackagePath, manifest.EntryAssembly));
             if (!assemblyPath.StartsWith(Path.GetFullPath(installation.PackagePath) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
                 throw new InvalidOperationException($"Plugin entry assembly '{manifest.EntryAssembly}' escapes the installation directory.");
-            if (!File.Exists(assemblyPath)) throw new FileNotFoundException("Plugin entry assembly was not found.", assemblyPath);
+            }
+
+            if (!File.Exists(assemblyPath))
+            {
+                throw new FileNotFoundException("Plugin entry assembly was not found.", assemblyPath);
+            }
 
             var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
-            var pluginType = assembly.GetType(manifest.EntryType, true, false) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' was not found.");
-            if (!typeof(IRemoteCommercePlugin).IsAssignableFrom(pluginType)) throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' must implement IRemoteCommercePlugin.");
-            var plugin = (IRemoteCommercePlugin?)Activator.CreateInstance(pluginType) ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' could not be instantiated.");
+            var pluginType = assembly.GetType(manifest.EntryType, true, false)
+                ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' was not found.");
+            if (!typeof(IRemoteCommercePlugin).IsAssignableFrom(pluginType))
+            {
+                throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' must implement IRemoteCommercePlugin.");
+            }
+
+            var plugin = (IRemoteCommercePlugin?)Activator.CreateInstance(pluginType)
+                ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' could not be instantiated.");
             plugin.ConfigureServices(services, manifest, configuration);
+
+            if (plugin is IRemoteCommercePluginPersistence persistence)
+            {
+                var persistenceBuilder = new PluginPersistenceBuilder(services, manifest.Id);
+                persistence.ConfigurePersistence(persistenceBuilder);
+                ApplyMigrations(persistenceBuilder, manifest);
+            }
+
             PluginAssemblyRegistry.Add(assembly);
             installation.State = PluginInstallationState.Loaded;
             installation.PendingVersion = null;
@@ -115,6 +157,47 @@ public sealed class PluginLoader(
         {
             loading.Remove(pluginId);
         }
+    }
+
+    private void ApplyMigrations(PluginPersistenceBuilder builder, PluginManifest manifest)
+    {
+        var descriptors = builder.GetDescriptors();
+        foreach (var descriptor in descriptors)
+        {
+            logger.LogInformation(
+                "Initializing persistence for plugin {PluginId} using {DbContextType}.",
+                manifest.Id,
+                descriptor.DbContextType.FullName);
+            InvokeMigration(descriptor.DbContextType, descriptor.MigrationsAssembly);
+        }
+    }
+
+    private void InvokeMigration(Type dbContextType, string? migrationsAssembly)
+    {
+        var method = typeof(PluginLoader)
+            .GetMethod(nameof(MigrateDbContext), BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Plugin migration method could not be located.");
+        var genericMethod = method.MakeGenericMethod(dbContextType);
+        genericMethod.Invoke(this, [migrationsAssembly]);
+    }
+
+    private async Task MigrateDbContext<TDbContext>(string? migrationsAssembly)
+        where TDbContext : DbContext
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TDbContext>();
+        databaseProvider.ConfigureDbContext(optionsBuilder, migrationsAssembly);
+        await using var context = Activator.CreateInstance(typeof(TDbContext), optionsBuilder.Options) as TDbContext
+            ?? throw new InvalidOperationException($"Plugin DbContext '{typeof(TDbContext).FullName}' could not be created.");
+        var pending = await context.Database.GetPendingMigrationsAsync();
+        if (pending.Any())
+        {
+            logger.LogInformation(
+                "Applying {MigrationCount} pending migration(s) for plugin DbContext {DbContextType}.",
+                pending.Count(),
+                typeof(TDbContext).FullName);
+        }
+
+        await context.Database.MigrateAsync();
     }
 
     private static void MarkFailed(CommerceDbContext db, PluginInstallation installation, string operation, string category, Exception exception)
@@ -138,16 +221,42 @@ public sealed class PluginLoader(
     {
         var pendingRoot = Path.Combine(pluginsRoot, ".pending-delete");
         if (Directory.Exists(pendingRoot))
+        {
             foreach (var directory in Directory.EnumerateDirectories(pendingRoot))
-                try { Directory.Delete(directory, true); } catch { }
+            {
+                try
+                {
+                    Directory.Delete(directory, true);
+                }
+                catch
+                {
+                }
+            }
+        }
 
-        if (!Directory.Exists(pluginsRoot)) return;
+        if (!Directory.Exists(pluginsRoot))
+        {
+            return;
+        }
+
         foreach (var pluginRoot in Directory.EnumerateDirectories(pluginsRoot))
         {
             var pluginPendingRoot = Path.Combine(pluginRoot, ".pending-delete");
-            if (!Directory.Exists(pluginPendingRoot)) continue;
+            if (!Directory.Exists(pluginPendingRoot))
+            {
+                continue;
+            }
+
             foreach (var directory in Directory.EnumerateDirectories(pluginPendingRoot))
-                try { Directory.Delete(directory, true); } catch { }
+            {
+                try
+                {
+                    Directory.Delete(directory, true);
+                }
+                catch
+                {
+                }
+            }
         }
     }
 }
