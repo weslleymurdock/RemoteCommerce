@@ -89,7 +89,7 @@ public sealed class AccountHandlers(
     }
 
     /// <summary>Completes an authenticator-based two-factor authentication flow.</summary>
-    public async Task<string> VerifyTwoFactor(TwoFactorCommand request, CancellationToken cancellationToken)
+    public async Task<string> VerifyTwoFactor(CompleteTwoFactorCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim())
             ?? throw new UnauthorizedAccessException("Invalid two-factor credentials.");
@@ -102,7 +102,7 @@ public sealed class AccountHandlers(
     }
 
     /// <summary>Completes two-factor authentication using a recovery code.</summary>
-    public async Task<string> RedeemRecoveryCode(TwoFactorRecoveryCommand request, CancellationToken cancellationToken)
+    public async Task<string> RedeemRecoveryCode(CompleteRecoveryCodeCommand request, CancellationToken cancellationToken)
     {
         var user = await users.FindByEmailAsync(request.Email.Trim())
             ?? throw new UnauthorizedAccessException("Invalid recovery credentials.");
