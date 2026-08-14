@@ -12,19 +12,19 @@
     <MudText Typo="Typo.h4">@Title</MudText>
     @if (Navigation.Uri.Contains("/categories", StringComparison.OrdinalIgnoreCase))
     {
-        <MudTable Items="categories" Dense="true"><HeaderContent><MudTh>@Localizer.Get<CatalogResources>("Catalog.Name")</MudTh><MudTh>@Localizer.Get<CatalogResources>("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
+        <MudTable Items="categories" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
     }
     else if (Navigation.Uri.Contains("/brands", StringComparison.OrdinalIgnoreCase))
     {
-        <MudTable Items="brands" Dense="true"><HeaderContent><MudTh>@Localizer.Get<CatalogResources>("Catalog.Name")</MudTh><MudTh>@Localizer.Get<CatalogResources>("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
+        <MudTable Items="brands" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
     }
     else if (Navigation.Uri.Contains("/tags", StringComparison.OrdinalIgnoreCase))
     {
-        <MudTable Items="tags" Dense="true"><HeaderContent><MudTh>@Localizer.Get<CatalogResources>("Catalog.Name")</MudTh><MudTh>@Localizer.Get<CatalogResources>("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
+        <MudTable Items="tags" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
     }
     else
     {
-        <MudTable Items="attributes" Dense="true"><HeaderContent><MudTh>@Localizer.Get<CatalogResources>("Catalog.Name")</MudTh><MudTh>@Localizer.Get<CatalogResources>("Catalog.Values")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@string.Join(", ", context.Values.Select(x => x.Value))</MudTd></RowTemplate></MudTable>
+        <MudTable Items="attributes" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Values")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@string.Join(", ", context.Values.Select(x => x.Value))</MudTd></RowTemplate></MudTable>
     }
 </MudStack>
 
@@ -33,13 +33,7 @@
     private IReadOnlyList<BrandModel> brands = [];
     private IReadOnlyList<TagModel> tags = [];
     private IReadOnlyList<AttributeModel> attributes = [];
-    private string Title => Navigation.Uri.Contains("/categories", StringComparison.OrdinalIgnoreCase) ? Localizer.Get<CatalogResources>("Catalog.Categories") : Navigation.Uri.Contains("/brands", StringComparison.OrdinalIgnoreCase) ? Localizer.Get<CatalogResources>("Catalog.Brands") : Navigation.Uri.Contains("/tags", StringComparison.OrdinalIgnoreCase) ? Localizer.Get<CatalogResources>("Catalog.Tags") : Localizer.Get<CatalogResources>("Catalog.Attributes");
-
-    protected override async Task OnInitializedAsync()
-    {
-        categories = await Mediator.Send(new GetCategoriesQuery());
-        brands = await Mediator.Send(new GetBrandsQuery());
-        tags = await Mediator.Send(new GetTagsQuery());
-        attributes = await Mediator.Send(new GetAttributesQuery());
-    }
+    private string Get(string key) => Localizer.Get<CatalogResources>(key);
+    private string Title => Navigation.Uri.Contains("/categories", StringComparison.OrdinalIgnoreCase) ? Get("Catalog.Categories") : Navigation.Uri.Contains("/brands", StringComparison.OrdinalIgnoreCase) ? Get("Catalog.Brands") : Navigation.Uri.Contains("/tags", StringComparison.OrdinalIgnoreCase) ? Get("Catalog.Tags") : Get("Catalog.Attributes");
+    protected override async Task OnInitializedAsync() { categories = await Mediator.Send(new GetCategoriesQuery()); brands = await Mediator.Send(new GetBrandsQuery()); tags = await Mediator.Send(new GetTagsQuery()); attributes = await Mediator.Send(new GetAttributesQuery()); }
 }
