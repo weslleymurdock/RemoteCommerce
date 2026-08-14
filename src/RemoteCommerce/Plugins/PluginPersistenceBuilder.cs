@@ -48,6 +48,16 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
         {
             var provider = serviceProvider.GetRequiredService<IDatabaseProvider>();
             provider.ConfigureDbContext(options, migrationsAssembly);
+            var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
+            if (commerceDb.Database.CurrentTransaction?.GetDbTransaction() is DbTransaction transaction)
+            {
+                options.UseTransaction(transaction);
+            }
+
+            options.AddInterceptors(new PluginOperationHistoryInterceptor(
+                commerceDb,
+                serviceProvider.GetRequiredService<IApplicationContext>(),
+                pluginId));
         });
     }
 
