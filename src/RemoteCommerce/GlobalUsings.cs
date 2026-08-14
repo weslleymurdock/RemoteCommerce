@@ -59,6 +59,7 @@ global using System.Collections.Concurrent;
 global using System.Diagnostics;
 global using System.Globalization;
 global using System.IdentityModel.Tokens.Jwt;
+global using System.Linq;
 global using System.Net;
 global using System.Security.Claims;
 global using System.Security.Cryptography;
