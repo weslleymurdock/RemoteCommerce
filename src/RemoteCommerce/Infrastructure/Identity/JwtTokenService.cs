@@ -28,12 +28,12 @@ public sealed class JwtOptions
     public const string RefreshTokenType = "refresh";
 }
 
-/// <summary>Creates and validates signed JWT sessions from ASP.NET Core Identity users.</summary>
+/// <summary>Creates and validates signed JWT sessions from application identity data.</summary>
 public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
     /// <inheritdoc />
     public JwtAuthenticationResult CreateToken(
-        ApplicationUser user,
+        JwtUserDescriptor user,
         IEnumerable<string> roles,
         IEnumerable<Claim> claims)
     {
@@ -45,9 +45,8 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
         var refreshExpires = now.AddDays(Math.Clamp(settings.RefreshTokenExpirationDays, 1, 365));
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Key));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-        var securityStamp = user.SecurityStamp ?? string.Empty;
-        var accessClaims = CreateAccessClaims(user, roles, claims, securityStamp);
-        var refreshClaims = CreateRefreshClaims(user, securityStamp);
+        var accessClaims = CreateAccessClaims(user, roles, claims);
+        var refreshClaims = CreateRefreshClaims(user);
         var accessToken = CreateJwt(settings, accessClaims, now, accessExpires, credentials);
         var refreshToken = CreateJwt(settings, refreshClaims, now, refreshExpires, credentials);
 
@@ -68,7 +67,6 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
 
         var settings = options.Value;
         ValidateSettings(settings);
-
         var parameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -78,7 +76,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
             ValidateAudience = true,
             ValidAudience = settings.Audience,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
         };
 
         try
@@ -108,40 +106,34 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
     }
 
     private static IEnumerable<Claim> CreateAccessClaims(
-        ApplicationUser user,
+        JwtUserDescriptor user,
         IEnumerable<string> roles,
-        IEnumerable<Claim> claims,
-        string securityStamp)
+        IEnumerable<Claim> claims)
     {
         var tokenClaims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
+            new(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
-            new("security_stamp", securityStamp),
+            new("security_stamp", user.SecurityStamp),
             new("token_type", JwtOptions.AccessTokenType),
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.DisplayName)
+            new(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+            new(ClaimTypes.Name, user.DisplayName),
         };
 
         tokenClaims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
         tokenClaims.AddRange(claims.Where(claim => claim.Type == "permission"));
-
         return tokenClaims;
     }
 
-    private static IEnumerable<Claim> CreateRefreshClaims(
-        ApplicationUser user,
-        string securityStamp)
-    {
-        return
+    private static IEnumerable<Claim> CreateRefreshClaims(JwtUserDescriptor user)
+        =>
         [
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
-            new("security_stamp", securityStamp),
-            new("token_type", JwtOptions.RefreshTokenType)
+            new("security_stamp", user.SecurityStamp),
+            new("token_type", JwtOptions.RefreshTokenType),
         ];
-    }
 
     private static string CreateJwt(
         JwtOptions settings,
