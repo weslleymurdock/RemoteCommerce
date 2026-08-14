@@ -9,6 +9,7 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.FileProviders;
 global using Microsoft.Extensions.Hosting;
 global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Logging.Abstractions;
 global using RemoteCommerce.Application.Common.Behaviors;
 global using RemoteCommerce.Application.Common.Requests;
 global using RemoteCommerce.Application.Common.Validation;
