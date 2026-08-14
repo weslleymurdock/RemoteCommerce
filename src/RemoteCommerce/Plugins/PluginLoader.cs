@@ -135,7 +135,6 @@ public sealed class PluginLoader(
 
             var plugin = (IRemoteCommercePlugin?)Activator.CreateInstance(pluginType)
                 ?? throw new InvalidOperationException($"Plugin type '{manifest.EntryType}' could not be instantiated.");
-            plugin.ConfigureServices(services, manifest, configuration);
 
             if (plugin is IRemoteCommercePluginPersistence persistence)
             {
@@ -144,6 +143,7 @@ public sealed class PluginLoader(
                 ApplyMigrations(persistenceBuilder, manifest);
             }
 
+            plugin.ConfigureServices(services, manifest, configuration);
             PluginAssemblyRegistry.Add(assembly);
             installation.State = PluginInstallationState.Loaded;
             installation.PendingVersion = null;
