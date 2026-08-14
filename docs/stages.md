@@ -27,7 +27,7 @@ This file is the source of truth for the goals and exit conditions of every impl
 
 - Public APIs must use complete XML documentation in en-US, including all applicable elements such as `<summary>`, `<param>`, `<returns>`, `<typeparam>`, `<exception>`, and `<remarks>`.
 - All C# projects must use `<ImplicitUsings>enable</ImplicitUsings>`. Namespace imports must be maintained as `global using` directives in the project's `GlobalUsings.cs`, organized by namespace. Source files must not contain ordinary `using` directives or additional `global using` directives outside `GlobalUsings.cs`.
-- `using` directives in .cs file other than `GlobalUsings.cs` are allowed only for resolve class-namespace or class-class conflict in that only file, like `using SomeLibClass =  Some.Namespace.Some.Lib.Class;` and each class must that have this kind `using` directive must use the same class label in other file usages of the conflicted class.
+- `using` directives in .cs file other than `GlobalUsings.cs` are allowed only for resolve class-namespace or class-class conflict in that only file, like `using SomeLibClass = Some.Namespace.Some.Lib.Class;` and each class must that have this kind `using` directive must use the same class label in other file usages of the conflicted class.
 - Razor namespace imports and dependency injections must be centralized in `_Imports.razor`. Page-specific `@page`, `@attribute`, `@inherits`, and `@implements` directives remain on the individual component.
 - MediatR is mandatory for application commands, queries, notifications, and pipeline behaviors, fixed at version `12.5.0`.
 - Controllers must dispatch application work through MediatR rather than embedding business/application orchestration directly in controller actions.
@@ -209,8 +209,8 @@ Goal: establish the application-level foundation required by every subsequent st
 - The host remains a single ASP.NET Core/Blazor Server project; no DDD project split was introduced.
 - No `TenantId` was introduced across entities.
 - No multi-store federation was implemented.
-- No database strategy/provider pattern was implemented; that remains Stage 06.
-- No MongoDB/GridFS provider was implemented; that remains Stage 06.
+- Database provider strategy is implemented by Stage 06; future commerce stages must consume its provider boundaries.
+- MongoDB/GridFS media storage is implemented by Stage 06 and remains separate from transactional persistence.
 - No Docker/Swarm/Kubernetes deployment implementation was introduced; only secret-provider compatibility boundaries were established.
 - Plugin runtime and Stage 04 plugin administration remain compatible with the Stage 05 application pipeline and authentication/authorization foundation.
 
@@ -225,20 +225,83 @@ Goal: establish the application-level foundation required by every subsequent st
 
 ## Stage 06 — Database Provider Strategy and Media Storage
 
+**Status: implemented in Draft PR #8; CI build, test, plugin/tool build, and packaging validation are green.**
+
 Goal: establish provider boundaries before commerce features create hard dependencies on a single persistence technology.
 
-- Database provider strategy selected from `IConfiguration` with a documented default.
-- Provider registration and startup validation.
-- SQL Server as the initial/default relational provider.
-- Provider-aware EF Core migrations and schema management.
-- Application contracts that prevent provider-specific APIs from leaking into domain services.
-- Every SQL provider strategy must implement the mandatory soft-delete contract.
-- Every SQL provider strategy must implement the mandatory serialized operation-history strategy, preserving before/after metadata and operation context atomically with mutations.
-- Database provider implementations must integrate with the MediatR transactional behavior rather than bypassing application transaction boundaries.
-- Document/blob storage abstraction for media and other large assets.
-- MongoDB/GridFS provider for media and optional virtual-product payloads, consumed through application services rather than MongoDB-specific domain types.
+### Database provider strategy
 
-**Exit condition:** the host can select a supported database provider through configuration, relational persistence remains isolated behind contracts, every supported SQL provider satisfies soft-delete/history/transaction rules, and media can be stored through a provider abstraction with SQL Server and MongoDB/GridFS support where applicable.
+- `IDatabaseProvider` and `DatabaseTopology` are Application persistence contracts.
+- SQL Server remains the initial/default relational provider.
+- Provider selection is configuration-driven through `Persistence:Database:Provider` and DI.
+- Unknown provider selections fail startup configuration validation rather than silently selecting another provider.
+- Zero connection strings use the SQL Server LocalDB development fallback.
+- Exactly one connection string is treated as the Primary endpoint for `Single` topology.
+- Multiple connection strings require explicit topology configuration; a second connection such as `Reporting` is never implicitly treated as a replica.
+- `PrimaryReplica` requires explicit Primary and Replica endpoints.
+- Connection-string values are resolved through `ISecretProvider`; provider/topology metadata is read from `IConfiguration`.
+- `CommerceDbContextDesignTimeFactory` resolves the same provider strategy for EF Core design-time operations.
+
+### Database topology and replication
+
+- `DatabaseTopology.Single` represents one writable endpoint.
+- `DatabaseTopology.PrimaryReplica` represents one writable Primary and provider-defined Replica endpoint(s).
+- `IDatabaseReplicationProvider` is independent from `IDatabaseProvider` and represents provider-aware replication validation/initialization.
+- `SqlServerReplicationProvider` is the initial provider-aware replication implementation.
+- Replication is not modeled as a generic table-copy mechanism.
+- Multi-primary, multi-master, federation, and cross-store synchronization remain out of scope.
+- Provider setup uses the existing Stage 05 setup gate rather than introducing a second setup framework.
+- Required/in-progress/failed setup states keep normal application routes blocked; successful configuration releases the application.
+- Interrupted setup is retryable and does not leave the application permanently stuck in `InProgress`.
+
+### Persistence invariants
+
+- The existing `CommerceDbContext` remains the authoritative relational persistence boundary.
+- `TransactionalBehavior` remains the transaction owner; Stage 06 does not introduce a second unit-of-work or transaction abstraction.
+- Existing soft-delete behavior remains authoritative for mutable SQL records.
+- Existing operation history remains in the relational database and continues to capture serialized mutation state, actor/request context, and redacted sensitive values.
+- Mutation and history continue to participate in the same EF Core transaction.
+- Secrets are not persisted, returned by UI/API contracts, intentionally logged, or included in operation history.
+
+### Media storage
+
+- `IMediaStorageProvider` is the provider-independent boundary for media/blob storage.
+- `FileSystemMediaStorageProvider` is the default provider and stores content under an application-owned configured root.
+- Filesystem identifiers are generated GUIDs; clients never receive physical filesystem paths.
+- Filename and identifier validation prevents path traversal and arbitrary filesystem access.
+- `MongoGridFsMediaStorageProvider` implements the same abstraction using MongoDB GridFS.
+- MongoDB is optional and is never used as the RemoteCommerce transactional database.
+- MongoDB configuration is validated at startup when selected, while MongoDB is not contacted when another media provider is selected.
+- MongoDB credentials are resolved through `ISecretProvider` and are not logged or persisted to SQL.
+- Domain/Application contracts do not reference MongoDB driver, BSON, or GridFS-specific types.
+
+### Setup UI and MediatR
+
+- Database setup state is exposed through `GetDatabaseSetupStateQuery`.
+- Topology initialization is executed through `ConfigureDatabaseReplicationCommand`.
+- Controllers remain unchanged/thin; the setup UI uses the application MediatR boundary.
+- FluentValidation/MediatR pipeline conventions remain available for future persistence setup requests.
+
+### Tests and validation
+
+- Provider selection/default provider.
+- Unknown provider rejection.
+- LocalDB fallback with zero connection strings.
+- Single connection string as Primary.
+- Multiple connections without explicit topology rejection.
+- Explicit Primary/Replica topology.
+- Missing Replica rejection.
+- Invalid topology rejection.
+- Secret-provider connection resolution.
+- Filesystem store/retrieve/delete.
+- Filesystem path traversal and arbitrary identifier rejection.
+- MongoGridFS provider selection without requiring an external MongoDB instance.
+- MongoGridFS missing connection/configuration validation.
+- Startup provider configuration validation.
+- Setup success, failure, retry, and persisted state behavior.
+- CI validates the main application build, plugin build, generated sample plugin pack, plugin template tool pack, plugin package validation, and the full automated test suite.
+
+**Exit condition:** the host can select a supported database provider through configuration, relational persistence remains isolated behind contracts, the SQL Server provider preserves soft-delete/history/transaction invariants, Primary/Replica setup is explicit and provider-aware, setup gating blocks normal use until successful initialization, and media can be stored through the provider abstraction using filesystem or optional MongoDB/GridFS storage. CI validation is green.
 
 ## Stage 07 — Plugin Persistence Compatibility
 
