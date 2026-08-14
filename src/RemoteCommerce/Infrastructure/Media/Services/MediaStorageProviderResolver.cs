@@ -1,13 +1,14 @@
 namespace RemoteCommerce.Infrastructure.Media.Services;
 
 /// <summary>Selects the configured media storage provider.</summary>
-internal sealed class MediaStorageProviderResolver(
+public sealed class MediaStorageProviderResolver(
     IConfiguration configuration,
     ISecretProvider secretProvider,
     IWebHostEnvironment environment)
 {
     /// <summary>Creates the configured media storage provider.</summary>
     /// <returns>The configured media provider implementation.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the provider is not supported.</exception>
     public IMediaStorageProvider Resolve()
     {
         var provider = configuration["Media:Provider"];
