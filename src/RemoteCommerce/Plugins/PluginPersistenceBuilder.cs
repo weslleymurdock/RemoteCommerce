@@ -5,6 +5,8 @@ namespace RemoteCommerce.Plugins;
 /// <param name="pluginId">The stable plugin identifier.</param>
 public sealed class PluginPersistenceBuilder(IServiceCollection services, string pluginId) : IPluginPersistenceBuilder
 {
+    private readonly List<PluginPersistenceDescriptor> descriptors = [];
+
     /// <summary>Registers one plugin-owned EF Core DbContext.</summary>
     /// <param name="dbContextType">The plugin-owned DbContext type.</param>
     /// <param name="migrationsAssembly">The assembly containing plugin migrations.</param>
@@ -29,12 +31,18 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
                 nameof(schema));
         }
 
+        if (descriptors.Any(x => x.DbContextType == dbContextType))
+        {
+            throw new InvalidOperationException($"Plugin '{pluginId}' registered DbContext '{dbContextType.FullName}' more than once.");
+        }
+
         var descriptor = new PluginPersistenceDescriptor(
             pluginId,
             dbContextType,
             migrationsAssembly,
             resolvedSchema);
 
+        descriptors.Add(descriptor);
         services.AddSingleton(descriptor);
         services.AddDbContext(dbContextType, (serviceProvider, options) =>
         {
@@ -42,6 +50,10 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
             provider.ConfigureDbContext(options, migrationsAssembly);
         });
     }
+
+    /// <summary>Gets the persistence registrations collected from the plugin entry point.</summary>
+    /// <returns>The registrations in declaration order.</returns>
+    public IReadOnlyList<PluginPersistenceDescriptor> GetDescriptors() => descriptors;
 
     /// <summary>Builds the deterministic relational schema name for a plugin identifier.</summary>
     /// <param name="pluginId">The stable plugin identifier.</param>
