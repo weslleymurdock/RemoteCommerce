@@ -41,7 +41,11 @@ public sealed class SqlServerDatabaseProvider(
     }
 
     /// <inheritdoc />
-    public void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null)
+    public void ConfigureDbContext(
+        DbContextOptionsBuilder options,
+        string? migrationsAssembly = null,
+        string migrationsHistoryTable = "__EFMigrationsHistory",
+        string? migrationsHistorySchema = null)
     {
         options.UseSqlServer(
             GetConnectionString(DatabaseEndpoint.Primary),
@@ -50,6 +54,11 @@ public sealed class SqlServerDatabaseProvider(
                 if (!string.IsNullOrWhiteSpace(migrationsAssembly))
                 {
                     sql.MigrationsAssembly(migrationsAssembly);
+                }
+
+                if (!string.IsNullOrWhiteSpace(migrationsHistorySchema))
+                {
+                    sql.MigrationsHistoryTable(migrationsHistoryTable, migrationsHistorySchema);
                 }
             });
     }
