@@ -85,16 +85,16 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
             schema);
 
         var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
+        optionsBuilder.AddInterceptors(new PluginOperationHistoryInterceptor(
+            commerceDb,
+            serviceProvider.GetRequiredService<IApplicationContext>(),
+            pluginId));
+
         var pluginDbContext = ActivatorUtilities.CreateInstance<TDbContext>(serviceProvider, optionsBuilder.Options);
         if (commerceDb.Database.CurrentTransaction?.GetDbTransaction() is DbTransaction transaction)
         {
             pluginDbContext.Database.UseTransaction(transaction);
         }
-
-        pluginDbContext.AddInterceptors(new PluginOperationHistoryInterceptor(
-            commerceDb,
-            serviceProvider.GetRequiredService<IApplicationContext>(),
-            pluginId));
 
         return pluginDbContext;
     }
