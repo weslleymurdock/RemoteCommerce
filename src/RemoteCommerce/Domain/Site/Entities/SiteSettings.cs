@@ -1,8 +1,13 @@
-namespace RemoteCommerce.Application.Site;
+namespace RemoteCommerce.Domain.Site.Entities;
 
-/// <summary>Defines the editable application settings exposed by the administration layer.</summary>
-public sealed record SiteSettingsModel
+/// <summary>
+/// Stores editable application-level settings for the current store.
+/// </summary>
+public sealed class SiteSettings : RemoteCommerce.Domain.Shared.Abstractions.ISoftDeletable
 {
+    /// <summary>Gets the singleton settings identifier.</summary>
+    public int Id { get; set; } = 1;
+
     /// <summary>Gets or sets the public site name.</summary>
     public string SiteName { get; set; } = "RemoteCommerce";
 
@@ -12,7 +17,7 @@ public sealed record SiteSettingsModel
     /// <summary>Gets or sets the canonical public/base URL.</summary>
     public string PublicUrl { get; set; } = "https://localhost";
 
-    /// <summary>Gets or sets the IANA or platform-supported time zone identifier.</summary>
+    /// <summary>Gets or sets the configured IANA time zone identifier.</summary>
     public string TimeZone { get; set; } = "UTC";
 
     /// <summary>Gets or sets the default UI culture.</summary>
@@ -20,4 +25,10 @@ public sealed record SiteSettingsModel
 
     /// <summary>Gets or sets the locale used for application formatting defaults.</summary>
     public string Locale { get; set; } = "en-US";
+
+    /// <summary>Gets or sets the UTC timestamp of the last administrative update.</summary>
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <inheritdoc />
+    public bool IsDisabled { get; set; }
 }

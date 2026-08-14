@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Site;
+namespace RemoteCommerce.Application.Site.Abstractions;
 
 /// <summary>Provides validated access to persistent application/site settings.</summary>
 public interface ISiteSettingsService

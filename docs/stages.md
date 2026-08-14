@@ -27,6 +27,7 @@ This file is the source of truth for the goals and exit conditions of every impl
 
 - Public APIs must use complete XML documentation in en-US, including all applicable elements such as `<summary>`, `<param>`, `<returns>`, `<typeparam>`, `<exception>`, and `<remarks>`.
 - All C# projects must use `<ImplicitUsings>enable</ImplicitUsings>`. Namespace imports must be maintained as `global using` directives in the project's `GlobalUsings.cs`, organized by namespace. Source files must not contain ordinary `using` directives or additional `global using` directives outside `GlobalUsings.cs`.
+- `using` directives in .cs file other than `GlobalUsings.cs` are allowed only for resolve class-namespace or class-class conflict in that only file, like `using SomeLibClass =  Some.Namespace.Some.Lib.Class;` and each class must that have this kind `using` directive must use the same class label in other file usages of the conflicted class.
 - Razor namespace imports and dependency injections must be centralized in `_Imports.razor`. Page-specific `@page`, `@attribute`, `@inherits`, and `@implements` directives remain on the individual component.
 - MediatR is mandatory for application commands, queries, notifications, and pipeline behaviors, fixed at version `12.5.0`.
 - Controllers must dispatch application work through MediatR rather than embedding business/application orchestration directly in controller actions.

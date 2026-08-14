@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Localization;
+namespace RemoteCommerce.Application.Localization.Abstractions;
 
 /// <summary>Provides resource-type-aware localized strings to application and UI code.</summary>
 public interface ILocalizer

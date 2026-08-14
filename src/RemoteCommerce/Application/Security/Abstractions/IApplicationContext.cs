@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Security;
+namespace RemoteCommerce.Application.Security.Abstractions;
 
 /// <summary>Provides request-scoped actor and correlation metadata to application and persistence infrastructure.</summary>
 public interface IApplicationContext

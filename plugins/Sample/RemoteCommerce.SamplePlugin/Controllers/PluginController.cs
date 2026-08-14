@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
-
 namespace RemoteCommerce_SamplePlugin.Controllers;
 
 /// <summary>

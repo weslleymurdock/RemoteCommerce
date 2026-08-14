@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Security;
+namespace RemoteCommerce.Infrastructure.Security.Services;
 
 /// <summary>Provides application context metadata from the current HTTP request or activity.</summary>
 /// <param name="httpContextAccessor">The accessor for the current HTTP context.</param>

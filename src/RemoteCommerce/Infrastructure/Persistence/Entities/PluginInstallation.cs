@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>Represents the persisted administrative state of an installed RemoteCommerce plugin.</summary>
-public sealed class PluginInstallation : Persistence.ISoftDeletable
+public sealed class PluginInstallation : ISoftDeletable
 {
     /// <summary>Gets or sets the persistent identifier of the installation record.</summary>
     public Guid Id { get; set; }

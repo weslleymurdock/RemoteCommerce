@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Site;
+namespace RemoteCommerce.Infrastructure.Site.Services;
 
 /// <summary>Implements validated persistent site configuration.</summary>
 /// <param name="dbFactory">The factory used to create read contexts.</param>

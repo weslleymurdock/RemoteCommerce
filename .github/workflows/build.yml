@@ -1,4 +1,4 @@
-name: build
+name: Continuous Integration-Testing-Delivery
 
 on:
   pull_request:
@@ -19,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -70,8 +68,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -80,17 +76,46 @@ jobs:
       - name: Restore RemoteCommerce tests
         run: dotnet restore RemoteCommerce.slnx
 
-      - name: Run tests
-        run: dotnet test RemoteCommerce.slnx --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults --configuration Release --no-restore
+      - name: Run tests with coverage
+        run: |
+          dotnet test RemoteCommerce.slnx \
+            --configuration Release \
+            --no-restore \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults \
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
         continue-on-error: true
 
       - name: Publish Test Summary
         uses: dorny/test-reporter@v1
-        if: always() 
+        if: always()
         with:
           name: 'xUnit v3 Test Results'
           path: 'TestResults/*.trx'
           reporter: 'dotnet-trx'
+
+      - name: Tool Restore
+        if: always()
+        run: dotnet tool restore
+
+      - name: Generate Coverage Markdown Report
+        if: always()
+        run: |
+          dotnet tool run reportgenerator \
+            -reports:"TestResults/**/coverage.cobertura.xml" \
+            -targetdir:"TestResults/CoverageReport" \
+            -reporttypes:"MarkdownSummaryGithub"
+
+      - name: Append Coverage Summary to Job
+        if: always()
+        run: |
+          if [ -f ./TestResults/CoverageReport/SummaryGithub.md ]; then
+            echo "## 📊 Code Coverage Report." >> $GITHUB_STEP_SUMMARY
+            cat ./TestResults/CoverageReport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Code Coverage Report Not found/generated." >> $GITHUB_STEP_SUMMARY
+          fi
 
   publish:
     needs: [tests]

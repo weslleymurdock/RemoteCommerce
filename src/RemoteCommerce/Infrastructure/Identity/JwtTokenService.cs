@@ -5,57 +5,47 @@ public sealed class JwtOptions
 {
     /// <summary>Gets or sets the signing key. It must be deployment-managed and never persisted in SQL.</summary>
     public string Key { get; set; } = string.Empty;
-
     /// <summary>Gets or sets the token issuer.</summary>
     public string Issuer { get; set; } = "RemoteCommerce";
-
     /// <summary>Gets or sets the token audience.</summary>
     public string Audience { get; set; } = "RemoteCommerce";
-
     /// <summary>Gets or sets the access token lifetime in minutes.</summary>
     public int ExpirationMinutes { get; set; } = 60;
-
     /// <summary>Gets or sets the refresh token lifetime in days.</summary>
     public int RefreshTokenExpirationDays { get; set; } = 14;
-
     /// <summary>Gets the cookie name used by the browser administration session.</summary>
     public const string CookieName = "rc-auth";
-
     /// <summary>Gets the claim value identifying an access token.</summary>
     public const string AccessTokenType = "access";
-
     /// <summary>Gets the claim value identifying a refresh token.</summary>
     public const string RefreshTokenType = "refresh";
 }
 
-/// <summary>Creates and validates signed JWT sessions from ASP.NET Core Identity users.</summary>
+/// <summary>Creates and validates signed JWT sessions from application identity data.</summary>
 public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
     /// <inheritdoc />
     public JwtAuthenticationResult CreateToken(
-        ApplicationUser user,
+        Guid userId,
+        string email,
+        string displayName,
+        string securityStamp,
         IEnumerable<string> roles,
         IEnumerable<Claim> claims)
     {
         var settings = options.Value;
         ValidateSettings(settings);
-
         var now = DateTimeOffset.UtcNow;
         var accessExpires = now.AddMinutes(Math.Clamp(settings.ExpirationMinutes, 5, 1440));
         var refreshExpires = now.AddDays(Math.Clamp(settings.RefreshTokenExpirationDays, 1, 365));
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Key));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-        var securityStamp = user.SecurityStamp ?? string.Empty;
-        var accessClaims = CreateAccessClaims(user, roles, claims, securityStamp);
-        var refreshClaims = CreateRefreshClaims(user, securityStamp);
+        var accessClaims = CreateAccessClaims(userId, email, displayName, roles, claims, securityStamp);
+        var refreshClaims = CreateRefreshClaims(userId, securityStamp);
         var accessToken = CreateJwt(settings, accessClaims, now, accessExpires, credentials);
         var refreshToken = CreateJwt(settings, refreshClaims, now, refreshExpires, credentials);
 
-        return new JwtAuthenticationResult(
-            accessToken,
-            refreshToken,
-            accessExpires,
-            refreshExpires);
+        return new JwtAuthenticationResult(accessToken, refreshToken, accessExpires, refreshExpires);
     }
 
     /// <inheritdoc />
@@ -68,7 +58,6 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
 
         var settings = options.Value;
         ValidateSettings(settings);
-
         var parameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
@@ -78,7 +67,7 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
             ValidateAudience = true,
             ValidAudience = settings.Audience,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
         };
 
         try
@@ -108,40 +97,36 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
     }
 
     private static IEnumerable<Claim> CreateAccessClaims(
-        ApplicationUser user,
+        Guid userId,
+        string email,
+        string displayName,
         IEnumerable<string> roles,
         IEnumerable<Claim> claims,
         string securityStamp)
     {
         var tokenClaims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(JwtRegisteredClaimNames.Email, email),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             new("security_stamp", securityStamp),
             new("token_type", JwtOptions.AccessTokenType),
-            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Name, user.DisplayName)
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new(ClaimTypes.Name, displayName),
         };
-
         tokenClaims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
         tokenClaims.AddRange(claims.Where(claim => claim.Type == "permission"));
-
         return tokenClaims;
     }
 
-    private static IEnumerable<Claim> CreateRefreshClaims(
-        ApplicationUser user,
-        string securityStamp)
-    {
-        return
+    private static IEnumerable<Claim> CreateRefreshClaims(Guid userId, string securityStamp)
+        =>
         [
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             new("security_stamp", securityStamp),
-            new("token_type", JwtOptions.RefreshTokenType)
+            new("token_type", JwtOptions.RefreshTokenType),
         ];
-    }
 
     private static string CreateJwt(
         JwtOptions settings,
@@ -157,7 +142,6 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenSer
             issuedAt.UtcDateTime,
             expiresAt.UtcDateTime,
             credentials);
-
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 

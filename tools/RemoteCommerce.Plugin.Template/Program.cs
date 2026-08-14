@@ -1,10 +1,10 @@
- return await PluginTemplateGenerator.RunAsync(args);
+return await PluginTemplateGenerator.RunAsync(args);
 
 internal static class PluginTemplateGenerator
 {
     private static readonly string[] RequiredTextResources =
     [
-        "Plugin.csproj.txt", "PluginEntry.cs.txt", "_Imports.razor.txt", "PluginInfo.razor.txt",
+        "Plugin.csproj.txt", "GlobalUsings.cs.txt", "PluginEntry.cs.txt", "_Imports.razor.txt", "PluginInfo.razor.txt",
         "PluginHealthController.cs.txt", "PluginHome.razor.txt", "PluginController.cs.txt"
     ];
 
@@ -40,6 +40,7 @@ internal static class PluginTemplateGenerator
             throw new InvalidOperationException("Extension type must be page, controller, or both.");
 
         WriteResource(resources, "Plugin.csproj.txt", outputDirectory, "Plugin.csproj", manifest, namespaceName, baseReference);
+        WriteResource(resources, "GlobalUsings.cs.txt", outputDirectory, "GlobalUsings.cs", manifest, namespaceName, baseReference);
         WriteResource(resources, "plugin.manifest.json", outputDirectory, "plugin.manifest.json", manifest, namespaceName, baseReference);
         WriteResource(resources, "README.md", outputDirectory, "README.md", manifest, namespaceName, baseReference);
         WriteResource(resources, "LICENSE.md", outputDirectory, "LICENSE.md", manifest, namespaceName, baseReference);
@@ -129,6 +130,7 @@ internal static class PluginTemplateGenerator
     }
 
     private static string PromptRequired(string label) => Prompt(label, null, true);
+
     private static string Prompt(string label, string? defaultValue = null, bool required = false)
     {
         while (true)

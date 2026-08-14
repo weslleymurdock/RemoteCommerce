@@ -1,14 +1,23 @@
-namespace RemoteCommerce.Application.Identity;
+namespace RemoteCommerce.Application.Identity.Abstractions;
 
 /// <summary>Creates and validates signed RemoteCommerce JWT sessions.</summary>
 public interface IJwtTokenService
 {
-    /// <summary>Creates an access token and its corresponding refresh token for an authenticated user.</summary>
-    /// <param name="user">The authenticated user.</param>
+    /// <summary>Creates an access token and its corresponding refresh token for an authenticated identity.</summary>
+    /// <param name="userId">The authenticated user identifier.</param>
+    /// <param name="email">The authenticated user's email address.</param>
+    /// <param name="displayName">The authenticated user's display name.</param>
+    /// <param name="securityStamp">The current Identity security stamp.</param>
     /// <param name="roles">The roles assigned to the user.</param>
     /// <param name="claims">The additional permission claims.</param>
     /// <returns>The access token, refresh token, and their expiration timestamps.</returns>
-    JwtAuthenticationResult CreateToken(ApplicationUser user, IEnumerable<string> roles, IEnumerable<Claim> claims);
+    JwtAuthenticationResult CreateToken(
+        Guid userId,
+        string email,
+        string displayName,
+        string securityStamp,
+        IEnumerable<string> roles,
+        IEnumerable<Claim> claims);
 
     /// <summary>Validates a refresh token and returns the identity data required to renew a session.</summary>
     /// <param name="refreshToken">The refresh token supplied by the client.</param>

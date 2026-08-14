@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Security;
+namespace RemoteCommerce.Application.Security.Abstractions;
 
 /// <summary>Provides application access to deployment-managed secret values.</summary>
 public interface ISecretProvider

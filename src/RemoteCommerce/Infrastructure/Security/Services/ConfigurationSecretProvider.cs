@@ -1,4 +1,4 @@
-namespace RemoteCommerce.Application.Security;
+namespace RemoteCommerce.Infrastructure.Security.Services;
 
 /// <summary>Reads secrets through ASP.NET Core configuration providers without persisting them.</summary>
 /// <param name="configuration">The deployment configuration source.</param>
