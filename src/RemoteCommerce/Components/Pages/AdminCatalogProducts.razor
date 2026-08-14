@@ -1,0 +1,37 @@
+@page "/admin/catalog/products"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+@inject IMediator Mediator
+@inject ILocalizer Localizer
+
+<PageTitle>@Localizer.Get<CatalogResources>("Catalog.Products")</PageTitle>
+
+<MudStack Spacing="3">
+    <MudText Typo="Typo.h4">@Localizer.Get<CatalogResources>("Catalog.Products")</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/admin/catalog/products/new">@Localizer.Get<CatalogResources>("Catalog.CreateProduct")</MudButton>
+    <MudTable Items="products.Items" Hover="true" Dense="true">
+        <HeaderContent>
+            <MudTh>@Localizer.Get<CatalogResources>("Catalog.Name")</MudTh>
+            <MudTh>@Localizer.Get<CatalogResources>("Catalog.Sku")</MudTh>
+            <MudTh>@Localizer.Get<CatalogResources>("Catalog.Status")</MudTh>
+            <MudTh>@Localizer.Get<CatalogResources>("Catalog.Price")</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="SKU">@context.Sku</MudTd>
+            <MudTd DataLabel="Status">@context.Status</MudTd>
+            <MudTd DataLabel="Price">@context.Price.ToString("N2") @context.Currency</MudTd>
+        </RowTemplate>
+    </MudTable>
+    <MudPagination Count="@Math.Max(1, (int)Math.Ceiling(products.TotalCount / (double)products.PageSize))" Selected="products.Page" SelectedChanged="LoadPage" />
+</MudStack>
+
+@code {
+    private PagedResult<ProductModel> products = new([], 1, 20, 0);
+
+    protected override async Task OnInitializedAsync() => await LoadPage(1);
+
+    private async Task LoadPage(int page)
+    {
+        products = await Mediator.Send(new ProductListQuery(page, 20));
+    }
+}
