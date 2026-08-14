@@ -1,6 +1,9 @@
 namespace RemoteCommerce.Infrastructure.Media.Services;
 
 /// <summary>Selects the configured media storage provider.</summary>
+/// <param name="configuration">The deployment configuration source.</param>
+/// <param name="secretProvider">The deployment secret boundary.</param>
+/// <param name="environment">The host environment used by filesystem storage.</param>
 public sealed class MediaStorageProviderResolver(
     IConfiguration configuration,
     ISecretProvider secretProvider,
