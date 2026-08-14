@@ -44,21 +44,58 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
 
         descriptors.Add(descriptor);
         services.AddSingleton(descriptor);
-        services.AddDbContext(dbContextType, (serviceProvider, options) =>
-        {
-            var provider = serviceProvider.GetRequiredService<IDatabaseProvider>();
-            provider.ConfigureDbContext(options, migrationsAssembly, "__EFMigrationsHistory", resolvedSchema);
-            var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
-            if (commerceDb.Database.CurrentTransaction?.GetDbTransaction() is DbTransaction transaction)
-            {
-                options.UseTransaction(transaction);
-            }
+        services.AddScoped(dbContextType, serviceProvider => CreateDbContext(
+            dbContextType,
+            serviceProvider,
+            migrationsAssembly,
+            resolvedSchema,
+            pluginId));
+    }
 
-            options.AddInterceptors(new PluginOperationHistoryInterceptor(
-                commerceDb,
-                serviceProvider.GetRequiredService<IApplicationContext>(),
-                pluginId));
-        });
+    private static DbContext CreateDbContext(
+        Type dbContextType,
+        IServiceProvider serviceProvider,
+        string? migrationsAssembly,
+        string schema,
+        string pluginId)
+    {
+        var method = typeof(PluginPersistenceBuilder)
+            .GetMethod(nameof(CreateTypedDbContext), BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Plugin DbContext factory method could not be located.");
+        var genericMethod = method.MakeGenericMethod(dbContextType);
+        return (DbContext)(genericMethod.Invoke(
+            null,
+            [serviceProvider, migrationsAssembly, schema, pluginId])
+            ?? throw new InvalidOperationException($"Plugin DbContext '{dbContextType.FullName}' could not be created."));
+    }
+
+    private static TDbContext CreateTypedDbContext<TDbContext>(
+        IServiceProvider serviceProvider,
+        string? migrationsAssembly,
+        string schema,
+        string pluginId)
+        where TDbContext : DbContext
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<TDbContext>();
+        var provider = serviceProvider.GetRequiredService<IDatabaseProvider>();
+        provider.ConfigureDbContext(
+            optionsBuilder,
+            migrationsAssembly,
+            "__EFMigrationsHistory",
+            schema);
+
+        var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
+        if (commerceDb.Database.CurrentTransaction?.GetDbTransaction() is DbTransaction transaction)
+        {
+            optionsBuilder.UseTransaction(transaction);
+        }
+
+        optionsBuilder.AddInterceptors(new PluginOperationHistoryInterceptor(
+            commerceDb,
+            serviceProvider.GetRequiredService<IApplicationContext>(),
+            pluginId));
+
+        return ActivatorUtilities.CreateInstance<TDbContext>(serviceProvider, optionsBuilder.Options);
     }
 
     /// <summary>Gets the persistence registrations collected from the plugin entry point.</summary>
