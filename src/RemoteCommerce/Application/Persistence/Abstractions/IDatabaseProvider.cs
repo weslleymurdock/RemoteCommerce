@@ -27,6 +27,14 @@ public interface IDatabaseProvider
     /// <returns>The connection string for the requested endpoint.</returns>
     string GetConnectionString(DatabaseEndpoint endpoint);
 
+    /// <summary>Configures EF Core options for a RemoteCommerce-owned DbContext.</summary>
+    /// <param name="options">The EF Core options builder to configure.</param>
+    /// <param name="migrationsAssembly">The optional assembly containing provider-aware migrations.</param>
+    /// <remarks>
+    /// Implementations select the EF Core provider and store connection without exposing provider-specific APIs to plugins.
+    /// </remarks>
+    void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null);
+
     /// <summary>Validates the provider configuration and endpoint connectivity.</summary>
     /// <param name="cancellationToken">The token used to cancel validation.</param>
     /// <returns>A task representing the validation operation.</returns>
