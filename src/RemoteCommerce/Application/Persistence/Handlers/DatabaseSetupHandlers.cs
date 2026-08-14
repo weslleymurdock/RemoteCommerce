@@ -1,22 +1,23 @@
 namespace RemoteCommerce.Application.Persistence.Handlers;
 
-/// <summary>Handles database topology setup requests.</summary>
+/// <summary>Handles database topology setup state queries.</summary>
 /// <param name="setupService">The database setup orchestration service.</param>
-public sealed class DatabaseSetupHandlers(IDatabaseSetupService setupService)
+public sealed class GetDatabaseSetupStateQueryHandler(IDatabaseSetupService setupService)
+    : IRequestHandler<GetDatabaseSetupStateQuery, DatabaseSetupState>
 {
-    /// <summary>Handles the setup state query.</summary>
-    /// <param name="request">The setup state query.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>The current database setup state.</returns>
+    /// <inheritdoc />
     public Task<DatabaseSetupState> Handle(
         GetDatabaseSetupStateQuery request,
         CancellationToken cancellationToken)
         => setupService.GetStateAsync(cancellationToken);
+}
 
-    /// <summary>Handles the database replication setup command.</summary>
-    /// <param name="request">The setup command.</param>
-    /// <param name="cancellationToken">The token used to cancel the operation.</param>
-    /// <returns>A task that completes after setup succeeds.</returns>
+/// <summary>Handles database replication setup commands.</summary>
+/// <param name="setupService">The database setup orchestration service.</param>
+public sealed class ConfigureDatabaseReplicationCommandHandler(IDatabaseSetupService setupService)
+    : IRequestHandler<ConfigureDatabaseReplicationCommand, Unit>
+{
+    /// <inheritdoc />
     public async Task<Unit> Handle(
         ConfigureDatabaseReplicationCommand request,
         CancellationToken cancellationToken)
