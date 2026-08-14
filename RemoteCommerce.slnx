@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/RemoteCommerce.Abstractions/RemoteCommerce.Abstractions.csproj" Id="b8679e6f-dc8e-4b10-a314-cbdeee96c4f5" />
     <Project Path="src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
     <Project Path="src/RemoteCommerce/RemoteCommerce.csproj" />
   </Folder>

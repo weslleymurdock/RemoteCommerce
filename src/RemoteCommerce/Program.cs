@@ -9,7 +9,7 @@ if (builder.Environment.IsDevelopment()
 var logDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "logs");
 builder.Logging.AddRemoteCommerceFileLogging(builder.Services, logDirectory);
 builder.Services.AddOpenApi();
-builder.Services.AddLocalization();
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -27,7 +27,10 @@ builder.Services.AddScoped<IDatabaseSetupService, DatabaseSetupService>();
 builder.Services.AddSingleton<MediaStorageProviderResolver>();
 builder.Services.AddScoped<IMediaStorageProvider>(services => services.GetRequiredService<MediaStorageProviderResolver>().Resolve());
 builder.Services.AddHostedService<ProviderConfigurationValidationService>();
-builder.Services.AddDbContextFactory<CommerceDbContext>((services, options) => options.UseSqlServer(services.GetRequiredService<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>().GetConnectionString(DatabaseEndpoint.Primary)));
+builder.Services.AddDbContextFactory<CommerceDbContext>((services, options) => 
+    options.UseSqlServer(
+        services.GetRequiredService<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>()
+        .GetConnectionString(DatabaseEndpoint.Primary)));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
     options.User.RequireUniqueEmail = true;
@@ -38,57 +41,66 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     options.Password.RequireNonAlphanumeric = true;
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-}).AddRoles<ApplicationRole>().AddEntityFrameworkStores<CommerceDbContext>().AddDefaultTokenProviders();
-builder.Services.AddOptions<JwtOptions>().BindConfiguration("Jwt").Validate(options => !string.IsNullOrWhiteSpace(options.Key) && options.Key.Length >= 32, "Jwt:Key must be supplied by deployment configuration and contain at least 32 characters.").Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "Jwt:Issuer is required.").Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "Jwt:Audience is required.").Validate(options => options.RefreshTokenExpirationDays is >= 1 and <= 365, "Jwt:RefreshTokenExpirationDays must be between 1 and 365.").ValidateOnStart();
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
-{
-    var jwt = builder.Configuration.GetSection("Jwt");
-    options.TokenValidationParameters = new TokenValidationParameters
+}).AddRoles<ApplicationRole>()
+.AddEntityFrameworkStores<CommerceDbContext>()
+.AddDefaultTokenProviders();
+builder.Services.AddOptions<JwtOptions>()
+    .BindConfiguration("Jwt")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Key) && options.Key.Length >= 32, "Jwt:Key must be supplied by deployment configuration and contain at least 32 characters.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "Jwt:Issuer is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "Jwt:Audience is required.")
+    .Validate(options => options.RefreshTokenExpirationDays is >= 1 and <= 365, "Jwt:RefreshTokenExpirationDays must be between 1 and 365.")
+    .ValidateOnStart();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? string.Empty)),
-        ValidateIssuer = true,
-        ValidIssuer = jwt["Issuer"] ?? "RemoteCommerce",
-        ValidateAudience = true,
-        ValidAudience = jwt["Audience"] ?? "RemoteCommerce",
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.FromSeconds(30),
-        NameClaimType = ClaimTypes.Name,
-        RoleClaimType = ClaimTypes.Role
-    };
-    options.Events = new JwtBearerEvents
-    {
-        OnMessageReceived = context =>
+        var jwt = builder.Configuration.GetSection("Jwt");
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            if (string.IsNullOrWhiteSpace(context.Token) && context.Request.Cookies.TryGetValue(JwtOptions.CookieName, out var token)) context.Token = token;
-            return Task.CompletedTask;
-        },
-        OnChallenge = context =>
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? string.Empty)),
+            ValidateIssuer = true,
+            ValidIssuer = jwt["Issuer"] ?? "RemoteCommerce",
+            ValidateAudience = true,
+            ValidAudience = jwt["Audience"] ?? "RemoteCommerce",
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            NameClaimType = ClaimTypes.Name,
+            RoleClaimType = ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
         {
-            var isFramework = context.Request.Path.StartsWithSegments("/_blazor") || context.Request.Path.StartsWithSegments("/_framework");
-            if (!context.Response.HasStarted && !context.Request.Path.StartsWithSegments("/api") && !isFramework)
+            OnMessageReceived = context =>
             {
-                context.Response.Redirect($"/login?returnUrl={Uri.EscapeDataString(context.Request.PathBase + context.Request.Path + context.Request.QueryString)}");
-                context.HandleResponse();
-            }
-            return Task.CompletedTask;
-        },
-        OnTokenValidated = async context =>
-        {
-            var tokenType = context.Principal?.FindFirst("token_type")?.Value;
-            var subject = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var securityStamp = context.Principal?.FindFirst("security_stamp")?.Value;
-            if (!string.Equals(tokenType, JwtOptions.AccessTokenType, StringComparison.Ordinal) || subject is null || securityStamp is null)
+                if (string.IsNullOrWhiteSpace(context.Token) && context.Request.Cookies.TryGetValue(JwtOptions.CookieName, out var token)) context.Token = token;
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
             {
-                context.Fail("The authentication token is invalid.");
-                return;
+                var isFramework = context.Request.Path.StartsWithSegments("/_blazor") || context.Request.Path.StartsWithSegments("/_framework");
+                if (!context.Response.HasStarted && !context.Request.Path.StartsWithSegments("/api") && !isFramework)
+                {
+                    context.Response.Redirect($"/login?returnUrl={Uri.EscapeDataString(context.Request.PathBase + context.Request.Path + context.Request.QueryString)}");
+                    context.HandleResponse();
+                }
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var tokenType = context.Principal?.FindFirst("token_type")?.Value;
+                var subject = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                var securityStamp = context.Principal?.FindFirst("security_stamp")?.Value;
+                if (!string.Equals(tokenType, JwtOptions.AccessTokenType, StringComparison.Ordinal) || subject is null || securityStamp is null)
+                {
+                    context.Fail("The authentication token is invalid.");
+                    return;
+                }
+                var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+                var user = await userManager.FindByIdAsync(subject);
+                if (user is null || user.IsDisabled || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal)) context.Fail("The authentication token has been invalidated.");
             }
-            var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
-            var user = await userManager.FindByIdAsync(subject);
-            if (user is null || user.IsDisabled || !string.Equals(user.SecurityStamp, securityStamp, StringComparison.Ordinal)) context.Fail("The authentication token has been invalidated.");
-        }
-    };
-});
+        };
+    });
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(AuthorizationPolicies.Administrator, policy => policy.RequireRole("Administrator"))
     .AddPolicy(AuthorizationPolicies.ManageConfiguration, policy => policy.RequireAssertion(context => context.User.IsInRole("Administrator") || context.User.HasClaim("permission", AuthorizationPolicies.ManageConfiguration)))
@@ -138,9 +150,13 @@ app.UseRouting();
 app.UseRequestLocalization(new RequestLocalizationOptions
 {
     DefaultRequestCulture = new RequestCulture("pt-BR"),
-    SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
-    SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
-    RequestCultureProviders = [new QueryStringRequestCultureProvider(), new CookieRequestCultureProvider(), new AcceptLanguageHeaderRequestCultureProvider(), new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())]
+    SupportedCultures = [new CultureInfo("pt-BR"), new CultureInfo("en-US")],
+    SupportedUICultures = [new CultureInfo("pt-BR"), new CultureInfo("en-US")],
+    RequestCultureProviders = [
+        new QueryStringRequestCultureProvider(),
+        new CookieRequestCultureProvider(),
+        new AcceptLanguageHeaderRequestCultureProvider(),
+        new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())]
 });
 app.UseAuthentication();
 app.UseAuthorization();

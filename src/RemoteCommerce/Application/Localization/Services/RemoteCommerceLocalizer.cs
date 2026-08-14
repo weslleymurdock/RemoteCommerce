@@ -80,9 +80,9 @@ public sealed class RemoteCommerceLocalizer(IStringLocalizerFactory factory, ILo
             yield return culture.Parent.Name;
         }
 
-        if (!string.Equals(culture.Name, "en-US", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(culture.Name, "pt-BR", StringComparison.OrdinalIgnoreCase))
         {
-            yield return "en-US";
+            yield return "pt-BR";
         }
     }
 
