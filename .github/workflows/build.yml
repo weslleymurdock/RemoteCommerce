@@ -83,14 +83,13 @@ jobs:
             --no-restore \
             --logger "trx;LogFileName=test-results.trx" \
             --results-directory ./TestResults \
-            /p:CollectCoverage=true \
-            /p:CoverletOutputFormat=cobertura \
-            /p:CoverletOutput=./TestResults/coverage.cobertura.xml
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
         continue-on-error: true
 
       - name: Publish Test Summary
         uses: dorny/test-reporter@v1
-        if: always() 
+        if: always()
         with:
           name: 'xUnit v3 Test Results'
           path: 'TestResults/*.trx'
