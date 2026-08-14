@@ -1,8 +1,11 @@
 global using Microsoft.AspNetCore.Authorization;
+global using Microsoft.AspNetCore.Components;
 global using Microsoft.AspNetCore.Http;
 global using Microsoft.AspNetCore.Mvc;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Migrations;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
 global using MudBlazor;
 global using RemoteCommerce.Plugins.Abstractions;
 global using System.Security.Cryptography;
