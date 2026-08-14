@@ -51,6 +51,7 @@ global using RemoteCommerce.Application.Persistence.Queries;
 global using RemoteCommerce.Application.Plugins;
 global using RemoteCommerce.Application.Plugins.Commands;
 global using RemoteCommerce.Application.Plugins.Queries;
+global using RemoteCommerce.Application.Presentation;
 global using RemoteCommerce.Application.Security.Abstractions;
 global using RemoteCommerce.Application.Site.Abstractions;
 global using RemoteCommerce.Application.Site.Commands;
