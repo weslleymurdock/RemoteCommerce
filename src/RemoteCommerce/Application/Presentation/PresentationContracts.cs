@@ -1,7 +1,16 @@
 namespace RemoteCommerce.Application.Presentation;
 
 /// <summary>Describes a presentation theme available to the host.</summary>
-public sealed record ThemeDefinition(string Id, string Name, string Version, string Author, IReadOnlyList<string> Layouts, IReadOnlyList<string> Stylesheets, IReadOnlyList<string> Scripts, IReadOnlyDictionary<string, string> ComponentOverrides, IReadOnlyDictionary<string, string> Metadata);
+public sealed record ThemeDefinition(
+    string Id,
+    string Name,
+    string Version,
+    string Author,
+    IReadOnlyList<string> Layouts,
+    IReadOnlyList<string> Stylesheets,
+    IReadOnlyList<string> Scripts,
+    IReadOnlyDictionary<string, string> ComponentOverrides,
+    IReadOnlyDictionary<string, string> Metadata);
 
 /// <summary>Provides the resolved presentation theme without exposing UI library details.</summary>
 public interface IThemeProvider
@@ -14,11 +23,28 @@ public interface IThemeProvider
 public sealed class DefaultThemeProvider : IThemeProvider
 {
     /// <inheritdoc />
-    public ThemeDefinition Current { get; } = new("default", "RemoteCommerce Default", "1.0.0", "RemoteCommerce", ["admin"], ["/app.css"], [], new Dictionary<string, string>(), new Dictionary<string, string>());
+    public ThemeDefinition Current { get; } = new(
+        "default",
+        "RemoteCommerce Default",
+        "1.0.0",
+        "RemoteCommerce",
+        new[] { "admin" },
+        new[] { "/app.css" },
+        Array.Empty<string>(),
+        new Dictionary<string, string>(),
+        new Dictionary<string, string>());
 }
 
 /// <summary>Describes a dynamic administration menu contribution.</summary>
-public sealed record MenuItemDefinition(string Id, string? ParentId, string LabelResourceKey, string Icon, string Route, int Order, string? RequiredPolicy = null, Func<bool>? VisibilityPredicate = null);
+public sealed record MenuItemDefinition(
+    string Id,
+    string? ParentId,
+    string LabelResourceKey,
+    string Icon,
+    string Route,
+    int Order,
+    string? RequiredPolicy = null,
+    Func<bool>? VisibilityPredicate = null);
 
 /// <summary>Contributes menu items to the administration navigation tree.</summary>
 public interface IMenuContributor
@@ -37,14 +63,31 @@ public interface IMenuProvider
 }
 
 /// <summary>Provides core and plugin administration menu contributions.</summary>
-public sealed class AdminMenuProvider(IEnumerable<IMenuContributor> contributors, IEnumerable<IRemoteCommercePluginMenuContributor> pluginContributors) : IMenuProvider
+public sealed class AdminMenuProvider : IMenuProvider
 {
+    private readonly IEnumerable<IMenuContributor> contributors;
+    private readonly IEnumerable<IRemoteCommercePluginMenuContributor> pluginContributors;
+
+    /// <summary>Initializes the menu provider.</summary>
+    /// <param name="contributors">Core menu contributors.</param>
+    /// <param name="pluginContributors">Plugin menu contributors.</param>
+    public AdminMenuProvider(IEnumerable<IMenuContributor> contributors, IEnumerable<IRemoteCommercePluginMenuContributor> pluginContributors)
+    {
+        this.contributors = contributors;
+        this.pluginContributors = pluginContributors;
+    }
+
     /// <inheritdoc />
     public IReadOnlyList<MenuItemDefinition> GetItems(ClaimsPrincipal user)
     {
         var core = contributors.SelectMany(x => x.GetItems());
         var plugins = pluginContributors.SelectMany(x => x.GetItems()).Select(x => new MenuItemDefinition(x.Id, x.ParentId, x.LabelResourceKey, x.Icon, x.Route, x.Order, x.RequiredPermission));
-        return core.Concat(plugins).Where(x => x.VisibilityPredicate?.Invoke() != false).Where(x => string.IsNullOrWhiteSpace(x.RequiredPolicy) || user.IsInRole("Administrator") || user.HasClaim("permission", x.RequiredPolicy)).OrderBy(x => x.Order).ThenBy(x => x.Id).ToArray();
+        return core.Concat(plugins)
+            .Where(x => x.VisibilityPredicate?.Invoke() != false)
+            .Where(x => string.IsNullOrWhiteSpace(x.RequiredPolicy) || user.IsInRole("Administrator") || user.HasClaim("permission", x.RequiredPolicy))
+            .OrderBy(x => x.Order)
+            .ThenBy(x => x.Id)
+            .ToArray();
     }
 }
 
@@ -52,16 +95,19 @@ public sealed class AdminMenuProvider(IEnumerable<IMenuContributor> contributors
 public sealed class CoreMenuContributor : IMenuContributor
 {
     /// <inheritdoc />
-    public IReadOnlyList<MenuItemDefinition> GetItems() =>
-    [
-        new("dashboard", null, "Admin.Dashboard", "Dashboard", "/admin", 0),
-        new("catalog", null, "Catalog.Title", "ShoppingBag", "/admin/catalog/products", 10),
-        new("catalog.products", "catalog", "Catalog.Products", "Inventory2", "/admin/catalog/products", 11),
-        new("catalog.categories", "catalog", "Catalog.Categories", "Category", "/admin/catalog/categories", 12),
-        new("catalog.brands", "catalog", "Catalog.Brands", "BrandingWatermark", "/admin/catalog/brands", 13),
-        new("catalog.tags", "catalog", "Catalog.Tags", "Sell", "/admin/catalog/tags", 14),
-        new("catalog.attributes", "catalog", "Catalog.Attributes", "Tune", "/admin/catalog/attributes", 15),
-        new("settings", null, "Admin.Settings", "Settings", "/admin/settings", 50),
-        new("plugins", null, "Admin.Plugins", "Extension", "/admin/plugins", 60)
-    ];
+    public IReadOnlyList<MenuItemDefinition> GetItems()
+    {
+        return new[]
+        {
+            new MenuItemDefinition("dashboard", null, "Admin.Dashboard", "Dashboard", "/admin", 0),
+            new MenuItemDefinition("catalog", null, "Catalog.Title", "ShoppingBag", "/admin/catalog/products", 10),
+            new MenuItemDefinition("catalog.products", "catalog", "Catalog.Products", "Inventory2", "/admin/catalog/products", 11),
+            new MenuItemDefinition("catalog.categories", "catalog", "Catalog.Categories", "Category", "/admin/catalog/categories", 12),
+            new MenuItemDefinition("catalog.brands", "catalog", "Catalog.Brands", "BrandingWatermark", "/admin/catalog/brands", 13),
+            new MenuItemDefinition("catalog.tags", "catalog", "Catalog.Tags", "Sell", "/admin/catalog/tags", 14),
+            new MenuItemDefinition("catalog.attributes", "catalog", "Catalog.Attributes", "Tune", "/admin/catalog/attributes", 15),
+            new MenuItemDefinition("settings", null, "Admin.Settings", "Settings", "/admin/settings", 50),
+            new MenuItemDefinition("plugins", null, "Admin.Plugins", "Extension", "/admin/plugins", 60)
+        };
+    }
 }
