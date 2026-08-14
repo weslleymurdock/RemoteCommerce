@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using RemoteCommerce.Infrastructure.Persistence;
-
 namespace RemoteCommerce.Plugins;
 
 /// <summary>Provides dependency injection registration helpers for the RemoteCommerce plugin system.</summary>
@@ -10,7 +7,7 @@ public static class PluginServiceCollectionExtensions
     /// <param name="services">The application service collection.</param>
     /// <param name="pluginsRoot">The root directory containing installed plugin packages.</param>
     /// <param name="configuration">The application configuration.</param>
-    /// <remarks>A short-lived bootstrap provider is used only to apply persistence migrations and load plugins. It is never used as the runtime application provider.</remarks>
+    /// <remarks>A short-lived bootstrap provider is used only to apply host persistence migrations and load plugins. It is never used as the runtime application provider.</remarks>
     public static void AddInstalledRemoteCommercePlugins(this IServiceCollection services, string pluginsRoot, IConfiguration configuration)
     {
         services.AddSingleton<IApplicationRestartService, ApplicationRestartService>();
@@ -31,14 +28,18 @@ public static class PluginServiceCollectionExtensions
         });
 
         var dbFactory = bootstrapProvider.GetRequiredService<IDbContextFactory<CommerceDbContext>>();
-        using (var db = dbFactory.CreateDbContext()) db.Database.Migrate();
+        using (var db = dbFactory.CreateDbContext())
+        {
+            db.Database.Migrate();
+        }
 
         using var loggerFactory = LoggerFactory.Create(logging => logging.AddConfiguration(configuration.GetSection("Logging")));
         var loader = new PluginLoader(
             loggerFactory.CreateLogger<PluginLoader>(),
             dbFactory,
             bootstrapProvider.GetRequiredService<IPluginManifestValidator>(),
-            bootstrapProvider.GetRequiredService<IPluginCompatibilityValidator>());
+            bootstrapProvider.GetRequiredService<IPluginCompatibilityValidator>(),
+            bootstrapProvider.GetRequiredService<IDatabaseProvider>());
         loader.Load(services, pluginsRoot);
     }
 }
