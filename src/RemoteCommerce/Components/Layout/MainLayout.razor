@@ -17,9 +17,22 @@
     </MudAppBar>
     <MudDrawer Open="true" Elevation="2">
         <MudNavMenu Class="pa-3">
-            @foreach (var item in MenuItems)
+            @foreach (var item in RootItems)
             {
-                <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@item.Icon">@Get(item.LabelResourceKey)</MudNavLink>
+                var children = MenuItems.Where(x => x.ParentId == item.Id).OrderBy(x => x.Order).ToArray();
+                if (children.Length == 0)
+                {
+                    <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@item.Icon">@Get(item.LabelResourceKey)</MudNavLink>
+                }
+                else
+                {
+                    <MudNavGroup Title="@Get(item.LabelResourceKey)" Icon="@item.Icon" Expanded="@IsExpanded(item)">
+                        @foreach (var child in children)
+                        {
+                            <MudNavLink Href="@child.Route" Match="NavLinkMatch.Prefix" Icon="@child.Icon">@Get(child.LabelResourceKey)</MudNavLink>
+                        }
+                    </MudNavGroup>
+                }
             }
         </MudNavMenu>
     </MudDrawer>
@@ -27,9 +40,11 @@
 </MudLayout>
 
 @code {
-    private IReadOnlyList<MenuItemDefinition> MenuItems = [];
+    private IReadOnlyList<MenuItemDefinition> MenuItems = Array.Empty<MenuItemDefinition>();
     private string ThemeClass => $"rc-theme-{ThemeProvider.Current.Id}";
+    private IEnumerable<MenuItemDefinition> RootItems => MenuItems.Where(x => x.ParentId is null).OrderBy(x => x.Order);
     private string Get(string key) => Localizer.Get<CatalogResources>(key);
+    private static bool IsExpanded(MenuItemDefinition item) => item.Id == "catalog";
 
     protected override async Task OnInitializedAsync()
     {
