@@ -51,7 +51,16 @@ public sealed class PluginOperationHistoryInterceptor(
             var previousState = SerializeState(entry.OriginalValues.Properties.ToDictionary(
                 property => property.Name,
                 property => entry.OriginalValues[property]));
-            var operationType = entry.State == EntityState.Deleted ? "Delete" : "Update";
+            var wasDeleted = entry.State == EntityState.Deleted;
+            var operationType = wasDeleted ? "Delete" : "Update";
+
+            if (wasDeleted && entry.Entity is IPluginSoftDeletable softDeletable)
+            {
+                softDeletable.IsDisabled = true;
+                entry.State = EntityState.Modified;
+                operationType = "SoftDelete";
+            }
+
             var newState = entry.State == EntityState.Modified
                 ? SerializeState(entry.CurrentValues.Properties.ToDictionary(
                     property => property.Name,
