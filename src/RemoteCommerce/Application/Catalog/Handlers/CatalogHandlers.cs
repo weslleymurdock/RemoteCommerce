@@ -41,33 +41,6 @@ public sealed class CatalogHandlers(ICatalogService catalog) :
     }
 }
 
-/// <summary>Validates catalog input.</summary>
-public sealed class CatalogCommandValidator : AbstractValidator<CreateProductCommand>, IValidator<UpdateProductCommand>, IValidator<CreateCategoryCommand>, IValidator<UpdateCategoryCommand>, IValidator<CreateBrandCommand>, IValidator<UpdateBrandCommand>, IValidator<CreateTagCommand>, IValidator<UpdateTagCommand>, IValidator<CreateProductVariantCommand>, IValidator<UpdateProductVariantCommand>, IValidator<UpsertProductMetadataCommand>
-{
-    /// <summary>Initializes the catalog validators.</summary>
-    public CatalogCommandValidator()
-    {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200);
-    }
-
-    Task<ValidationResult> IValidator<UpdateProductCommand>.ValidateAsync(UpdateProductCommand instance, CancellationToken cancellationToken) => ValidateProduct(instance.Name, instance.Slug, instance.Price, instance.Currency);
-    Task<ValidationResult> IValidator<CreateCategoryCommand>.ValidateAsync(CreateCategoryCommand instance, CancellationToken cancellationToken) => ValidateNameSlug(instance.Name, instance.Slug);
-    Task<ValidationResult> IValidator<UpdateCategoryCommand>.ValidateAsync(UpdateCategoryCommand instance, CancellationToken cancellationToken) => ValidateNameSlug(instance.Name, instance.Slug);
-    Task<ValidationResult> IValidator<CreateBrandCommand>.ValidateAsync(CreateBrandCommand instance, CancellationToken cancellationToken) => ValidateNameSlug(instance.Name, instance.Slug);
-    Task<ValidationResult> IValidator<UpdateBrandCommand>.ValidateAsync(UpdateBrandCommand instance, CancellationToken cancellationToken) => ValidateNameSlug(instance.Name, instance.Slug);
-    Task<ValidationResult> IValidator<CreateTagCommand>.ValidateAsync(CreateTagCommand instance, CancellationToken cancellationToken) => ValidateNameSlug(instance.Name, instance.Slug);
-    Task<ValidationResult> IValidator<UpdateTagCommand>.ValidateAsync(UpdateTagCommand instance, CancellationToken cancellationToken) => ValidateNameSlug(instance.Name, instance.Slug);
-    Task<ValidationResult> IValidator<CreateProductVariantCommand>.ValidateAsync(CreateProductVariantCommand instance, CancellationToken cancellationToken) => ValidateVariant(instance.Sku, instance.Price, instance.CompareAtPrice);
-    Task<ValidationResult> IValidator<UpdateProductVariantCommand>.ValidateAsync(UpdateProductVariantCommand instance, CancellationToken cancellationToken) => ValidateVariant(instance.Sku, instance.Price, instance.CompareAtPrice);
-    Task<ValidationResult> IValidator<UpsertProductMetadataCommand>.ValidateAsync(UpsertProductMetadataCommand instance, CancellationToken cancellationToken) => ValidateMetadata(instance.Key, instance.Value);
-
-    private static Task<ValidationResult> ValidateProduct(string name, string slug, decimal price, string currency) => new(new InlineValidator<UpdateProductCommand> { });
-    private static Task<ValidationResult> ValidateNameSlug(string name, string slug) => Task.FromResult(new ValidationResult(string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(slug) ? [new ValidationFailure("Name", "Name and slug are required.")] : []));
-    private static Task<ValidationResult> ValidateVariant(string sku, decimal price, decimal? compareAtPrice) => Task.FromResult(new ValidationResult(string.IsNullOrWhiteSpace(sku) || price < 0 || compareAtPrice < 0 ? [new ValidationFailure("Variant", "SKU and non-negative prices are required.")] : []));
-    private static Task<ValidationResult> ValidateMetadata(string key, string value) => Task.FromResult(new ValidationResult(string.IsNullOrWhiteSpace(key) || key.Length > 200 || value.Length > 10000 ? [new ValidationFailure("Metadata", "Metadata key/value is invalid.")] : []));
-}
-
 /// <summary>Validates product creation.</summary>
 public sealed class ProductCommandValidator : AbstractValidator<CreateProductCommand>
 {
@@ -75,9 +48,72 @@ public sealed class ProductCommandValidator : AbstractValidator<CreateProductCom
     public ProductCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.Sku).MaximumLength(100).When(x => x.Sku is not null); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue); RuleFor(x => x.Currency).Length(3); }
 }
 
-/// <summary>Validates metadata keys against reserved secret names.</summary>
+/// <summary>Validates product updates.</summary>
+public sealed class UpdateProductCommandValidator : AbstractValidator<UpdateProductCommand>
+{
+    /// <summary>Initializes product update rules.</summary>
+    public UpdateProductCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue); RuleFor(x => x.Currency).Length(3); }
+}
+
+/// <summary>Validates category commands.</summary>
+public sealed class CategoryCommandValidator : AbstractValidator<CreateCategoryCommand>
+{
+    /// <summary>Initializes category creation rules.</summary>
+    public CategoryCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0); }
+}
+
+/// <summary>Validates category updates.</summary>
+public sealed class UpdateCategoryCommandValidator : AbstractValidator<UpdateCategoryCommand>
+{
+    /// <summary>Initializes category update rules.</summary>
+    public UpdateCategoryCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); RuleFor(x => x.DisplayOrder).GreaterThanOrEqualTo(0); }
+}
+
+/// <summary>Validates brand creation.</summary>
+public sealed class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
+{
+    /// <summary>Initializes brand creation rules.</summary>
+    public CreateBrandCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
+}
+
+/// <summary>Validates brand updates.</summary>
+public sealed class UpdateBrandCommandValidator : AbstractValidator<UpdateBrandCommand>
+{
+    /// <summary>Initializes brand update rules.</summary>
+    public UpdateBrandCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
+}
+
+/// <summary>Validates tag creation.</summary>
+public sealed class CreateTagCommandValidator : AbstractValidator<CreateTagCommand>
+{
+    /// <summary>Initializes tag creation rules.</summary>
+    public CreateTagCommandValidator() { RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
+}
+
+/// <summary>Validates tag updates.</summary>
+public sealed class UpdateTagCommandValidator : AbstractValidator<UpdateTagCommand>
+{
+    /// <summary>Initializes tag update rules.</summary>
+    public UpdateTagCommandValidator() { RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Name).NotEmpty().MaximumLength(200); RuleFor(x => x.Slug).NotEmpty().Matches("^[a-z0-9]+(?:-[a-z0-9]+)*$").MaximumLength(200); }
+}
+
+/// <summary>Validates variant creation.</summary>
+public sealed class CreateProductVariantCommandValidator : AbstractValidator<CreateProductVariantCommand>
+{
+    /// <summary>Initializes variant rules.</summary>
+    public CreateProductVariantCommandValidator() { RuleFor(x => x.ProductId).NotEmpty(); RuleFor(x => x.Sku).NotEmpty().MaximumLength(100); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.CompareAtPrice).GreaterThanOrEqualTo(0).When(x => x.CompareAtPrice.HasValue); RuleFor(x => x.StockQuantity).GreaterThanOrEqualTo(0); }
+}
+
+/// <summary>Validates variant updates.</summary>
+public sealed class UpdateProductVariantCommandValidator : AbstractValidator<UpdateProductVariantCommand>
+{
+    /// <summary>Initializes variant update rules.</summary>
+    public UpdateProductVariantCommandValidator() { RuleFor(x => x.ProductId).NotEmpty(); RuleFor(x => x.Id).NotEmpty(); RuleFor(x => x.Sku).NotEmpty().MaximumLength(100); RuleFor(x => x.Price).GreaterThanOrEqualTo(0); RuleFor(x => x.StockQuantity).GreaterThanOrEqualTo(0); }
+}
+
+/// <summary>Validates product metadata.</summary>
 public sealed class ProductMetadataValidator : AbstractValidator<UpsertProductMetadataCommand>
 {
-    /// <summary>Initializes metadata rules.</summary>
-    public ProductMetadataValidator() { RuleFor(x => x.Key).NotEmpty().MaximumLength(200).Must(x => !x.Contains("password", StringComparison.OrdinalIgnoreCase) && !x.Contains("secret", StringComparison.OrdinalIgnoreCase) && !x.Contains("token", StringComparison.OrdinalIgnoreCase) && !x.Contains("connectionstring", StringComparison.OrdinalIgnoreCase)); RuleFor(x => x.Value).NotEmpty().MaximumLength(10000); }
+    /// <summary>Initializes metadata rules and rejects secret-like keys.</summary>
+    public ProductMetadataValidator() { RuleFor(x => x.ProductId).NotEmpty(); RuleFor(x => x.Key).NotEmpty().MaximumLength(200).Must(x => !x.Contains("password", StringComparison.OrdinalIgnoreCase) && !x.Contains("secret", StringComparison.OrdinalIgnoreCase) && !x.Contains("token", StringComparison.OrdinalIgnoreCase) && !x.Contains("connectionstring", StringComparison.OrdinalIgnoreCase)); RuleFor(x => x.Value).NotEmpty().MaximumLength(10000); }
 }
