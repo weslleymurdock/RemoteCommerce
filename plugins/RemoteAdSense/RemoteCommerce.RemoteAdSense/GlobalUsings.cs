@@ -7,3 +7,4 @@ global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
 global using MudBlazor;
 global using RemoteCommerce.Plugins.Abstractions;
+global using Route = Microsoft.AspNetCore.Mvc.RouteAttribute;
