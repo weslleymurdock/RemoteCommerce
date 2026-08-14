@@ -126,11 +126,11 @@ public sealed class InitialRemoteSeoMigration : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.CreateTable("SeoPageAnalyses", schema: "rc_plugin_remote_seo", table => new
+        migrationBuilder.CreateTable("SeoPageAnalyses", "rc_plugin_remote_seo", table => new
         {
             Id = table.Column<Guid>(nullable: false), Route = table.Column<string>(maxLength: 512, nullable: false), Title = table.Column<string>(maxLength: 256, nullable: true), MetaDescription = table.Column<string>(maxLength: 1024, nullable: true), CanonicalUrl = table.Column<string>(maxLength: 1024, nullable: true), WordCount = table.Column<int>(nullable: false), Score = table.Column<int>(nullable: false), RecommendationsJson = table.Column<string>(nullable: false), CreatedAtUtc = table.Column<DateTimeOffset>(nullable: false), UpdatedAtUtc = table.Column<DateTimeOffset>(nullable: false), IsDisabled = table.Column<bool>(nullable: false)
         }, constraints: table => table.PrimaryKey("PK_SeoPageAnalyses", x => x.Id));
-        migrationBuilder.CreateIndex("IX_SeoPageAnalyses_Route_CreatedAtUtc", "SeoPageAnalyses", new[] { "Route", "CreatedAtUtc" }, schema: "rc_plugin_remote_seo");
+        migrationBuilder.CreateIndex("IX_SeoPageAnalyses_Route_CreatedAtUtc", "SeoPageAnalyses", new[] { "Route", "CreatedAtUtc" }, unique: false, schema: "rc_plugin_remote_seo");
     }
 
     /// <inheritdoc />
