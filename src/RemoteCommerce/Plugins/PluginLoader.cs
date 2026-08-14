@@ -11,7 +11,7 @@ public sealed class PluginLoader(
     IDbContextFactory<CommerceDbContext> dbFactory,
     IPluginManifestValidator manifestValidator,
     IPluginCompatibilityValidator compatibilityValidator,
-    IDatabaseProvider databaseProvider)
+    RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider databaseProvider)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
