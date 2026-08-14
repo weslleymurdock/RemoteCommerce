@@ -1,0 +1,9 @@
+@page "/remote-visitors"
+@attribute [Authorize]
+
+<PageTitle>RemoteVisitors</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
+    <MudText Typo="Typo.h4">RemoteVisitors</MudText>
+    <MudText>Visitors are browser identities; visits are sessions separated by inactivity; accesses are individual tracked requests.</MudText>
+    <MudAlert Class="mt-4" Severity="Severity.Info">Track: POST /api/rp/v1/remote-visitors/track. Statistics: GET /api/rp/v1/remote-visitors/statistics.</MudAlert>
+</MudContainer>

@@ -1,0 +1,14 @@
+namespace {{Namespace}}.Infrastructure.Persistence;
+
+/// <summary>Configures the generated plugin persistence entity.</summary>
+public sealed class PluginEntityConfiguration : IEntityTypeConfiguration<PluginEntity>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<PluginEntity> builder)
+    {
+        builder.HasKey(entity => entity.Id);
+        builder.Property(entity => entity.Name).HasMaxLength(200).IsRequired();
+        builder.Property(entity => entity.IsDisabled).IsRequired();
+        builder.HasQueryFilter(entity => !entity.IsDisabled);
+    }
+}

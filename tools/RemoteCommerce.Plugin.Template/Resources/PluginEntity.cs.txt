@@ -1,0 +1,14 @@
+namespace {{Namespace}}.Domain.Entities;
+
+/// <summary>Provides a persistence example for a generated plugin.</summary>
+public sealed class PluginEntity : IPluginSoftDeletable
+{
+    /// <summary>Gets or sets the entity identifier.</summary>
+    public Guid Id { get; set; }
+
+    /// <summary>Gets or sets the example display value.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <inheritdoc />
+    public bool IsDisabled { get; set; }
+}

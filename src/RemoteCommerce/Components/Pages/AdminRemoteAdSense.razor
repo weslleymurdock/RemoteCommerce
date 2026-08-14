@@ -1,0 +1,9 @@
+@page "/admin/remote-adsense"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+
+<PageTitle>RemoteAdSense</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
+    <MudText Typo="Typo.h4">RemoteAdSense</MudText>
+    <MudText Class="mb-4">Manage AdSense placement metadata through <code>/api/rp/v1/remote-adsense</code>.</MudText>
+    <MudAlert Severity="MudSeverity.Info">The plugin never stores the publisher secret or embeds arbitrary credentials. It stores placement metadata and returns the configured markup contract.</MudAlert>
+</MudContainer>

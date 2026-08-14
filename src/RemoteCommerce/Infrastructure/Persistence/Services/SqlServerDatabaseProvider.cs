@@ -5,7 +5,7 @@ namespace RemoteCommerce.Infrastructure.Persistence.Services;
 /// <param name="secretProvider">The deployment secret boundary used to resolve connection strings.</param>
 public sealed class SqlServerDatabaseProvider(
     IConfiguration configuration,
-    ISecretProvider secretProvider) : IDatabaseProvider
+    ISecretProvider secretProvider) : RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider
 {
     private const string LocalDbConnectionString =
         "Server=(localdb)\\MSSQLLocalDB;Database=RemoteCommerce;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
@@ -38,6 +38,35 @@ public sealed class SqlServerDatabaseProvider(
         }
 
         return value;
+    }
+
+    /// <inheritdoc />
+    public void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null)
+    {
+        ConfigureDbContext(options, migrationsAssembly, "__EFMigrationsHistory", null);
+    }
+
+    /// <inheritdoc />
+    public void ConfigureDbContext(
+        DbContextOptionsBuilder options,
+        string? migrationsAssembly,
+        string migrationsHistoryTable,
+        string? migrationsHistorySchema)
+    {
+        options.UseSqlServer(
+            GetConnectionString(DatabaseEndpoint.Primary),
+            sql =>
+            {
+                if (!string.IsNullOrWhiteSpace(migrationsAssembly))
+                {
+                    sql.MigrationsAssembly(migrationsAssembly);
+                }
+
+                if (!string.IsNullOrWhiteSpace(migrationsHistorySchema))
+                {
+                    sql.MigrationsHistoryTable(migrationsHistoryTable, migrationsHistorySchema);
+                }
+            });
     }
 
     /// <inheritdoc />

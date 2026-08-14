@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <AssemblyName>{{PackageId}}</AssemblyName>
+    <RootNamespace>{{Namespace}}</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>{{PackageId}}</PackageId>
+    <Version>{{Version}}</Version>
+    <PackageDescription>{{Description}}</PackageDescription>
+    <PackageTags>{{PackageTags}}</PackageTags>
+    <Title>{{Title}}</Title>
+    <Authors>{{Authors}}</Authors>
+    <Company>{{Company}}</Company>
+    <RepositoryUrl>{{RepositoryUrl}}</RepositoryUrl>
+    <RepositoryType>{{RepositoryType}}</RepositoryType>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageRequireLicenseAcceptance>{{PackageRequireLicenseAcceptance}}</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>{{PackageProjectUrl}}</PackageProjectUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="{{BaseReference}}" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="{{EfCorePackageVersion}}" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="{{EfCorePackageVersion}}" PrivateAssets="all" />
+    <PackageReference Include="MudBlazor" Version="9.8.0" />
+    <None Include="plugin.manifest.json" Pack="true" PackagePath="" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="LICENSE.md" Pack="true" PackagePath="" />
+    <None Update="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

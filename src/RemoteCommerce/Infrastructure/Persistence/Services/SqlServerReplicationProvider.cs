@@ -2,7 +2,8 @@ namespace RemoteCommerce.Infrastructure.Persistence.Services;
 
 /// <summary>Validates the SQL Server primary/replica topology without coupling replication to EF Core entities.</summary>
 /// <param name="databaseProvider">The selected SQL Server database provider.</param>
-public sealed class SqlServerReplicationProvider(IDatabaseProvider databaseProvider) : IDatabaseReplicationProvider
+public sealed class SqlServerReplicationProvider(
+    RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider databaseProvider) : IDatabaseReplicationProvider
 {
     /// <inheritdoc />
     public string ProviderName => "SqlServer";

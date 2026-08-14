@@ -1,0 +1,22 @@
+@page "/admin/logs"
+@attribute [Authorize(Policy = AuthorizationPolicies.Administrator)]
+@inject ApplicationLogReader LogReader
+
+<PageTitle>Application logs</PageTitle>
+<MudContainer MaxWidth="MaxWidth.False" Class="pa-6">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h4">Application log</MudText>
+        <MudButton Variant="Variant.Outlined" OnClick="Refresh">Refresh</MudButton>
+    </MudStack>
+    <MudPaper Class="pa-4" Style="overflow:auto;max-height:70vh;">
+        <pre style="white-space:pre-wrap;word-break:break-word;">@string.Join(Environment.NewLine, _lines)</pre>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private IReadOnlyList<string> _lines = [];
+
+    protected override void OnInitialized() => Refresh();
+
+    private void Refresh() => _lines = LogReader.ReadRecent();
+}

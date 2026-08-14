@@ -18,5 +18,5 @@
   "packageRequireLicenseAcceptance": {{PackageRequireLicenseAcceptance}},
   "packageProjectUrl": "{{PackageProjectUrl}}",
   "dependencies": [],
-  "efCoreVersion": null
+  "efCoreVersion": {{EfCoreVersion}}
 }

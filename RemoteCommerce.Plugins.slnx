@@ -3,6 +3,15 @@
   <Folder Name="/plugins/Sample/">
     <Project Path="plugins/Sample/RemoteCommerce.SamplePlugin/Plugin.csproj" />
   </Folder>
+  <Folder Name="/plugins/RemoteSEO/">
+    <Project Path="plugins/RemoteSEO/RemoteCommerce.RemoteSEO/Plugin.csproj" />
+  </Folder>
+  <Folder Name="/plugins/RemoteAdSense/">
+    <Project Path="plugins/RemoteAdSense/RemoteCommerce.RemoteAdSense/Plugin.csproj" />
+  </Folder>
+  <Folder Name="/plugins/RemoteVisitors/">
+    <Project Path="plugins/RemoteVisitors/RemoteCommerce.RemoteVisitors/Plugin.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
   </Folder>

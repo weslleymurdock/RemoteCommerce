@@ -1,0 +1,22 @@
+{
+  "id": "remote_adsense",
+  "name": "RemoteAdSense",
+  "license": "LICENSE.md",
+  "readme": "README.md",
+  "version": "1.0.0",
+  "entryAssembly": "lib/net10.0/RemoteCommerce_RemoteAdSense.dll",
+  "entryType": "RemoteCommerce_RemoteAdSense.PluginEntry",
+  "minHostVersion": "1.0.0",
+  "description": "Google AdSense placement management for RemoteCommerce.",
+  "packageId": "RemoteCommerce.RemoteAdSense",
+  "packageTags": "remotecommerce;adsense;google;advertising;plugin",
+  "title": "RemoteAdSense",
+  "authors": "RemoteCommerce",
+  "company": "RemoteCommerce",
+  "repositoryUrl": "https://github.com/weslleymurdock/RemoteCommerce.git",
+  "repositoryType": "git",
+  "packageRequireLicenseAcceptance": false,
+  "packageProjectUrl": "https://github.com/weslleymurdock/RemoteCommerce",
+  "dependencies": [],
+  "efCoreVersion": "10.0"
+}

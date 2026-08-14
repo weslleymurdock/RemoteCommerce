@@ -1,5 +1,3 @@
-using System.Reflection;
-
 namespace RemoteCommerce.Plugins;
 
 /// <summary>Provides the startup-only registry of plugin assemblies used by host routing infrastructure.</summary>

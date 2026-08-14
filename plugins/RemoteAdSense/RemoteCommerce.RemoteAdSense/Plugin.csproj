@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <AssemblyName>RemoteCommerce_RemoteAdSense</AssemblyName>
+    <RootNamespace>RemoteCommerce_RemoteAdSense</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>RemoteCommerce.RemoteAdSense</PackageId>
+    <Version>1.0.0</Version>
+    <PackageDescription>RemoteCommerce Google AdSense integration plugin.</PackageDescription>
+    <PackageTags>remotecommerce;adsense;google;advertising;plugin</PackageTags>
+    <Title>RemoteAdSense</Title>
+    <Authors>RemoteCommerce</Authors>
+    <Company>RemoteCommerce</Company>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../../src/RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="MudBlazor" Version="9.8.0" />
+    <None Include="plugin.manifest.json" Pack="true" PackagePath="" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="LICENSE.md" Pack="true" PackagePath="" />
+    <None Update="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

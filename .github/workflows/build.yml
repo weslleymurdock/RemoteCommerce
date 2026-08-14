@@ -19,43 +19,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: ${{ github.workspace }}/global.json
-
       - name: Restore RemoteCommerce
         run: dotnet restore RemoteCommerce.slnx
-
       - name: Build RemoteCommerce
         run: dotnet build RemoteCommerce.slnx --configuration Release --no-restore
-
       - name: Restore plugins
         run: dotnet restore RemoteCommerce.Plugins.slnx
-
       - name: Build plugins
         run: dotnet build RemoteCommerce.Plugins.slnx --configuration Release --no-restore
-
       - name: Pack sample plugin
         run: dotnet pack plugins/Sample/RemoteCommerce.SamplePlugin/Plugin.csproj --configuration Release --no-restore --output ./artifacts
-
+      - name: Pack RemoteSEO
+        run: dotnet pack plugins/RemoteSEO/RemoteCommerce.RemoteSEO/Plugin.csproj --configuration Release --no-restore --output ./artifacts
+      - name: Pack RemoteAdSense
+        run: dotnet pack plugins/RemoteAdSense/RemoteCommerce.RemoteAdSense/Plugin.csproj --configuration Release --no-restore --output ./artifacts
+      - name: Pack RemoteVisitors
+        run: dotnet pack plugins/RemoteVisitors/RemoteCommerce.RemoteVisitors/Plugin.csproj --configuration Release --no-restore --output ./artifacts
       - name: Restore tools
         run: dotnet restore RemoteCommerce.Tools.slnx
-
       - name: Build tools
         run: dotnet build RemoteCommerce.Tools.slnx --configuration Release --no-restore
-
       - name: Pack plugin template tool
         run: dotnet pack tools/RemoteCommerce.Plugin.Template/RemoteCommerce.Plugin.Template.csproj --configuration Release --no-restore --output ./artifacts
-
-      - name: Validate plugin package
+      - name: Validate plugin packages
         shell: bash
-        run: test -f ./artifacts/RemoteCommerce_SamplePlugin.1.0.0.nupkg
-
+        run: |
+          test -f ./artifacts/RemoteCommerce_SamplePlugin.1.0.0.nupkg
+          test -f ./artifacts/RemoteCommerce.RemoteSEO.1.0.0.nupkg
+          test -f ./artifacts/RemoteCommerce.RemoteAdSense.1.0.0.nupkg
+          test -f ./artifacts/RemoteCommerce.RemoteVisitors.1.0.0.nupkg
       - name: Validate dotnet tool package
         shell: bash
         run: test -f ./artifacts/RemoteCommerce.Plugin.Template.1.0.0.nupkg
-
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
@@ -68,14 +66,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: ${{ github.workspace }}/global.json
-
       - name: Restore RemoteCommerce tests
         run: dotnet restore RemoteCommerce.slnx
-
       - name: Run tests with coverage
         run: |
           dotnet test RemoteCommerce.slnx \
@@ -86,7 +81,6 @@ jobs:
             --collect:"XPlat Code Coverage" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
         continue-on-error: true
-
       - name: Publish Test Summary
         uses: dorny/test-reporter@v1
         if: always()
@@ -94,11 +88,9 @@ jobs:
           name: 'xUnit v3 Test Results'
           path: 'TestResults/*.trx'
           reporter: 'dotnet-trx'
-
       - name: Tool Restore
         if: always()
         run: dotnet tool restore
-
       - name: Generate Coverage Markdown Report
         if: always()
         run: |
@@ -106,7 +98,6 @@ jobs:
             -reports:"TestResults/**/coverage.cobertura.xml" \
             -targetdir:"TestResults/CoverageReport" \
             -reporttypes:"MarkdownSummaryGithub"
-
       - name: Append Coverage Summary to Job
         if: always()
         run: |
@@ -123,17 +114,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: ${{ github.workspace }}/global.json
-
       - name: Download packed tools and plugins
         uses: actions/download-artifact@v4
         with:
           name: nuget-packages
           path: ./artifacts
-
       - name: NuGet login (OIDC) and package push
         id: login
         uses: NuGet/login@v1
@@ -141,7 +129,6 @@ jobs:
           user: ${{ env.USERNAME }}
         env:
           USERNAME: ${{ secrets.USER_NAME }}
-
       - name: Publish Dotnet Tools and Packages to NuGet
         run: |
           dotnet nuget push ./artifacts/*.nupkg \

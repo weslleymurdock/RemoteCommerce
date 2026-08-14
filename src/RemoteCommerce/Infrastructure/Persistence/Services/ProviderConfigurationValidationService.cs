@@ -6,7 +6,7 @@ namespace RemoteCommerce.Infrastructure.Persistence.Services;
 /// <param name="configuration">The deployment configuration source.</param>
 /// <param name="secretProvider">The deployment secret boundary.</param>
 public sealed class ProviderConfigurationValidationService(
-    IDatabaseProvider databaseProvider,
+    RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider databaseProvider,
     MediaStorageProviderResolver mediaResolver,
     IConfiguration configuration,
     ISecretProvider secretProvider) : IHostedService

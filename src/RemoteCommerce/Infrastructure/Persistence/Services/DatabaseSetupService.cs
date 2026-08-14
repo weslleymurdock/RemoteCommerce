@@ -6,7 +6,7 @@ namespace RemoteCommerce.Infrastructure.Persistence.Services;
 /// <param name="stateStore">The non-secret setup state store.</param>
 /// <param name="logger">The logger used for safe setup diagnostics.</param>
 public sealed class DatabaseSetupService(
-    IDatabaseProvider databaseProvider,
+    RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider databaseProvider,
     IDatabaseReplicationProvider replicationProvider,
     DatabaseSetupStateStore stateStore,
     ILogger<DatabaseSetupService> logger) : IDatabaseSetupService

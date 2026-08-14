@@ -4,8 +4,8 @@ internal static class PluginTemplateGenerator
 {
     private static readonly string[] RequiredTextResources =
     [
-        "Plugin.csproj.txt", "GlobalUsings.cs.txt", "PluginEntry.cs.txt", "_Imports.razor.txt", "PluginInfo.razor.txt",
-        "PluginHealthController.cs.txt", "PluginHome.razor.txt", "PluginController.cs.txt"
+        "Plugin.csproj.txt", "Plugin.Persistence.csproj.txt", "GlobalUsings.cs.txt", "PluginEntry.cs.txt", "_Imports.razor.txt", "PluginInfo.razor.txt",
+        "PluginHealthController.cs.txt", "PluginHome.razor.txt", "PluginController.cs.txt", "PluginDbContext.cs.txt", "PluginEntity.cs.txt", "PluginEntityConfiguration.cs.txt"
     ];
 
     private static readonly string[] RequiredDocumentResources = ["plugin.manifest.json", "README.md", "LICENSE.md"];
@@ -18,8 +18,8 @@ internal static class PluginTemplateGenerator
             return Task.FromResult(1);
         }
 
-        var outputDirectory = args.Length > 1 ? Path.GetFullPath(args[1]) : PromptRequired("Output directory");
-        var projectName = args.Length > 2 ? args[2] : PromptRequired("Plugin project name");
+        var outputDirectory = Path.GetFullPath(args[1]);
+        var projectName = args[2];
         if (Directory.Exists(outputDirectory) && Directory.EnumerateFileSystemEntries(outputDirectory).Any())
             throw new InvalidOperationException("The output directory must be empty.");
         Directory.CreateDirectory(outputDirectory);
@@ -39,7 +39,7 @@ internal static class PluginTemplateGenerator
         if (mode is not ("page" or "controller" or "both"))
             throw new InvalidOperationException("Extension type must be page, controller, or both.");
 
-        WriteResource(resources, "Plugin.csproj.txt", outputDirectory, "Plugin.csproj", manifest, namespaceName, baseReference);
+        WriteResource(resources, manifest.PersistenceEnabled ? "Plugin.Persistence.csproj.txt" : "Plugin.csproj.txt", outputDirectory, "Plugin.csproj", manifest, namespaceName, baseReference);
         WriteResource(resources, "GlobalUsings.cs.txt", outputDirectory, "GlobalUsings.cs", manifest, namespaceName, baseReference);
         WriteResource(resources, "plugin.manifest.json", outputDirectory, "plugin.manifest.json", manifest, namespaceName, baseReference);
         WriteResource(resources, "README.md", outputDirectory, "README.md", manifest, namespaceName, baseReference);
@@ -54,9 +54,18 @@ internal static class PluginTemplateGenerator
         if (mode is "controller" or "both")
             WriteResource(resources, "PluginController.cs.txt", outputDirectory, "Controllers/PluginController.cs", manifest, namespaceName, baseReference);
 
+        if (manifest.PersistenceEnabled)
+        {
+            WriteResource(resources, "PluginDbContext.cs.txt", outputDirectory, "Infrastructure/Persistence/PluginDbContext.cs", manifest, namespaceName, baseReference);
+            WriteResource(resources, "PluginEntity.cs.txt", outputDirectory, "Domain/Entities/PluginEntity.cs", manifest, namespaceName, baseReference);
+            WriteResource(resources, "PluginEntityConfiguration.cs.txt", outputDirectory, "Infrastructure/Persistence/PluginEntityConfiguration.cs", manifest, namespaceName, baseReference);
+        }
+
         Console.WriteLine($"Created RemoteCommerce plugin '{manifest.Name}' at {outputDirectory}.");
         Console.WriteLine($"Default plugin API prefix: /api/rp/{manifest.ApiVersion}");
-        Console.WriteLine("The generated project references RemoteCommerce.Plugin.Abstractions by project reference.");
+        Console.WriteLine(manifest.PersistenceEnabled
+            ? $"Plugin persistence enabled with EF Core {manifest.EfCoreVersion}."
+            : "Plugin persistence disabled; the generated plugin does not require a database.");
         return Task.FromResult(0);
     }
 
@@ -78,7 +87,13 @@ internal static class PluginTemplateGenerator
         var minHostVersion = Prompt("Minimum RemoteCommerce host version", "1.0.0");
         var apiVersion = Prompt("RemoteCommerce plugin API version", "v1");
         var controllerName = Prompt("Default plugin controller name", "plugin");
-        return new PluginManifestModel(id, name, "LICENSE.md", "README.md", version, "", "", minHostVersion, description, packageId, tags, title, authors, company, repositoryUrl, repositoryType, requireLicenseAcceptance, projectUrl, apiVersion, controllerName);
+        var persistence = Prompt("Persistence (none/efcore)", "none").ToLowerInvariant();
+        if (persistence is not ("none" or "efcore"))
+            throw new InvalidOperationException("Persistence must be none or efcore.");
+        var efCoreVersion = persistence == "efcore"
+            ? Prompt("EF Core compatibility version", "10.0.11")
+            : null;
+        return new PluginManifestModel(id, name, "LICENSE.md", "README.md", version, "", "", minHostVersion, description, packageId, tags, title, authors, company, repositoryUrl, repositoryType, requireLicenseAcceptance, projectUrl, apiVersion, controllerName, efCoreVersion);
     }
 
     private static void WriteResource(string resources, string resourceName, string outputDirectory, string targetRelativePath, PluginManifestModel manifest, string ns, string baseReference)
@@ -96,26 +111,39 @@ internal static class PluginTemplateGenerator
             ?? throw new InvalidOperationException("The plugin template resources could not be found. The dotnet tool package must contain its Resources directory.");
     }
 
-    private static string Render(string template, PluginManifestModel manifest, string ns, string baseReference) => template
-        .Replace("{{Namespace}}", ns, StringComparison.Ordinal)
-        .Replace("{{Name}}", manifest.Name, StringComparison.Ordinal)
-        .Replace("{{Description}}", manifest.Description, StringComparison.Ordinal)
-        .Replace("{{PluginId}}", manifest.Id, StringComparison.Ordinal)
-        .Replace("{{Version}}", manifest.Version, StringComparison.Ordinal)
-        .Replace("{{Company}}", manifest.Company, StringComparison.Ordinal)
-        .Replace("{{Year}}", DateTime.UtcNow.Year.ToString(), StringComparison.Ordinal)
-        .Replace("{{ApiVersion}}", manifest.ApiVersion, StringComparison.Ordinal)
-        .Replace("{{ControllerName}}", manifest.ControllerName, StringComparison.Ordinal)
-        .Replace("{{PackageId}}", manifest.PackageId, StringComparison.Ordinal)
-        .Replace("{{PackageTags}}", manifest.PackageTags, StringComparison.Ordinal)
-        .Replace("{{Title}}", manifest.Title, StringComparison.Ordinal)
-        .Replace("{{Authors}}", manifest.Authors, StringComparison.Ordinal)
-        .Replace("{{RepositoryUrl}}", manifest.RepositoryUrl, StringComparison.Ordinal)
-        .Replace("{{RepositoryType}}", manifest.RepositoryType, StringComparison.Ordinal)
-        .Replace("{{PackageRequireLicenseAcceptance}}", manifest.PackageRequireLicenseAcceptance.ToString().ToLowerInvariant(), StringComparison.Ordinal)
-        .Replace("{{PackageProjectUrl}}", manifest.PackageProjectUrl, StringComparison.Ordinal)
-        .Replace("{{MinHostVersion}}", manifest.MinHostVersion, StringComparison.Ordinal)
-        .Replace("{{BaseReference}}", baseReference, StringComparison.Ordinal);
+    private static string Render(string template, PluginManifestModel manifest, string ns, string baseReference)
+    {
+        var persistenceInterface = manifest.PersistenceEnabled ? ", IRemoteCommercePluginPersistence" : string.Empty;
+        var persistenceRegistration = manifest.PersistenceEnabled
+            ? "    /// <inheritdoc />\n    public void ConfigurePersistence(IPluginPersistenceBuilder builder)\n    {\n        builder.AddDbContext(typeof(Infrastructure.Persistence.PluginDbContext), typeof(Infrastructure.Persistence.PluginDbContext).Assembly.GetName().Name);\n    }\n"
+            : string.Empty;
+
+        return template
+            .Replace("{{Namespace}}", ns, StringComparison.Ordinal)
+            .Replace("{{Name}}", manifest.Name, StringComparison.Ordinal)
+            .Replace("{{Description}}", manifest.Description, StringComparison.Ordinal)
+            .Replace("{{PluginId}}", manifest.Id, StringComparison.Ordinal)
+            .Replace("{{Version}}", manifest.Version, StringComparison.Ordinal)
+            .Replace("{{Company}}", manifest.Company, StringComparison.Ordinal)
+            .Replace("{{Year}}", DateTime.UtcNow.Year.ToString(), StringComparison.Ordinal)
+            .Replace("{{ApiVersion}}", manifest.ApiVersion, StringComparison.Ordinal)
+            .Replace("{{ControllerName}}", manifest.ControllerName, StringComparison.Ordinal)
+            .Replace("{{PackageId}}", manifest.PackageId, StringComparison.Ordinal)
+            .Replace("{{PackageTags}}", manifest.PackageTags, StringComparison.Ordinal)
+            .Replace("{{Title}}", manifest.Title, StringComparison.Ordinal)
+            .Replace("{{Authors}}", manifest.Authors, StringComparison.Ordinal)
+            .Replace("{{RepositoryUrl}}", manifest.RepositoryUrl, StringComparison.Ordinal)
+            .Replace("{{RepositoryType}}", manifest.RepositoryType, StringComparison.Ordinal)
+            .Replace("{{PackageRequireLicenseAcceptance}}", manifest.PackageRequireLicenseAcceptance.ToString().ToLowerInvariant(), StringComparison.Ordinal)
+            .Replace("{{PackageProjectUrl}}", manifest.PackageProjectUrl, StringComparison.Ordinal)
+            .Replace("{{MinHostVersion}}", manifest.MinHostVersion, StringComparison.Ordinal)
+            .Replace("{{BaseReference}}", baseReference, StringComparison.Ordinal)
+            .Replace("{{PluginSchema}}", BuildPluginSchema(manifest.Id), StringComparison.Ordinal)
+            .Replace("{{EfCoreVersion}}", manifest.EfCoreVersion is null ? "null" : $"\"{manifest.EfCoreVersion}\"", StringComparison.Ordinal)
+            .Replace("{{EfCorePackageVersion}}", manifest.EfCoreVersion ?? "10.0.11", StringComparison.Ordinal)
+            .Replace("{{PersistenceInterface}}", persistenceInterface, StringComparison.Ordinal)
+            .Replace("{{PersistenceRegistration}}", persistenceRegistration, StringComparison.Ordinal);
+    }
 
     private static string FindBaseProject(string currentDirectory)
     {
@@ -151,5 +179,18 @@ internal static class PluginTemplateGenerator
         return builder.ToString();
     }
 
-    private sealed record PluginManifestModel(string Id, string Name, string License, string Readme, string Version, string EntryAssembly, string EntryType, string MinHostVersion, string Description, string PackageId, string PackageTags, string Title, string Authors, string Company, string RepositoryUrl, string RepositoryType, bool PackageRequireLicenseAcceptance, string PackageProjectUrl, string ApiVersion, string ControllerName);
+    private static string BuildPluginSchema(string pluginId)
+    {
+        var normalized = new string(pluginId
+            .Trim()
+            .ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) || character == '_' ? character : '_')
+            .ToArray());
+        return $"rc_plugin_{normalized}";
+    }
+
+    private sealed record PluginManifestModel(string Id, string Name, string License, string Readme, string Version, string EntryAssembly, string EntryType, string MinHostVersion, string Description, string PackageId, string PackageTags, string Title, string Authors, string Company, string RepositoryUrl, string RepositoryType, bool PackageRequireLicenseAcceptance, string PackageProjectUrl, string ApiVersion, string ControllerName, string? EfCoreVersion)
+    {
+        public bool PersistenceEnabled => EfCoreVersion is not null;
+    }
 }
