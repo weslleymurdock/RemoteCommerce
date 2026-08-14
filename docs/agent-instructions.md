@@ -2,7 +2,7 @@
 
 ## Scope
 
-These instructions apply to work under `RemoteCommerce` and complement the root `AGENTS.md`.
+These instructions apply to work under `RemoteCommerce` and complement the root `AGENTS.md` and `.github/instructions.md`.
 
 ## Workflow
 
@@ -16,6 +16,61 @@ These instructions apply to work under `RemoteCommerce` and complement the root 
 8. Historical branches may exist only when needed for audit purposes; do not revive superseded branches.
 9. Implement one stage/PR at a time and keep each stage testable.
 
+## Architecture
+
+- Keep Domain, Application, and Infrastructure as explicit architectural boundaries inside the current host project.
+- Organize each feature consistently across those boundaries.
+- Prepare the physical layout for future class library extraction with root namespace `RemoteCommerce`.
+- Domain must not reference Application or Infrastructure.
+- Application must depend on Domain and abstractions, not Infrastructure implementations.
+- Infrastructure owns persistence implementations, repositories, DbContexts, storage providers, and external integrations.
+- Controllers are transport adapters and must not contain business or persistence rules.
+
+## Application feature layout
+
+Every Application feature must follow this structure when the concern exists:
+
+- `src/Application/Feature/Abstractions`
+- `src/Application/Feature/Commands`
+- `src/Application/Feature/Handlers`
+- `src/Application/Feature/Queries`
+- `src/Application/Feature/Requests`
+- `src/Application/Feature/Resources`
+- `src/Application/Feature/Results`
+- `src/Application/Feature/Validators`
+
+In the current host, use the equivalent `src/RemoteCommerce/Application/Feature/...` path until the class library extraction is explicitly performed.
+
+## Data flow
+
+```text
+ ___________________       ___________________________
+|    (Requests)     |      |    (Commands,Queries)    |
+|    Controllers    |=====>| MediatR Handlers         |
+|___________________|      |          └── Behaviors   |
+                           |__________________________|
+                                         |
+                                       \ | /
+                           _____________\|/_____________
+                           |(Application/Infrastructure)|
+                           |     Feature  Services      |
+                           |____________________________|
+                                         |
+                                       \ | /
+                           _____________\|/_____________
+                           |      (Infrastructure)      |
+                           |    Repository<T> *         |  *Repository for dbcontext or storage provider,
+                           |    └──DbContext|Storage    |   db agnostic
+                           |____________________________|
+```
+
+- Controllers receive Requests and dispatch MediatR Commands or Queries.
+- MediatR Handlers execute use cases after configured Behaviors.
+- Feature Services coordinate application and infrastructure operations through abstractions.
+- Repository contracts are provider-independent.
+- Repository implementations are Infrastructure-only.
+- DbContext and storage provider types never cross into Domain or Application contracts.
+
 ## Implementation
 
 - Target .NET 10.
@@ -28,6 +83,14 @@ These instructions apply to work under `RemoteCommerce` and complement the root 
 - Plugin controllers are MVC application parts and use `/api/rp/vX/<plugin_controller>`.
 - WooCommerce-compatible controllers use `/api/rc/vX`.
 
+## Source formatting
+
+- One C# instruction or method call per source line.
+- One Razor directive per line.
+- One HTML/Razor component invocation per line when it has attributes or child content.
+- Keep executable Razor expressions and event callbacks independently readable.
+- Apply these formatting rules to production code, tests, templates, and generated source.
+
 ## Validation
 
-Every stage must have a buildable/testable checkpoint. Prefer isolated plugin builds as well as the main solution build when plugin tooling changes.
+Every stage must have a buildable/testable checkpoint. Prefer isolated plugin builds as well as the main solution build when plugin tooling changes. Validate architecture and dependency direction, not only compilation and tests.
