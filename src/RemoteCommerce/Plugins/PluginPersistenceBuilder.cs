@@ -47,7 +47,7 @@ public sealed class PluginPersistenceBuilder(IServiceCollection services, string
         services.AddDbContext(dbContextType, (serviceProvider, options) =>
         {
             var provider = serviceProvider.GetRequiredService<IDatabaseProvider>();
-            provider.ConfigureDbContext(options, migrationsAssembly);
+            provider.ConfigureDbContext(options, migrationsAssembly, "__EFMigrationsHistory", resolvedSchema);
             var commerceDb = serviceProvider.GetRequiredService<CommerceDbContext>();
             if (commerceDb.Database.CurrentTransaction?.GetDbTransaction() is DbTransaction transaction)
             {
