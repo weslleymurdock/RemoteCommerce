@@ -15,7 +15,13 @@ public sealed class LoginCommandHandler(UserManager<ApplicationUser> userManager
         }
         await userManager.ResetAccessFailedCountAsync(user);
         if (user.TwoFactorEnabled) throw new TwoFactorRequiredException();
-        var result = tokenService.CreateToken(user, await userManager.GetRolesAsync(user), await userManager.GetClaimsAsync(user));
+        var result = tokenService.CreateToken(
+            user.Id,
+            user.Email ?? string.Empty,
+            user.DisplayName,
+            user.SecurityStamp ?? string.Empty,
+            await userManager.GetRolesAsync(user),
+            await userManager.GetClaimsAsync(user));
         await auditLog.WriteAsync("identity.login", "User", user.Id, user.DisplayName, "Success", cancellationToken: cancellationToken);
         return result;
     }
