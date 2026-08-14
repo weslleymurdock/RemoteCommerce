@@ -111,29 +111,39 @@ internal static class PluginTemplateGenerator
             ?? throw new InvalidOperationException("The plugin template resources could not be found. The dotnet tool package must contain its Resources directory.");
     }
 
-    private static string Render(string template, PluginManifestModel manifest, string ns, string baseReference) => template
-        .Replace("{{Namespace}}", ns, StringComparison.Ordinal)
-        .Replace("{{Name}}", manifest.Name, StringComparison.Ordinal)
-        .Replace("{{Description}}", manifest.Description, StringComparison.Ordinal)
-        .Replace("{{PluginId}}", manifest.Id, StringComparison.Ordinal)
-        .Replace("{{Version}}", manifest.Version, StringComparison.Ordinal)
-        .Replace("{{Company}}", manifest.Company, StringComparison.Ordinal)
-        .Replace("{{Year}}", DateTime.UtcNow.Year.ToString(), StringComparison.Ordinal)
-        .Replace("{{ApiVersion}}", manifest.ApiVersion, StringComparison.Ordinal)
-        .Replace("{{ControllerName}}", manifest.ControllerName, StringComparison.Ordinal)
-        .Replace("{{PackageId}}", manifest.PackageId, StringComparison.Ordinal)
-        .Replace("{{PackageTags}}", manifest.PackageTags, StringComparison.Ordinal)
-        .Replace("{{Title}}", manifest.Title, StringComparison.Ordinal)
-        .Replace("{{Authors}}", manifest.Authors, StringComparison.Ordinal)
-        .Replace("{{RepositoryUrl}}", manifest.RepositoryUrl, StringComparison.Ordinal)
-        .Replace("{{RepositoryType}}", manifest.RepositoryType, StringComparison.Ordinal)
-        .Replace("{{PackageRequireLicenseAcceptance}}", manifest.PackageRequireLicenseAcceptance.ToString().ToLowerInvariant(), StringComparison.Ordinal)
-        .Replace("{{PackageProjectUrl}}", manifest.PackageProjectUrl, StringComparison.Ordinal)
-        .Replace("{{MinHostVersion}}", manifest.MinHostVersion, StringComparison.Ordinal)
-        .Replace("{{BaseReference}}", baseReference, StringComparison.Ordinal)
-        .Replace("{{PluginSchema}}", BuildPluginSchema(manifest.Id), StringComparison.Ordinal)
-        .Replace("{{EfCoreVersion}}", manifest.EfCoreVersion is null ? "null" : $"\"{manifest.EfCoreVersion}\"", StringComparison.Ordinal)
-        .Replace("{{EfCorePackageVersion}}", manifest.EfCoreVersion ?? "10.0.11", StringComparison.Ordinal);
+    private static string Render(string template, PluginManifestModel manifest, string ns, string baseReference)
+    {
+        var persistenceInterface = manifest.PersistenceEnabled ? ", IRemoteCommercePluginPersistence" : string.Empty;
+        var persistenceRegistration = manifest.PersistenceEnabled
+            ? "    /// <inheritdoc />\n    public void ConfigurePersistence(IPluginPersistenceBuilder builder)\n    {\n        builder.AddDbContext(typeof(Infrastructure.Persistence.PluginDbContext), typeof(Infrastructure.Persistence.PluginDbContext).Assembly.GetName().Name);\n    }\n"
+            : string.Empty;
+
+        return template
+            .Replace("{{Namespace}}", ns, StringComparison.Ordinal)
+            .Replace("{{Name}}", manifest.Name, StringComparison.Ordinal)
+            .Replace("{{Description}}", manifest.Description, StringComparison.Ordinal)
+            .Replace("{{PluginId}}", manifest.Id, StringComparison.Ordinal)
+            .Replace("{{Version}}", manifest.Version, StringComparison.Ordinal)
+            .Replace("{{Company}}", manifest.Company, StringComparison.Ordinal)
+            .Replace("{{Year}}", DateTime.UtcNow.Year.ToString(), StringComparison.Ordinal)
+            .Replace("{{ApiVersion}}", manifest.ApiVersion, StringComparison.Ordinal)
+            .Replace("{{ControllerName}}", manifest.ControllerName, StringComparison.Ordinal)
+            .Replace("{{PackageId}}", manifest.PackageId, StringComparison.Ordinal)
+            .Replace("{{PackageTags}}", manifest.PackageTags, StringComparison.Ordinal)
+            .Replace("{{Title}}", manifest.Title, StringComparison.Ordinal)
+            .Replace("{{Authors}}", manifest.Authors, StringComparison.Ordinal)
+            .Replace("{{RepositoryUrl}}", manifest.RepositoryUrl, StringComparison.Ordinal)
+            .Replace("{{RepositoryType}}", manifest.RepositoryType, StringComparison.Ordinal)
+            .Replace("{{PackageRequireLicenseAcceptance}}", manifest.PackageRequireLicenseAcceptance.ToString().ToLowerInvariant(), StringComparison.Ordinal)
+            .Replace("{{PackageProjectUrl}}", manifest.PackageProjectUrl, StringComparison.Ordinal)
+            .Replace("{{MinHostVersion}}", manifest.MinHostVersion, StringComparison.Ordinal)
+            .Replace("{{BaseReference}}", baseReference, StringComparison.Ordinal)
+            .Replace("{{PluginSchema}}", BuildPluginSchema(manifest.Id), StringComparison.Ordinal)
+            .Replace("{{EfCoreVersion}}", manifest.EfCoreVersion is null ? "null" : $"\"{manifest.EfCoreVersion}\"", StringComparison.Ordinal)
+            .Replace("{{EfCorePackageVersion}}", manifest.EfCoreVersion ?? "10.0.11", StringComparison.Ordinal)
+            .Replace("{{PersistenceInterface}}", persistenceInterface, StringComparison.Ordinal)
+            .Replace("{{PersistenceRegistration}}", persistenceRegistration, StringComparison.Ordinal);
+    }
 
     private static string FindBaseProject(string currentDirectory)
     {
