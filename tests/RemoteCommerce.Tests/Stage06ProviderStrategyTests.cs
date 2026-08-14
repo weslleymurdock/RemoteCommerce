@@ -337,6 +337,10 @@ public sealed class Stage06ProviderStrategyTests
 
         public string GetConnectionString(DatabaseEndpoint endpoint) => $"fake-{endpoint}";
 
+        public void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null)
+        {
+        }
+
         public Task ValidateAsync(CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
