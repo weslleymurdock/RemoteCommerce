@@ -31,6 +31,7 @@ global using MongoDB.Driver.GridFS;
 global using RemoteCommerce.Application.Administration;
 global using RemoteCommerce.Application.Catalog;
 global using RemoteCommerce.Application.Catalog.Handlers;
+global using RemoteCommerce.Application.Catalog.Queries;
 global using RemoteCommerce.Application.Common.Behaviors;
 global using RemoteCommerce.Application.Common.Requests;
 global using RemoteCommerce.Application.Common.Validation;
