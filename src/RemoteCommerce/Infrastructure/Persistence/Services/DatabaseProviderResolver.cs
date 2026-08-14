@@ -1,6 +1,8 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Services;
 
 /// <summary>Selects the configured relational database provider.</summary>
+/// <param name="configuration">The deployment configuration source.</param>
+/// <param name="secretProvider">The deployment secret boundary.</param>
 public sealed class DatabaseProviderResolver(
     IConfiguration configuration,
     ISecretProvider secretProvider)
