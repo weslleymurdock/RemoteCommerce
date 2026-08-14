@@ -30,10 +30,14 @@ public interface IDatabaseProvider
     /// <summary>Configures EF Core options for a RemoteCommerce-owned DbContext.</summary>
     /// <param name="options">The EF Core options builder to configure.</param>
     /// <param name="migrationsAssembly">The optional assembly containing provider-aware migrations.</param>
-    /// <remarks>
-    /// Implementations select the EF Core provider and store connection without exposing provider-specific APIs to plugins.
-    /// </remarks>
-    void ConfigureDbContext(DbContextOptionsBuilder options, string? migrationsAssembly = null);
+    /// <param name="migrationsHistoryTable">The migration history table name.</param>
+    /// <param name="migrationsHistorySchema">The migration history schema.</param>
+    /// <remarks>Implementations select the EF Core provider and store connection without exposing provider-specific APIs to plugins.</remarks>
+    void ConfigureDbContext(
+        DbContextOptionsBuilder options,
+        string? migrationsAssembly = null,
+        string migrationsHistoryTable = "__EFMigrationsHistory",
+        string? migrationsHistorySchema = null);
 
     /// <summary>Validates the provider configuration and endpoint connectivity.</summary>
     /// <param name="cancellationToken">The token used to cancel validation.</param>
