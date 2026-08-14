@@ -17,6 +17,13 @@ public interface ILocalizationResourceService
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The known resource versions ordered newest first.</returns>
     Task<IReadOnlyList<LocalizationResourceSummary>> ListAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the active resource entries for a resource type and culture.</summary>
+    /// <param name="resourceType">The resource marker type name.</param>
+    /// <param name="culture">The requested culture.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The active entries, or <see langword="null"/> when no active resource exists.</returns>
+    Task<IReadOnlyDictionary<string, string>?> GetActiveEntriesAsync(string resourceType, string culture, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Describes a successfully imported localization resource.</summary>
