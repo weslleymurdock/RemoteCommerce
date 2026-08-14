@@ -52,7 +52,7 @@ public sealed class PluginLoader(
             }
             catch (Exception exception)
             {
-                MarkFailed(db, installation, "startup", "activation", exception);
+                MarkFailed(db, installation, "startup", "activation", exception.GetBaseException());
                 logger.LogError(exception, "Failed to load plugin {PluginId}.", installation.PluginId);
             }
         }
@@ -167,25 +167,29 @@ public sealed class PluginLoader(
                 "Initializing persistence for plugin {PluginId} using {DbContextType}.",
                 manifest.Id,
                 descriptor.DbContextType.FullName);
-            InvokeMigration(descriptor.DbContextType, descriptor.MigrationsAssembly).GetAwaiter().GetResult();
+            InvokeMigration(descriptor.DbContextType, descriptor.MigrationsAssembly, descriptor.Schema).GetAwaiter().GetResult();
         }
     }
 
-    private Task InvokeMigration(Type dbContextType, string? migrationsAssembly)
+    private Task InvokeMigration(Type dbContextType, string? migrationsAssembly, string schema)
     {
         var method = typeof(PluginLoader)
             .GetMethod(nameof(MigrateDbContext), BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Plugin migration method could not be located.");
         var genericMethod = method.MakeGenericMethod(dbContextType);
-        return (Task)(genericMethod.Invoke(this, [migrationsAssembly])
+        return (Task)(genericMethod.Invoke(this, [migrationsAssembly, schema])
             ?? throw new InvalidOperationException("Plugin migration could not be started."));
     }
 
-    private async Task MigrateDbContext<TDbContext>(string? migrationsAssembly)
+    private async Task MigrateDbContext<TDbContext>(string? migrationsAssembly, string schema)
         where TDbContext : DbContext
     {
         var optionsBuilder = new DbContextOptionsBuilder<TDbContext>();
-        databaseProvider.ConfigureDbContext(optionsBuilder, migrationsAssembly);
+        databaseProvider.ConfigureDbContext(
+            optionsBuilder,
+            migrationsAssembly,
+            "__EFMigrationsHistory",
+            schema);
         await using var context = Activator.CreateInstance(typeof(TDbContext), optionsBuilder.Options) as TDbContext
             ?? throw new InvalidOperationException($"Plugin DbContext '{typeof(TDbContext).FullName}' could not be created.");
         var pending = await context.Database.GetPendingMigrationsAsync();
