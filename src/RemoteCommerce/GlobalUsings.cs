@@ -69,6 +69,7 @@ global using RemoteCommerce.Plugins;
 global using RemoteCommerce.Plugins.Abstractions;
 global using Scalar.AspNetCore;
 global using System.Collections.Concurrent;
+global using System.Data.Common;
 global using System.Diagnostics;
 global using System.Globalization;
 global using System.IdentityModel.Tokens.Jwt;
