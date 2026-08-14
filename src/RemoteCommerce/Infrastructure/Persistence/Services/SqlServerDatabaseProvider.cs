@@ -88,7 +88,7 @@ public sealed class SqlServerDatabaseProvider(
         DatabaseEndpoint endpoint,
         IReadOnlyCollection<IConfigurationSection> connectionStrings)
     {
-        if (connectionStrings.Count == 1)
+        if (Topology == DatabaseTopology.Single && connectionStrings.Count == 1)
         {
             return connectionStrings.Single().Key;
         }
