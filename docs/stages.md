@@ -31,6 +31,77 @@ Stages are sequential. Only one stage may be active/open as a PR at a time, and 
 - Mutating persistence uses the transactional behavior.
 - Mutable persistence uses soft-delete and operation history.
 - Exactly one Stage branch and one PR may be open; PRs are not merged unless explicitly requested.
+- Domain, Application, and Infrastructure are explicit architectural boundaries even while they remain in the current host project.
+- The physical layout must remain ready for future class library extraction with root namespace `RemoteCommerce`.
+- Domain must not depend on Application or Infrastructure.
+- Application must not depend directly on Infrastructure implementations.
+- Infrastructure owns repository implementations, DbContexts, storage providers, and provider-specific persistence.
+
+## Global Application feature structure
+
+Every Application feature must use this canonical structure when the concern exists:
+
+```text
+src/Application/Feature/
+├── Abstractions/
+├── Commands/
+├── Handlers/
+├── Queries/
+├── Requests/
+├── Resources/
+├── Results/
+└── Validators/
+```
+
+In the current host project, the equivalent is `src/RemoteCommerce/Application/Feature/...`.
+
+Domain features belong under `src/RemoteCommerce/Domain/<Feature>`.
+
+Infrastructure features belong under `src/RemoteCommerce/Infrastructure/<Feature>`.
+
+Do not place feature-specific application artifacts in global folders.
+
+## Global data flow
+
+```text
+ ___________________       ___________________________
+|    (Requests)     |      |    (Commands,Queries)    |
+|    Controllers    |=====>| MediatR Handlers         |
+|___________________|      |          └── Behaviors   |
+                           |__________________________|
+                                         |
+                                       \ | /
+                           _____________\|/_____________
+                           |(Application/Infrastructure)|
+                           |     Feature  Services      |
+                           |____________________________|
+                                         |
+                                       \ | /
+                           _____________\|/_____________
+                           |      (Infrastructure)      |
+                           |    Repository<T> *         |  *Repository for dbcontext or storage provider,
+                           |    └──DbContext|Storage    |   db agnostic
+                           |____________________________|
+```
+
+Controllers receive Requests and dispatch MediatR Commands or Queries.
+
+Handlers execute use cases after configured Behaviors.
+
+Feature Services coordinate Application and Infrastructure through abstractions.
+
+Repository contracts are database-agnostic and storage-provider-agnostic.
+
+Repository implementations are Infrastructure-only.
+
+## Global source formatting
+
+- One C# instruction or method call per source line.
+- One logical statement per source line.
+- One Razor directive per line.
+- One HTML or Razor component invocation per line when it has attributes or child content.
+- Keep executable Razor expressions and event callbacks independently readable.
+- Apply these rules to production code, tests, generated templates, and Razor UI.
 
 ## Stage 07 — Plugin Persistence Compatibility
 
@@ -48,15 +119,13 @@ Stage 08 introduces the first host-owned commercial domain while preserving the 
 
 The catalog owns `Product`, `ProductVariant`, `Category`, `Brand`, `Tag`, `ProductAttribute`, `ProductAttributeValue`, metadata, product media references, and relationship entities. Product types are `Simple`, `Variable`, `Virtual`, and `Downloadable`; lifecycle states include `Draft`, `Published`, and `Archived`.
 
-SKUs and taxonomy slugs use database uniqueness constraints. Category hierarchy uses a self-referencing parent relationship with restrictive deletes. Product media stores only a media-provider reference and never binary image content.
-
 ### Application and persistence
 
-Catalog mutations and queries use MediatR 12.5.0 and FluentValidation. Queries are projected into application models and product collections are bounded to a maximum page size of 100. The catalog uses the existing `CommerceDbContext`, database provider strategy, soft-delete contract, and operation-history boundary; no catalog-specific provider is introduced.
+Catalog mutations and queries use MediatR 12.5.0 and FluentValidation. Queries are projected into application Results and product collections are bounded to a maximum page size of 100. The catalog uses the existing `CommerceDbContext`, database provider strategy, soft-delete contract, and operation-history boundary; no catalog-specific provider is introduced.
 
 ### REST API
 
-RemoteCommerce-owned catalog resources use `/api/rc/v1`. Product listing supports pagination, search, status, brand, SKU and product-type filtering. Administrative mutations require the existing Administrator authorization policy. Plugin APIs continue using `/api/rp/v1`.
+RemoteCommerce-owned catalog resources use `/api/rc/v1`. Product listing supports pagination and the implemented product filters. Administrative mutations require the existing Administrator authorization policy. Plugin APIs continue using `/api/rp/v1`.
 
 ### Administration UI
 
@@ -64,9 +133,13 @@ Catalog administration is available under `/admin/catalog/products`, with taxono
 
 ### Theme and menu contracts
 
-The administration surface now has a `IThemeProvider`/`ThemeDefinition` presentation boundary and an `IMenuProvider`/`IMenuContributor` menu composition boundary. MudBlazor remains an internal component library, not the theme contract. The stable plugin SDK also exposes `IRemoteCommercePluginMenuContributor`; installed plugins can contribute menu items without changing host navigation code. Disabled or failed plugins are not activated and therefore do not contribute runtime menu services.
+The administration surface has a presentation theme boundary and a dynamic menu composition boundary. MudBlazor remains an internal component library, not the theme contract. The stable plugin SDK can contribute menu items without changing host navigation code.
 
-### Exit condition
+### Architectural exit condition
+
+Stage 08 is not considered architecturally complete until the implementation follows the global Domain/Application/Infrastructure boundaries, canonical Application feature layout, canonical data flow, and global source formatting rules.
+
+### Validation exit condition
 
 The Stage 08 PR must pass repository build, test, pack, and CI validation before being marked ready. It remains draft until manually validated by the repository owner.
 
