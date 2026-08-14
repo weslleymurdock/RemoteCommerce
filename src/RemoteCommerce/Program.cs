@@ -22,7 +22,7 @@ builder.Services.AddMudServices();
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 builder.Services.AddSingleton<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddSingleton<DatabaseProviderResolver>();
-builder.Services.AddSingleton<IDatabaseProvider>(
+builder.Services.AddSingleton<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>(
     services => services.GetRequiredService<DatabaseProviderResolver>().Resolve());
 builder.Services.AddScoped<IDatabaseReplicationProvider, SqlServerReplicationProvider>();
 builder.Services.AddSingleton<DatabaseSetupStateStore>();
@@ -33,7 +33,7 @@ builder.Services.AddScoped<IMediaStorageProvider>(
 builder.Services.AddHostedService<ProviderConfigurationValidationService>();
 builder.Services.AddDbContextFactory<CommerceDbContext>(
     (services, options) => options.UseSqlServer(
-        services.GetRequiredService<IDatabaseProvider>().GetConnectionString(DatabaseEndpoint.Primary)));
+        services.GetRequiredService<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>().GetConnectionString(DatabaseEndpoint.Primary)));
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
 {
@@ -222,109 +222,51 @@ builder.Services.AddMediatR(configuration =>
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 var adminNavigation = new AdminNavigationRegistry();
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Dashboard",
-        "/admin",
-        Icons.Material.Filled.Dashboard,
-        0));
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Site settings",
-        "/admin/settings",
-        Icons.Material.Filled.Settings,
-        10));
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Users",
-        "/admin/users",
-        Icons.Material.Filled.People,
-        20));
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Roles & permissions",
-        "/admin/roles",
-        Icons.Material.Filled.Security,
-        30));
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Localization",
-        "/admin/localization",
-        Icons.Material.Filled.Translate,
-        40));
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Security & configuration",
-        "/admin/security",
-        Icons.Material.Filled.Lock,
-        50));
-adminNavigation.Register(
-    new AdminNavigationItem(
-        "Plugins",
-        "/admin/plugins",
-        Icons.Material.Filled.Extension,
-        60));
+adminNavigation.Register(new AdminNavigationItem("Dashboard", "/admin", Icons.Material.Filled.Dashboard, 0));
+adminNavigation.Register(new AdminNavigationItem("Site settings", "/admin/settings", Icons.Material.Filled.Settings, 10));
+adminNavigation.Register(new AdminNavigationItem("Users", "/admin/users", Icons.Material.Filled.People, 20));
+adminNavigation.Register(new AdminNavigationItem("Roles & permissions", "/admin/roles", Icons.Material.Filled.Security, 30));
+adminNavigation.Register(new AdminNavigationItem("Localization", "/admin/localization", Icons.Material.Filled.Translate, 40));
+adminNavigation.Register(new AdminNavigationItem("Security & configuration", "/admin/security", Icons.Material.Filled.Lock, 50));
+adminNavigation.Register(new AdminNavigationItem("Plugins", "/admin/plugins", Icons.Material.Filled.Extension, 60));
 builder.Services.AddSingleton<IAdminNavigationRegistry>(adminNavigation);
 
-var pluginsRoot = Path.Combine(
-    builder.Environment.ContentRootPath,
-    "App_Data",
-    "plugins");
-builder.Services.AddInstalledRemoteCommercePlugins(
-    pluginsRoot,
-    builder.Configuration);
+var pluginsRoot = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins");
+builder.Services.AddInstalledRemoteCommercePlugins(pluginsRoot, builder.Configuration);
 
 var app = builder.Build();
 app.UseExceptionHandler();
-
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
 }
-
 app.MapOpenApi("o/{v1}.json");
-
 if (!app.Environment.IsProduction())
 {
-    app.MapScalarApiReference(
-        "s/rc",
-        configuration => configuration
-            .WithTitle($"[{app.Environment.EnvironmentName}] RemoteCommerce API Reference")
-            .WithOpenApiRoutePattern("/o/{documentName}.json")
-            .WithTheme(ScalarTheme.Purple));
+    app.MapScalarApiReference("s/rc", configuration => configuration
+        .WithTitle($"[{app.Environment.EnvironmentName}] RemoteCommerce API Reference")
+        .WithOpenApiRoutePattern("/o/{documentName}.json")
+        .WithTheme(ScalarTheme.Purple));
 }
-
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseRequestLocalization(
-    new RequestLocalizationOptions
-    {
-        DefaultRequestCulture = new RequestCulture("pt-BR"),
-        SupportedCultures =
-        [
-            new CultureInfo("en-US"),
-            new CultureInfo("pt-BR")
-        ],
-        SupportedUICultures =
-        [
-            new CultureInfo("en-US"),
-            new CultureInfo("pt-BR")
-        ],
-        RequestCultureProviders =
-        [
-            new QueryStringRequestCultureProvider(),
-            new CookieRequestCultureProvider(),
-            new AcceptLanguageHeaderRequestCultureProvider(),
-            new SiteSettingsRequestCultureProvider(
-                app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())
-        ]
-    });
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture("pt-BR"),
+    SupportedCultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
+    SupportedUICultures = [new CultureInfo("en-US"), new CultureInfo("pt-BR")],
+    RequestCultureProviders =
+    [
+        new QueryStringRequestCultureProvider(),
+        new CookieRequestCultureProvider(),
+        new AcceptLanguageHeaderRequestCultureProvider(),
+        new SiteSettingsRequestCultureProvider(app.Services.GetRequiredService<IDbContextFactory<CommerceDbContext>>())
+    ]
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapControllers();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 await app.RunAsync();
