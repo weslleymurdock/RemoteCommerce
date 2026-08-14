@@ -161,24 +161,24 @@ public sealed class PluginLoader(
 
     private void ApplyMigrations(PluginPersistenceBuilder builder, PluginManifest manifest)
     {
-        var descriptors = builder.GetDescriptors();
-        foreach (var descriptor in descriptors)
+        foreach (var descriptor in builder.GetDescriptors())
         {
             logger.LogInformation(
                 "Initializing persistence for plugin {PluginId} using {DbContextType}.",
                 manifest.Id,
                 descriptor.DbContextType.FullName);
-            InvokeMigration(descriptor.DbContextType, descriptor.MigrationsAssembly);
+            InvokeMigration(descriptor.DbContextType, descriptor.MigrationsAssembly).GetAwaiter().GetResult();
         }
     }
 
-    private void InvokeMigration(Type dbContextType, string? migrationsAssembly)
+    private Task InvokeMigration(Type dbContextType, string? migrationsAssembly)
     {
         var method = typeof(PluginLoader)
             .GetMethod(nameof(MigrateDbContext), BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Plugin migration method could not be located.");
         var genericMethod = method.MakeGenericMethod(dbContextType);
-        genericMethod.Invoke(this, [migrationsAssembly]);
+        return (Task)(genericMethod.Invoke(this, [migrationsAssembly])
+            ?? throw new InvalidOperationException("Plugin migration could not be started."));
     }
 
     private async Task MigrateDbContext<TDbContext>(string? migrationsAssembly)
