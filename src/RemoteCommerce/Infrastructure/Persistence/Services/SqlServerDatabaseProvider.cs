@@ -5,7 +5,7 @@ namespace RemoteCommerce.Infrastructure.Persistence.Services;
 /// <param name="secretProvider">The deployment secret boundary used to resolve connection strings.</param>
 public sealed class SqlServerDatabaseProvider(
     IConfiguration configuration,
-    ISecretProvider secretProvider) : IDatabaseProvider
+    ISecretProvider secretProvider) : RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider
 {
     private const string LocalDbConnectionString =
         "Server=(localdb)\\MSSQLLocalDB;Database=RemoteCommerce;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=True";
