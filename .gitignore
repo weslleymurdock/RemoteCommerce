@@ -4,8 +4,10 @@ obj/
 .vs/
 *.user
 *.suo
+workload-install.ps1
 
 ## Local application data
+src/RemoteCommerce/App_Data/logs/*/
 src/RemoteCommerce/App_Data/plugins/*/
 src/RemoteCommerce/App_Data/*.db
 
