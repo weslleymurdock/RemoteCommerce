@@ -1,8 +1,6 @@
 namespace RemoteCommerce.Domain.Site.Entities;
 
-/// <summary>
-/// Stores editable application-level settings for the current store.
-/// </summary>
+/// <summary>Stores editable application-level settings for the current store.</summary>
 public sealed class SiteSettings : RemoteCommerce.Domain.Shared.Abstractions.ISoftDeletable
 {
     /// <summary>Gets the singleton settings identifier.</summary>
@@ -29,6 +27,12 @@ public sealed class SiteSettings : RemoteCommerce.Domain.Shared.Abstractions.ISo
     /// <summary>Gets or sets the UTC timestamp of the last administrative update.</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <inheritdoc />
+    /// <summary>Gets or sets whether the settings record has been soft-deleted.</summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>Gets or sets the UTC timestamp at which the settings record was soft-deleted.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Gets or sets whether the settings record is disabled.</summary>
     public bool IsDisabled { get; set; }
 }

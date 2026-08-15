@@ -7,7 +7,7 @@ public sealed class Stage05FoundationTests
     {
         await using var db = CreateDbContext();
         var service = CreateSiteSettingsService(db);
-        var settings = await service.GetAsync();
+        var settings = await service.GetAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("RemoteCommerce", settings.SiteName);
         Assert.Equal("en-US", settings.Culture);
@@ -195,7 +195,10 @@ public sealed class Stage05FoundationTests
     {
         await using var database = await CreateRelationalDatabaseAsync();
         var db = database.Db;
-        var behavior = new TransactionalBehavior<FailingCommand, Unit>(db);
+        var logger = NullLogger<TransactionalBehavior<FailingCommand, Unit>>.Instance;
+        var behavior = new TransactionalBehavior<FailingCommand, Unit>(
+            db,
+            logger);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => behavior.Handle(
@@ -289,7 +292,9 @@ public sealed class Stage05FoundationTests
         var user = new ApplicationUser
         {
             UserName = "admin@example.test",
+            NormalizedUserName = "ADMIN@EXAMPLE.TEST",
             Email = "admin@example.test",
+            NormalizedEmail = "ADMIN@EXAMPLE.TEST",
             DisplayName = "Admin",
             PasswordHash = "secret-hash"
         };
@@ -358,7 +363,7 @@ public sealed class Stage05FoundationTests
             .Options;
         var db = new CommerceDbContext(options, new TestApplicationContext());
         await db.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE SiteSettings (Id INTEGER NOT NULL PRIMARY KEY, SiteName TEXT NOT NULL, SiteDescription TEXT NOT NULL, PublicUrl TEXT NOT NULL, TimeZone TEXT NOT NULL, Culture TEXT NOT NULL, Locale TEXT NOT NULL, UpdatedAt TEXT NOT NULL, IsDisabled INTEGER NOT NULL DEFAULT 0, DeletedAt TEXT NULL);",
+            "CREATE TABLE SiteSettings (Id INTEGER NOT NULL PRIMARY KEY, SiteName TEXT NOT NULL, SiteDescription TEXT NOT NULL, PublicUrl TEXT NOT NULL, TimeZone TEXT NOT NULL, Culture TEXT NOT NULL, Locale TEXT NOT NULL, UpdatedAt TEXT NOT NULL, IsDisabled INTEGER NOT NULL DEFAULT 0, IsDeleted INTEGER NOT NULL DEFAULT 0, DeletedAt TEXT NULL);",
             TestContext.Current.CancellationToken);
         return new TestDatabase(db, connection);
     }
@@ -376,38 +381,4 @@ public sealed class Stage05FoundationTests
             await connection.DisposeAsync();
         }
     }
-
-    private sealed class TestDbContextFactory(CommerceDbContext db) : IDbContextFactory<CommerceDbContext>
-    {
-        public CommerceDbContext CreateDbContext()
-            => db;
-
-        public Task<CommerceDbContext> CreateDbContextAsync(
-            CancellationToken cancellationToken = default)
-            => Task.FromResult(db);
-    }
-
-    private sealed class TestApplicationContext : IApplicationContext
-    {
-        public Guid? UserId => Guid.Parse("11111111-1111-1111-1111-111111111111");
-        public string Actor => "test-user";
-        public string CorrelationId => "test-correlation";
-        public string? IpAddress => "127.0.0.1";
-    }
 }
-
-public sealed record PingQuery(string Value) : IQuery<string>;
-
-public sealed class PingQueryValidator : AbstractValidator<PingQuery>
-{
-    public PingQueryValidator()
-        => RuleFor(x => x.Value).NotEmpty();
-}
-
-public sealed class PingQueryHandler : IRequestHandler<PingQuery, string>
-{
-    public Task<string> Handle(PingQuery request, CancellationToken cancellationToken)
-        => Task.FromResult(request.Value);
-}
-
-internal sealed record FailingCommand : ITransactionalCommand;

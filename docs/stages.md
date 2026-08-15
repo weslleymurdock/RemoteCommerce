@@ -21,146 +21,112 @@ Stages are sequential. Only one stage may be active/open as a PR at a time, and 
 15. Runtime Plugin Hot Reload
 16. Production Readiness
 
-## Global rules
+## Global architectural rules
 
-- .NET 10 and repository-approved package versions are used.
-- Public APIs receive complete en-US XML documentation.
-- C# imports live in `GlobalUsings.cs`; Razor imports live in `_Imports.razor`.
+- .NET 10 and repository-approved package versions are mandatory.
+- Public APIs require complete en-US XML documentation.
+- C# imports live in GlobalUsings.cs; Razor imports live in _Imports.razor.
 - MediatR 12.5.0 is mandatory for application commands, queries, notifications, and behaviors.
 - FluentValidation runs through the validation behavior.
 - Mutating persistence uses the transactional behavior.
-- Mutable persistence uses soft-delete and operation history.
-- Exactly one Stage branch and one PR may be open; PRs are not merged unless explicitly requested.
+- Mutable persistence uses shared soft-delete and operation-history mechanisms.
+- Exactly one active Stage branch and one open PR are allowed; PRs are not merged unless explicitly requested.
+- Domain, Application, Infrastructure, Presentation, and Plugin Runtime remain logical boundaries inside the current host project.
 
-## Stage 01 — Foundation
+## Future shared class library
 
-Established the .NET 10 host, Blazor Server UI, ASP.NET Core controllers, EF Core foundation, MudBlazor, plugin abstractions, and repository conventions.
+The former plan to extract Domain, Application, and Infrastructure into three class libraries is retired.
 
-**Exit condition:** host foundation builds and supports later stages.
+The only future shared assembly is `RemoteCommerce.Abstractions`, located at `src/RemoteCommerce.Abstractions`, with `RootNamespace=RemoteCommerce`.
 
-## Stage 02 — Plugin Runtime
+It contains only non-concrete contracts and models and preserves the logical namespaces already used by the host. It must not contain concrete persistence, storage, ASP.NET Core, Blazor, MudBlazor, or plugin runtime implementations.
 
-Implemented plugin discovery, restart-based activation, DI registration, controller application parts, plugin Razor routing, dependencies, lifecycle state, and `/api/rp/v1` plugin APIs.
+Concrete Domain, Application, and Infrastructure implementations remain in the host unless a future explicit refactoring changes that decision.
 
-**Exit condition:** installed plugins load after restart and can expose services, controllers, and Razor pages.
+## Global Application feature structure
 
-## Stage 03 — NuGet Plugin Packaging and Template Tooling
+Every Application feature uses:
 
-Implemented the `dotnet` plugin template tool, resource-based templates, `.nupkg` layout, README/LICENSE/manifest packaging, and independently buildable generated plugins.
+```text
+src/Application/Feature/
+├── Abstractions/
+├── Commands/
+├── Handlers/
+├── Queries/
+├── Requests/
+├── Resources/
+├── Results/
+└── Validators/
+```
 
-**Exit condition:** generated plugins build and pack as installable packages.
+Current host equivalent: `src/RemoteCommerce/Application/Feature/...`.
 
-## Stage 04 — Host Installation and Administration
+## Global data flow
 
-Implemented package upload/validation, installation/update/enable/disable/uninstall, dependency validation, retained versions, lifecycle diagnostics, integrity hashing, restart orchestration, and the plugin administration UI.
+`Controllers(Requests) -> MediatR Commands/Queries -> Behaviors -> Feature Services -> Repository<T> -> DbContext|StorageProvider`.
 
-**Exit condition:** administrators can manage plugins without mutating the root DI container after build.
+Controllers never receive Commands/Queries from transport binding. Commands/Queries receive their corresponding Request instance and map Request values into use-case data. Handlers return `Result` or `Result<T>`.
 
-## Stage 05 — Site, Identity, Configuration, Secrets, and Localization Foundation
+Applicable flow layers log exceptions and rethrow. The global exception handler owns HTTP translation to Problem Details and status codes.
 
-Implemented site configuration, Identity-backed authentication, JWT/refresh sessions, authorization policies, secret-provider boundary, localization resources, MediatR 12.5.0 pipeline behaviors, soft-delete, and operation history.
+## Global source formatting
 
-**Exit condition:** the application can be configured and administered through authenticated UI/API flows with transactional persistence and reusable security/persistence boundaries.
-
-## Stage 06 — Database Provider Strategy and Media Storage
-
-Implemented `IDatabaseProvider`, `DatabaseTopology`, SQL Server provider selection, primary/replica setup boundaries, `ISecretProvider` connection-string resolution, provider-aware design-time persistence, filesystem media storage, and MongoDB/GridFS media storage.
-
-**Exit condition:** the host selects database/media technology through stable contracts without leaking provider-specific APIs into Application/domain boundaries.
+- One C# instruction or method call per source line.
+- One logical statement per line.
+- One Razor directive per line.
+- One HTML/Razor component invocation per line when attributes or child content exist.
+- Keep executable Razor expressions and callbacks independently readable.
 
 ## Stage 07 — Plugin Persistence Compatibility
 
-**Status: implementation in Draft PR #9; build and automated tests have passed after CI fixes. Final packaging/runtime validation is being completed in this PR.**
+**Status: integrated in main.**
 
-### Persistence contract
-
-- Added `IRemoteCommercePluginPersistence` and `IPluginPersistenceBuilder`.
-- Plugins may own a `DbContext`, entities, EF configurations, and migrations in the plugin assembly.
-- Plugins never receive `CommerceDbContext` or arbitrary connection strings.
-- Provider selection remains host-owned through `IDatabaseProvider` and `DatabaseTopology`.
-- Plugin schema names are deterministic and derived from stable plugin IDs.
-- Plugin migration history is isolated by plugin schema.
-- Plugin contexts can participate in the active relational transaction when the current store database supports it.
-- Plugin entities can participate in the reusable soft-delete and operation-history infrastructure.
-- EF compatibility continues to use the existing manifest `efCoreVersion` field.
-- Package validation remains metadata-only and does not execute migrations or plugin code.
-
-### Lifecycle and migration behavior
-
-```text
-install/update
-    ↓
-package + manifest + EF compatibility validation
-    ↓
-persist installation
-    ↓
-restart
-    ↓
-plugin activation
-    ↓
-discover PluginDbContext + migrations
-    ↓
-apply pending migrations
-    ↓
-Loaded
-```
-
-Migration failure leaves the plugin inactive, persists lifecycle diagnostics, and can be retried after restart. Uninstall does not delete plugin data; purge remains a separate future administrative operation.
-
-### Reference plugins used for validation
-
-- **RemoteSEO** — deterministic SEO analysis for rendered page/product representations, persisted per store, with `/api/rp/v1/remote-seo` and `/remote-seo`.
-- **RemoteAdSense** — public AdSense placement metadata, markup contract, storefront integration, `/api/rp/v1/remote-adsense`, and `/remote-adsense`.
-- **RemoteVisitors** — anonymous visitor identity, thirty-minute visit sessions, individual access tracking, aggregate statistics, `/api/rp/v1/remote-visitors`, and `/remote-visitors`.
-
-All three reference plugins own their EF context and migration assembly and declare `efCoreVersion: 10.0`.
-
-### Operational validation surface
-
-Added an administrator-only `/admin/logs` viewer backed by structured file logging. Every application record begins with:
-
-`[DATETIME][LEVEL][NAMESPACE.CLASS][MESSAGE]`
-
-Visitor tracking is failure-tolerant and does not block storefront navigation. AdSense integration uses public placement metadata and never stores secrets.
-
-### CI/package validation
-
-The plugin solution builds Sample, RemoteSEO, RemoteAdSense, and RemoteVisitors. CI packs all four plugin packages and validates their `.nupkg` artifacts while preserving the existing test reporter and coverage summary steps.
-
-**Exit condition:** persistence-capable and non-persistent plugins remain installable, provider-independent, migration-capable, transaction-compatible, soft-delete/history-compatible, and package-valid, with the three reference plugins exercising the persistence boundary and the application log viewer providing an operational validation surface.
+Stage 07 established provider-independent plugin persistence, restart-based activation, plugin-owned EF contexts/migrations, reusable soft-delete/history, and persistence-capable reference plugins. Plugin APIs remain under `/api/rp/v1`.
 
 ## Stage 08 — Product Catalog
 
-Reserved for product/catalog domain implementation. Not implemented by Stage 07.
+**Status: implementation in Draft PR #11.**
+
+Stage 08 introduces Product, ProductVariant, Category, Brand, Tag, ProductAttribute, ProductAttributeValue, ProductMetadata, product media references, catalog REST API, administration UI, dynamic menus, and theme contracts.
+
+Catalog persistence uses the existing provider strategy and CommerceDbContext. Media remains provider-independent through IMediaStorageProvider. Catalog uses shared soft-delete and operation history.
+
+RemoteCommerce catalog endpoints use `/api/rc/v1`. Plugin APIs remain `/api/rp/v1`.
+
+The administration UI uses theme/presentation abstractions and dynamic menu contributions. MudBlazor is an internal component library, not the theming contract.
+
+Stage 08 is architecturally complete only when the canonical feature layout, request/command/query/result flow, provider-independent repository boundary, shared abstractions direction, formatting rules, and plugin compatibility are satisfied.
+
+Validation requires build, test, pack, and green CI. The PR remains draft until repository-owner validation.
 
 ## Stage 09 — Customers, Cart, and Checkout
 
-Reserved. Not implemented by Stage 07.
+Reserved.
 
 ## Stage 10 — Orders and Payments
 
-Reserved. Not implemented by Stage 07.
+Reserved.
 
 ## Stage 11 — Shipping, Taxes, and Store Operations
 
-Reserved. Not implemented by Stage 07.
+Reserved.
 
 ## Stage 12 — WooCommerce-Compatible REST API
 
-Reserved. `/api/rc/v1` remains unused by Stage 07.
+Reserved for broader WooCommerce-compatible resources. `/api/rc/v1` is already established by Stage 08 for RemoteCommerce-owned catalog resources.
 
 ## Stage 13 — Storefront and Theme/Extension Model
 
-Reserved. Stage 07 does not implement storefront themes or extension contracts.
+Reserved for storefront rendering and broader theme/extension capabilities. Stage 08 only establishes reusable presentation contracts needed by the administration UI.
 
 ## Stage 14 — Multi-Store Federation
 
-Reserved. Stage 07 preserves one application instance = one store = one exclusive database.
+Reserved.
 
 ## Stage 15 — Runtime Plugin Hot Reload
 
-Reserved. Stage 07 continues to require restart-based activation.
+Reserved. Plugin activation remains restart-based until this stage.
 
 ## Stage 16 — Production Readiness
 
-Reserved for future production hardening and operational requirements.
+Reserved.

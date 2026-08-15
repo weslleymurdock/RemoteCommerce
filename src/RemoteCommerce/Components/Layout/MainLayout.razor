@@ -1,27 +1,54 @@
 @inherits LayoutComponentBase
+@inject IMenuProvider MenuProvider
+@inject IThemeProvider ThemeProvider
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILocalizer Localizer
 
 <MudThemeProvider />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
+<MudLayout Class="@ThemeClass">
     <MudAppBar Elevation="1">
         <MudText Typo="Typo.h6">RemoteCommerce</MudText>
         <MudSpacer />
-        <MudText Typo="Typo.body2" Class="mr-4">Administration</MudText>
+        <MudText Typo="Typo.body2" Class="mr-4">@Get("Admin.Administration")</MudText>
     </MudAppBar>
-
     <MudDrawer Open="true" Elevation="2">
         <MudNavMenu Class="pa-3">
-            @foreach (var item in AdminNavigation.GetItems())
+            @foreach (var item in RootItems)
             {
-                <MudNavLink Href="@item.Href" Match="@(item.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)" Icon="@item.Icon">@item.Title</MudNavLink>
+                var children = MenuItems.Where(x => x.ParentId == item.Id).OrderBy(x => x.Order).ToArray();
+                if (children.Length == 0)
+                {
+                    <MudNavLink Href="@item.Route" Match="NavLinkMatch.Prefix" Icon="@item.Icon">@Get(item.LabelResourceKey)</MudNavLink>
+                }
+                else
+                {
+                    <MudNavGroup Title="@Get(item.LabelResourceKey)" Icon="@item.Icon" Expanded="@IsExpanded(item)">
+                        @foreach (var child in children)
+                        {
+                            <MudNavLink Href="@child.Route" Match="NavLinkMatch.Prefix" Icon="@child.Icon">@Get(child.LabelResourceKey)</MudNavLink>
+                        }
+                    </MudNavGroup>
+                }
             }
         </MudNavMenu>
     </MudDrawer>
-
-    <MudMainContent Class="pa-6">
-        @Body
-    </MudMainContent>
+    <MudMainContent Class="pa-6">@Body</MudMainContent>
 </MudLayout>
+
+@code {
+    private IReadOnlyList<MenuItemDefinition> MenuItems = Array.Empty<MenuItemDefinition>();
+    private string ThemeClass => $"rc-theme-{ThemeProvider.Current.Id}";
+    private IEnumerable<MenuItemDefinition> RootItems => MenuItems.Where(x => x.ParentId is null).OrderBy(x => x.Order);
+    private string Get(string key) => Localizer.Get<CatalogResources>(key);
+    private static bool IsExpanded(MenuItemDefinition item) => item.Id == "catalog";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        MenuItems = MenuProvider.GetItems(state.User);
+    }
+}

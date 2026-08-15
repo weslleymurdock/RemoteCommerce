@@ -46,7 +46,10 @@ public sealed class MediaUpload
     /// <param name="fileName">The client-supplied file name.</param>
     /// <param name="contentType">The media content type.</param>
     /// <param name="content">The readable content stream.</param>
-    public MediaUpload(string fileName, string contentType, Stream content)
+    public MediaUpload(
+        string fileName,
+        string contentType,
+        Stream content)
     {
         FileName = fileName;
         ContentType = contentType;
@@ -69,7 +72,9 @@ public sealed class MediaObject : IAsyncDisposable
     /// <summary>Initializes a media object.</summary>
     /// <param name="descriptor">The object metadata.</param>
     /// <param name="content">The readable content stream.</param>
-    public MediaObject(MediaObjectDescriptor descriptor, Stream content)
+    public MediaObject(
+        MediaObjectDescriptor descriptor,
+        Stream content)
     {
         Descriptor = descriptor ?? throw new ArgumentNullException(nameof(descriptor));
         Content = content ?? throw new ArgumentNullException(nameof(content));

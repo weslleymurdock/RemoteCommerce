@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
@@ -19,6 +19,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="MongoDB.Driver" />
     <PackageReference Include="MudBlazor" />
+    <ProjectReference Include="../RemoteCommerce.Abstractions/RemoteCommerce.Abstractions.csproj" />
     <ProjectReference Include="../RemoteCommerce.Plugin.Abstractions/RemoteCommerce.Plugin.Abstractions.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
@@ -27,7 +28,13 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Infrastructure\Persistence\Migrations\" />
-  </ItemGroup>
+  <Target Name="AddMigration">
+    <PropertyGroup>
+      <MigrationName>$(Name)</MigrationName>
+    </PropertyGroup>
+
+    <Error Condition="'$(MigrationName)' == ''" Text="Missing migration name. Example: dotnet build -t:AddMigration &quot;-p:Name=MyMigration&quot;" />
+
+    <Exec Command="dotnet ef migrations add $(MigrationName) --output-dir Infrastructure\Persistence\Migrations" />
+  </Target>
 </Project>

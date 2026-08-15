@@ -1,127 +1,125 @@
 # Architecture
 
-RemoteCommerce is a .NET 10 ASP.NET Core application with Interactive Server Blazor, EF Core persistence, MediatR application workflows, MudBlazor administration, and a restart-based runtime plugin model.
+RemoteCommerce is a .NET 10 ASP.NET Core application with Interactive Server Blazor, EF Core persistence, MediatR application workflows, MudBlazor administration, and a restart-based plugin model.
 
-## Host boundaries
+## Architectural boundaries
 
-```text
-RemoteCommerce
-├── Components/                 Blazor UI and administration
-├── Application/                commands, queries, validators, contracts
-├── Domain/                     host-owned domain models
-├── Infrastructure/
-│   ├── Persistence/            EF Core, provider strategy, history, soft-delete
-│   ├── Logging/                structured application file logging
-│   ├── Media/                  filesystem and MongoDB/GridFS providers
-│   └── Security/               JWT/secret boundaries
-├── Plugins/                    runtime loading, lifecycle, persistence orchestration
-└── Plugin.Abstractions/        stable SDK contract consumed by plugins
-```
+The repository is currently a single host project. Domain, Application, Infrastructure, Presentation, and Plugin Runtime are explicit logical boundaries inside that host.
 
-The host owns `CommerceDbContext`, `IDatabaseProvider`, `DatabaseTopology`, `ISecretProvider`, `TransactionalBehavior`, and host operation history. A plugin never receives `CommerceDbContext`, arbitrary connection strings, `SqlConnection`, `SqlCommand`, MongoDB types, or provider-specific infrastructure contracts.
+- Domain contains business entities and rules and has no dependency on Application or Infrastructure.
+- Application contains feature use cases and abstractions and does not depend on concrete Infrastructure implementations.
+- Infrastructure owns EF Core, DbContexts, repositories, storage providers, provider strategy, and external integrations.
+- UI/Presentation is an adapter and must not access EF Core or storage providers directly.
 
-## Application pipeline
+## Future shared assembly
 
-Commands and queries use MediatR 12.5.0. Controllers are HTTP adapters and dispatch application work through MediatR. FluentValidation executes through `ValidationBehavior`. `LoggingBehavior` supplies application request diagnostics and `TransactionalBehavior` owns write transactions. A command that mutates persistence either commits all participating relational changes or rolls them back.
+The previous plan to extract Domain, Application, and Infrastructure into three class libraries is retired.
 
-## Database provider strategy
-
-`IDatabaseProvider` is the stable Application persistence contract. Infrastructure selects the implementation through `DatabaseProviderResolver`. SQL Server is the initial provider. `DatabaseTopology.Single` represents one writable store database and `PrimaryReplica` represents one writable primary plus provider-defined replicas.
-
-Connection strings are deployment secrets resolved through `ISecretProvider`. Plugins consume provider configuration indirectly through `IPluginPersistenceBuilder`; they cannot select another store database or supply arbitrary connection strings.
-
-## Plugin persistence
-
-Plugin persistence is deliberately separate from host persistence:
+The only future shared class library is:
 
 ```text
-PluginEntry
-    │
-    └── IRemoteCommercePluginPersistence
-             │
-             ▼
-      IPluginPersistenceBuilder
-             │
-             ▼
-        PluginDbContext
-             │
-             ▼
-      IDatabaseProvider
-             │
-             ▼
-   current store database
+src/RemoteCommerce.Abstractions/
+└── RemoteCommerce.Abstractions.csproj
+    RootNamespace = RemoteCommerce
 ```
 
-A persistence-capable plugin owns its `DbContext`, entities, EF configurations, and migrations in its own assembly. The host only receives the context type and migration assembly through the provider-independent abstraction.
+Its purpose is to hold reusable non-concrete code: contracts, interfaces, request/result models, DTOs, enums, and other boundary-neutral models.
 
-The stable plugin identifier determines the relational schema. For example `remote_seo` maps to `rc_plugin_remote_seo`. Display names are never used to derive database identifiers. Plugin migration history uses the same deterministic schema and the host-selected provider.
+It must not contain concrete implementations or references to EF Core, DbContext, SQL/MongoDB/filesystem providers, ASP.NET Core concrete services, Blazor, MudBlazor, or plugin runtime implementation details.
 
-The host applies provider configuration when creating a plugin context. SQL Server configuration is not copied into plugin projects. Future relational providers can implement the same `IDatabaseProvider` contract without changing plugin code.
+The class library preserves the same logical namespace architecture used by the current host. A file can therefore retain namespaces such as `RemoteCommerce.Application.Persistence.Abstractions` while physically living in `RemoteCommerce.Abstractions`.
 
-When a host `CommerceDbContext` transaction is active, the runtime can attach the plugin context to the same relational transaction. This is limited to the current store database and does not create distributed transactions. Cross-database atomicity is not promised.
+The host continues to own concrete Domain, Application, Infrastructure, Presentation, and Plugin Runtime implementations. No additional implementation assemblies are implied by this rule.
 
-Plugin mutation entities can implement `IPluginSoftDeletable`. The runtime persistence infrastructure applies the same soft-delete policy used by the host, and plugin contexts use query filters to exclude disabled records.
+## Application feature layout
 
-Plugin changes participate in the reusable operation-history interceptor. History is associated with the plugin identity and records entity, operation, previous/new state, actor, correlation/request context, and UTC timestamp with sensitive values redacted.
-
-## Plugin lifecycle and migrations
-
-Installation follows:
+Every Application feature must organize its artifacts under the following canonical structure:
 
 ```text
-upload → package validation → manifest validation → compatibility validation
-       → persist installation → restart → activation
-       → persistence initialization/migration → Loaded
+src/Application/Feature/
+├── Abstractions/
+├── Commands/
+├── Handlers/
+├── Queries/
+├── Requests/
+├── Resources/
+├── Results/
+└── Validators/
 ```
 
-Package validation is metadata-only. It never instantiates plugin code, creates a `DbContext`, or executes migrations.
+The current host path is `src/RemoteCommerce/Application/Feature/...`.
 
-During activation, the runtime discovers `IRemoteCommercePluginPersistence`, configures the declared context, discovers migrations from the plugin assembly, and applies pending migrations. Migration failure persists lifecycle diagnostics and prevents the plugin from reaching `Loaded`; restart provides a retry path. Uninstall removes runtime/package state but does not purge plugin data. Destructive purge is intentionally outside normal uninstall.
+A feature must not introduce feature-local `Services`, `Models`, `Dtos`, `Contracts`, `Controllers`, or alternative command/query folders. Concrete feature services belong in the corresponding Infrastructure feature boundary; non-concrete contracts/models belong in `Abstractions`, `Requests`, `Results`, or `Resources` according to their role.
 
-Plugin EF compatibility uses the existing `plugin.manifest.json` `efCoreVersion` field. Plugins without persistence leave this field null and continue to work. Persisted plugins declare the supported EF Core major/minor version and are rejected when incompatible.
+Domain features remain under `src/RemoteCommerce/Domain/<Feature>` and Infrastructure features under `src/RemoteCommerce/Infrastructure/<Feature>`.
 
-## Plugin packaging
-
-A plugin package contains `plugin.manifest.json`, README/LICENSE, the `lib/net10.0` entry assembly, and required dependencies. Database files, connection strings, and secrets are never packaged.
-
-`RemoteCommerce.Plugins.slnx` builds the sample plugin plus the three Stage 07 reference plugins. CI also packs all four and validates their `.nupkg` artifacts. The template continues to support both non-persistent and persistence-capable generated plugins.
-
-## Stage 07 reference plugins
-
-### RemoteSEO
-
-`RemoteSEO` analyzes rendered page/product representations using route, title, meta description, canonical URL, and content. It calculates a deterministic score, records recommendations, and persists each analysis in `rc_plugin_remote_seo`. Its API is `/api/rp/v1/remote-seo/analyze` and its interactive plugin page is `/remote-seo`.
-
-### RemoteAdSense
-
-`RemoteAdSense` stores public Google AdSense placement metadata, never publisher secrets. It provides placement management and render-markup endpoints under `/api/rp/v1/remote-adsense`. The storefront integration script loads configured public placement metadata and Google AdSense client script only when placements exist. Its interactive plugin page is `/remote-adsense`.
-
-### RemoteVisitors
-
-`RemoteVisitors` distinguishes three concepts: a **visitor** is a long-lived anonymous browser identity, a **visit** is a session separated by thirty minutes of inactivity, and an **access** is an individual tracked request/page access. Network information is hashed before persistence. It exposes tracking and aggregate statistics under `/api/rp/v1/remote-visitors`, persists data in `rc_plugin_remote_visitors`, and provides `/remote-visitors` for plugin validation.
-
-The visitor integration script is intentionally failure-tolerant: telemetry failures never block storefront navigation.
-
-## Internal application log viewer
-
-The host writes application logs to `App_Data/logs/application.log` using the mandatory format:
+## Canonical data flow
 
 ```text
-[DATETIME][LEVEL][NAMESPACE.CLASS][MESSAGE]
+ ___________________       ___________________________
+|    (Requests)     |      |    (Commands,Queries)    |
+|    Controllers    |=====>| MediatR Handlers         |
+|___________________|      |          └── Behaviors   |
+                           |__________________________|
+                                         |
+                                       \ | /
+                           _____________\|/_____________
+                           |(Application/Infrastructure)|
+                           |     Feature  Services      |
+                           |____________________________|
+                                         |
+                                       \ | /
+                           _____________\|/_____________
+                           |      (Infrastructure)      |
+                           |    Repository<T> *         |  *Repository for dbcontext or storage provider,
+                           |    └──DbContext|Storage    |   db agnostic
+                           |____________________________|
 ```
 
-The file logger uses UTC timestamps and the logger category as the namespace/class segment. Exceptions append type/message metadata without changing the required prefix. `/admin/logs` is administrator-only and displays recent formatted records through `ApplicationLogReader`.
+Controllers receive operation-specific Requests and never bind MediatR Commands/Queries directly. Each Command/Query receives the exact corresponding Request instance in its constructor and maps Request values into use-case data.
 
-The viewer is an operational validation surface, not a replacement for external observability/SIEM tooling. Secrets are not intentionally written by the logging infrastructure.
+Handlers run through configured MediatR Behaviors. Feature Services coordinate application work through abstractions and must not expose or depend on transport/controller concerns. Repository contracts are provider agnostic; implementations belong to Infrastructure and may use DbContext or a storage provider.
 
-## Soft-delete and operation history
+Application handlers return `Result` for body-less operations and `Result<T>` for operations with a response body. Controllers map these results to HTTP responses.
 
-Host and plugin mutable persistence use the same soft-delete contract. Operation history is infrastructure-owned and independent of controllers. Plugin history is recorded in the host operation-history boundary with plugin identity and redaction.
+## Exception propagation
 
-## API namespaces
+Every executable layer in `Controllers -> Handlers -> Behaviors -> Feature Services -> Repository<T> -> StorageProvider` must participate in an exception logging/cleanup boundary using `try/catch/finally` directly or through the layer's explicit cross-cutting wrapper/decorator.
 
-- `/api/rp/v1/...` is reserved for plugin APIs.
-- `/api/rc/v1/...` remains reserved for future WooCommerce-compatible APIs.
-- `/api/identity/...` is the RemoteCommerce-owned authentication boundary.
+Catch blocks must log relevant context and always rethrow the original exception. They must never swallow exceptions, return silent fallbacks, or translate exceptions into HTTP responses.
 
-No Stage 07 implementation introduces Product Catalog, Customers, Cart, Checkout, Orders, Payments, Shipping, Taxes, WooCommerce REST, storefront themes, federation, or hot reload.
+The global exception handler is the only HTTP exception translator. It maps validation, authorization, not-found, conflict, persistence/provider, cancellation, and unexpected exceptions to Problem Details and appropriate HTTP status codes, with a safe fallback for unknown failures.
+
+## Product Catalog
+
+Stage 08 introduces the host-owned catalog domain: Product, ProductVariant, Category, Brand, Tag, ProductAttribute, ProductAttributeValue, ProductMetadata, and product media references.
+
+Catalog persistence uses the existing CommerceDbContext and Stage 06/07 provider strategy. Media binaries remain behind IMediaStorageProvider. Catalog entities participate in the shared soft-delete and operation-history mechanisms.
+
+## Administration and theming
+
+The presentation architecture is:
+
+```text
+Application use case
+    ↓
+Request / Result or Page ViewModel
+    ↓
+UI Components
+    ↓
+Theme / presentation contracts
+    ↓
+Component library implementation
+```
+
+Theme contracts live in the shared abstractions boundary. MudBlazor remains an internal component library and is not the RemoteCommerce theme contract.
+
+Dynamic administration menus are composed from core and plugin contributions. Menu visibility is not authorization; protected routes and APIs continue to use ASP.NET Core policies.
+
+## Plugin boundaries
+
+Stable plugin contracts remain in `src/RemoteCommerce.Plugin.Abstractions`. Plugins cannot access host DbContext, provider-specific persistence objects, or concrete host implementation details. Plugin APIs use `/api/rp/vX`; RemoteCommerce catalog APIs use `/api/rc/v1`.
+
+## Formatting and documentation
+
+C# instructions/method calls, Razor directives, and multi-line HTML/Razor component invocations follow the one-statement/one-instruction-per-line rule. Public APIs require complete en-US XML documentation.
