@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>Represents a package version retained for plugin update and rollback administration.</summary>
-public sealed class PluginVersion : ISoftDeletable
+public sealed class PluginVersion : RemoteCommerce.Domain.Shared.Abstractions.ISoftDeletable
 {
     /// <summary>Gets or sets the persistent version record identifier.</summary>
     public Guid Id { get; set; }
