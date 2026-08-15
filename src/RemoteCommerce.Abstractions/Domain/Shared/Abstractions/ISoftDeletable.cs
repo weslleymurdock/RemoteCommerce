@@ -8,4 +8,7 @@ public interface ISoftDeletable
 
     /// <summary>Gets or sets the UTC timestamp at which the record was deleted.</summary>
     DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Gets or sets whether the record is disabled.</summary>
+    bool IsDisabled { get; set; }
 }
