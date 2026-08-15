@@ -12,6 +12,12 @@ public abstract class CatalogEntity : ISoftDeletable
     /// <summary>Gets the UTC timestamp of the last update.</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <inheritdoc />
+    /// <summary>Gets or sets whether the entity has been soft-deleted.</summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>Gets or sets the UTC timestamp at which the entity was soft-deleted.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Gets or sets whether the entity is disabled.</summary>
     public bool IsDisabled { get; set; }
 }
