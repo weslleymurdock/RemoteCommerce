@@ -7,24 +7,106 @@
 @inject ILocalizer Localizer
 @inject NavigationManager Navigation
 
-<PageTitle>@Title</PageTitle>
+<PageTitle>
+    @Title
+</PageTitle>
+
 <MudStack Spacing="3">
-    <MudText Typo="Typo.h4">@Title</MudText>
-    @if (Navigation.Uri.Contains("/categories", StringComparison.OrdinalIgnoreCase))
+    <MudText Typo="Typo.h4">
+        @Title
+    </MudText>
+
+    @if (IsCategories)
     {
-        <MudTable Items="categories" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
+        <MudTable
+            Items="categories"
+            Dense="true">
+            <HeaderContent>
+                <MudTh>
+                    @Get("Catalog.Name")
+                </MudTh>
+                <MudTh>
+                    @Get("Catalog.Slug")
+                </MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    @context.Name
+                </MudTd>
+                <MudTd>
+                    @context.Slug
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
     }
-    else if (Navigation.Uri.Contains("/brands", StringComparison.OrdinalIgnoreCase))
+    else if (IsBrands)
     {
-        <MudTable Items="brands" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
+        <MudTable
+            Items="brands"
+            Dense="true">
+            <HeaderContent>
+                <MudTh>
+                    @Get("Catalog.Name")
+                </MudTh>
+                <MudTh>
+                    @Get("Catalog.Slug")
+                </MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    @context.Name
+                </MudTd>
+                <MudTd>
+                    @context.Slug
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
     }
-    else if (Navigation.Uri.Contains("/tags", StringComparison.OrdinalIgnoreCase))
+    else if (IsTags)
     {
-        <MudTable Items="tags" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Slug")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Slug</MudTd></RowTemplate></MudTable>
+        <MudTable
+            Items="tags"
+            Dense="true">
+            <HeaderContent>
+                <MudTh>
+                    @Get("Catalog.Name")
+                </MudTh>
+                <MudTh>
+                    @Get("Catalog.Slug")
+                </MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    @context.Name
+                </MudTd>
+                <MudTd>
+                    @context.Slug
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
     }
     else
     {
-        <MudTable Items="attributes" Dense="true"><HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Values")</MudTh></HeaderContent><RowTemplate><MudTd>@context.Name</MudTd><MudTd>@string.Join(", ", context.Values.Select(x => x.Value))</MudTd></RowTemplate></MudTable>
+        <MudTable
+            Items="attributes"
+            Dense="true">
+            <HeaderContent>
+                <MudTh>
+                    @Get("Catalog.Name")
+                </MudTh>
+                <MudTh>
+                    @Get("Catalog.Values")
+                </MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    @context.Name
+                </MudTd>
+                <MudTd>
+                    @string.Join(", ", context.Values.Select(x => x.Value))
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
     }
 </MudStack>
 
@@ -33,7 +115,79 @@
     private IReadOnlyList<BrandModel> brands = [];
     private IReadOnlyList<TagModel> tags = [];
     private IReadOnlyList<AttributeModel> attributes = [];
-    private string Get(string key) => Localizer.Get<CatalogResources>(key);
-    private string Title => Navigation.Uri.Contains("/categories", StringComparison.OrdinalIgnoreCase) ? Get("Catalog.Categories") : Navigation.Uri.Contains("/brands", StringComparison.OrdinalIgnoreCase) ? Get("Catalog.Brands") : Navigation.Uri.Contains("/tags", StringComparison.OrdinalIgnoreCase) ? Get("Catalog.Tags") : Get("Catalog.Attributes");
-    protected override async Task OnInitializedAsync() { categories = await Mediator.Send(new GetCategoriesQuery()); brands = await Mediator.Send(new GetBrandsQuery()); tags = await Mediator.Send(new GetTagsQuery()); attributes = await Mediator.Send(new GetAttributesQuery()); }
+
+    private bool IsCategories =>
+        Navigation.Uri.Contains(
+            "/categories",
+            StringComparison.OrdinalIgnoreCase);
+
+    private bool IsBrands =>
+        Navigation.Uri.Contains(
+            "/brands",
+            StringComparison.OrdinalIgnoreCase);
+
+    private bool IsTags =>
+        Navigation.Uri.Contains(
+            "/tags",
+            StringComparison.OrdinalIgnoreCase);
+
+    private string Title
+    {
+        get
+        {
+            if (IsCategories)
+            {
+                return Get("Catalog.Categories");
+            }
+
+            if (IsBrands)
+            {
+                return Get("Catalog.Brands");
+            }
+
+            if (IsTags)
+            {
+                return Get("Catalog.Tags");
+            }
+
+            return Get("Catalog.Attributes");
+        }
+    }
+
+    private string Get(string key)
+    {
+        return Localizer.Get<CatalogResources>(key);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var categoriesResult = await Mediator.Send(
+            new GetCategoriesQuery());
+        var brandsResult = await Mediator.Send(
+            new GetBrandsQuery());
+        var tagsResult = await Mediator.Send(
+            new GetTagsQuery());
+        var attributesResult = await Mediator.Send(
+            new GetAttributesQuery());
+
+        if (categoriesResult.Succeeded && categoriesResult.Value is not null)
+        {
+            categories = categoriesResult.Value;
+        }
+
+        if (brandsResult.Succeeded && brandsResult.Value is not null)
+        {
+            brands = brandsResult.Value;
+        }
+
+        if (tagsResult.Succeeded && tagsResult.Value is not null)
+        {
+            tags = tagsResult.Value;
+        }
+
+        if (attributesResult.Succeeded && attributesResult.Value is not null)
+        {
+            attributes = attributesResult.Value;
+        }
+    }
 }
