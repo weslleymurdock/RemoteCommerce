@@ -1,12 +1,26 @@
 namespace RemoteCommerce.Infrastructure.Catalog;
 
-/// <summary>Provides catalog persistence for application feature services.</summary>
-public sealed class CatalogService(CommerceDbContext db) : ICatalogService
+/// <summary>Provides catalog persistence through provider-independent repository abstractions.</summary>
+public sealed class CatalogService(
+    IRepository<Product> products,
+    IRepository<Category> categories,
+    IRepository<Brand> brands,
+    IRepository<RemoteTag> tags,
+    IRepository<ProductAttribute> attributes,
+    IRepository<ProductVariant> variants,
+    IRepository<ProductMetadata> metadata) : ICatalogService
 {
     /// <inheritdoc />
-    public async Task<ProductModel> CreateProductAsync(CreateProductCommand command, CancellationToken cancellationToken)
+    public async Task<ProductModel> CreateProductAsync(
+        CreateProductCommand command,
+        CancellationToken cancellationToken)
     {
-        await EnsureUniqueProductAsync(command.Request.Slug, command.Request.Sku, null, cancellationToken);
+        await EnsureUniqueProductAsync(
+            command.Request.Slug,
+            command.Request.Sku,
+            null,
+            cancellationToken);
+
         var product = new Product
         {
             Name = command.Request.Name.Trim(),
@@ -21,17 +35,23 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             Currency = command.Request.Currency.ToUpperInvariant(),
             BrandId = command.Request.BrandId
         };
-        db.Products.Add(product);
-        await db.SaveChangesAsync(cancellationToken);
+
+        await products.AddAsync(product, cancellationToken);
+        await products.SaveChangesAsync(cancellationToken);
+
         return Map(product);
     }
 
     /// <inheritdoc />
-    public async Task<ProductModel?> UpdateProductAsync(UpdateProductCommand command, CancellationToken cancellationToken)
+    public async Task<ProductModel?> UpdateProductAsync(
+        UpdateProductCommand command,
+        CancellationToken cancellationToken)
     {
-        var product = await db.Products.SingleOrDefaultAsync(
+        var product = await products.FirstOrDefaultAsync(
             x => x.Id == command.Request.Id,
+            true,
             cancellationToken);
+
         if (product is null)
         {
             return null;
@@ -42,176 +62,152 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             command.Request.Sku,
             command.Request.Id,
             cancellationToken);
-        Apply(product, command.Request);
-        await db.SaveChangesAsync(cancellationToken);
+
+        Apply(product, command);
+        await products.SaveChangesAsync(cancellationToken);
+
         return Map(product);
     }
 
     /// <inheritdoc />
-    public async Task DeleteProductAsync(Guid id, CancellationToken cancellationToken)
+    public async Task DeleteProductAsync(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var product = await db.Products.SingleOrDefaultAsync(
+        var product = await products.FirstOrDefaultAsync(
             x => x.Id == id,
+            true,
             cancellationToken);
+
         if (product is null)
         {
             return;
         }
 
-        db.Products.Remove(product);
-        await db.SaveChangesAsync(cancellationToken);
+        products.Remove(product);
+        await products.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<ProductModel?> GetProductAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<ProductModel?> GetProductAsync(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var product = await db.Products.AsNoTracking().SingleOrDefaultAsync(
+        var product = await products.FirstOrDefaultAsync(
             x => x.Id == id,
+            false,
             cancellationToken);
-        return product is null ? null : Map(product);
+
+        return product is null
+            ? null
+            : Map(product);
     }
 
     /// <inheritdoc />
-    public async Task<PagedResult<ProductModel>> ListProductsAsync(ProductListQuery query, CancellationToken cancellationToken)
+    public async Task<PagedResult<ProductModel>> ListProductsAsync(
+        ProductListQuery query,
+        CancellationToken cancellationToken)
     {
         var page = Math.Max(1, query.Request.Page);
         var pageSize = Math.Clamp(query.Request.PageSize, 1, 100);
-        IQueryable<Product> products = db.Products.AsNoTracking();
+        var predicate = BuildProductPredicate(query);
+        var total = await products.CountAsync(predicate, cancellationToken);
+        var entities = await products.ListAsync(
+            predicate,
+            x => x.CreatedAt,
+            true,
+            (page - 1) * pageSize,
+            pageSize,
+            false,
+            cancellationToken);
+        var items = entities.Select(Map).ToList();
 
-        if (!string.IsNullOrWhiteSpace(query.Request.Search))
-        {
-            products = products.Where(x =>
-                x.Name.Contains(query.Request.Search) ||
-                x.Description.Contains(query.Request.Search));
-        }
-
-        if (query.Request.Status.HasValue)
-        {
-            products = products.Where(x => x.Status == query.Request.Status.Value);
-        }
-
-        if (query.Request.BrandId.HasValue)
-        {
-            products = products.Where(x => x.BrandId == query.Request.BrandId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Request.Sku))
-        {
-            products = products.Where(x => x.Sku == query.Request.Sku);
-        }
-
-        if (query.Request.ProductType.HasValue)
-        {
-            products = products.Where(x => x.ProductType == query.Request.ProductType.Value);
-        }
-
-        if (query.Request.CategoryId.HasValue)
-        {
-            products = products.Where(x =>
-                x.Categories.Any(c => c.CategoryId == query.Request.CategoryId.Value));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Request.Tag))
-        {
-            products = products.Where(x =>
-                x.Tags.Any(t =>
-                    t.Tag!.Slug == query.Request.Tag ||
-                    t.Tag!.Name == query.Request.Tag));
-        }
-
-        var total = await products.CountAsync(cancellationToken);
-        var items = await products
-            .OrderByDescending(x => x.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(x => new ProductModel(
-                x.Id,
-                x.Name,
-                x.Slug,
-                x.Sku,
-                x.ShortDescription,
-                x.Description,
-                x.Status,
-                x.ProductType,
-                x.Price,
-                x.CompareAtPrice,
-                x.Currency,
-                x.BrandId,
-                x.CreatedAt,
-                x.UpdatedAt))
-            .ToListAsync(cancellationToken);
-
-        return new PagedResult<ProductModel>(items, page, pageSize, total);
+        return new PagedResult<ProductModel>(
+            items,
+            page,
+            pageSize,
+            total);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<CategoryModel>> GetCategoriesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CategoryModel>> GetCategoriesAsync(
+        CancellationToken cancellationToken)
     {
-        return await db.Categories
-            .AsNoTracking()
+        var entities = await categories.ListAsync(
+            null,
+            x => x.DisplayOrder,
+            false,
+            null,
+            null,
+            false,
+            cancellationToken);
+
+        return entities
             .OrderBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
-            .Select(x => new CategoryModel(
-                x.Id,
-                x.Name,
-                x.Slug,
-                x.Description,
-                x.ParentId,
-                x.DisplayOrder))
-            .ToListAsync(cancellationToken);
+            .Select(Map)
+            .ToList();
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<BrandModel>> GetBrandsAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<BrandModel>> GetBrandsAsync(
+        CancellationToken cancellationToken)
     {
-        return await db.Brands
-            .AsNoTracking()
-            .OrderBy(x => x.Name)
-            .Select(x => new BrandModel(
-                x.Id,
-                x.Name,
-                x.Slug,
-                x.Description,
-                x.LogoMediaId))
-            .ToListAsync(cancellationToken);
+        var entities = await brands.ListAsync(
+            null,
+            x => x.Name,
+            false,
+            null,
+            null,
+            false,
+            cancellationToken);
+
+        return entities.Select(Map).ToList();
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<TagModel>> GetTagsAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<TagModel>> GetTagsAsync(
+        CancellationToken cancellationToken)
     {
-        return await db.Tags
-            .AsNoTracking()
-            .OrderBy(x => x.Name)
-            .Select(x => new TagModel(
-                x.Id,
-                x.Name,
-                x.Slug,
-                x.Description))
-            .ToListAsync(cancellationToken);
+        var entities = await tags.ListAsync(
+            null,
+            x => x.Name,
+            false,
+            null,
+            null,
+            false,
+            cancellationToken);
+
+        return entities.Select(Map).ToList();
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<AttributeModel>> GetAttributesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<AttributeModel>> GetAttributesAsync(
+        CancellationToken cancellationToken)
     {
-        return await db.ProductAttributes
-            .AsNoTracking()
-            .Include(x => x.Values)
-            .OrderBy(x => x.Name)
-            .Select(x => new AttributeModel(
-                x.Id,
-                x.Name,
-                x.Slug,
-                x.Values
-                    .OrderBy(v => v.Value)
-                    .Select(v => new AttributeValueModel(v.Id, v.Value, v.Slug))
-                    .ToList()))
-            .ToListAsync(cancellationToken);
+        var entities = await attributes.ListAsync(
+            null,
+            x => x.Name,
+            false,
+            null,
+            null,
+            false,
+            cancellationToken,
+            x => x.Values);
+
+        return entities.Select(Map).ToList();
     }
 
     /// <inheritdoc />
-    public async Task<CategoryModel> CreateCategoryAsync(CreateCategoryCommand command, CancellationToken cancellationToken)
+    public async Task<CategoryModel> CreateCategoryAsync(
+        CreateCategoryCommand command,
+        CancellationToken cancellationToken)
     {
-        await ValidateParentAsync(command.Request.ParentId, null, cancellationToken);
+        await ValidateParentAsync(
+            command.Request.ParentId,
+            null,
+            cancellationToken);
+
         var category = new Category
         {
             Name = command.Request.Name.Trim(),
@@ -220,17 +216,23 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             ParentId = command.Request.ParentId,
             DisplayOrder = command.Request.DisplayOrder
         };
-        db.Categories.Add(category);
-        await db.SaveChangesAsync(cancellationToken);
+
+        await categories.AddAsync(category, cancellationToken);
+        await categories.SaveChangesAsync(cancellationToken);
+
         return Map(category);
     }
 
     /// <inheritdoc />
-    public async Task<CategoryModel?> UpdateCategoryAsync(UpdateCategoryCommand command, CancellationToken cancellationToken)
+    public async Task<CategoryModel?> UpdateCategoryAsync(
+        UpdateCategoryCommand command,
+        CancellationToken cancellationToken)
     {
-        var category = await db.Categories.SingleOrDefaultAsync(
+        var category = await categories.FirstOrDefaultAsync(
             x => x.Id == command.Request.Id,
+            true,
             cancellationToken);
+
         if (category is null)
         {
             return null;
@@ -240,33 +242,42 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             command.Request.ParentId,
             command.Request.Id,
             cancellationToken);
+
         category.Name = command.Request.Name.Trim();
         category.Slug = command.Request.Slug;
         category.Description = command.Request.Description;
         category.ParentId = command.Request.ParentId;
         category.DisplayOrder = command.Request.DisplayOrder;
         category.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+
+        await categories.SaveChangesAsync(cancellationToken);
+
         return Map(category);
     }
 
     /// <inheritdoc />
-    public async Task DeleteCategoryAsync(Guid id, CancellationToken cancellationToken)
+    public async Task DeleteCategoryAsync(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var entity = await db.Categories.SingleOrDefaultAsync(
+        var category = await categories.FirstOrDefaultAsync(
             x => x.Id == id,
+            true,
             cancellationToken);
-        if (entity is null)
+
+        if (category is null)
         {
             return;
         }
 
-        db.Categories.Remove(entity);
-        await db.SaveChangesAsync(cancellationToken);
+        categories.Remove(category);
+        await categories.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<BrandModel> CreateBrandAsync(CreateBrandCommand command, CancellationToken cancellationToken)
+    public async Task<BrandModel> CreateBrandAsync(
+        CreateBrandCommand command,
+        CancellationToken cancellationToken)
     {
         var entity = new Brand
         {
@@ -275,17 +286,23 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             Description = command.Request.Description,
             LogoMediaId = command.Request.LogoMediaId
         };
-        db.Brands.Add(entity);
-        await db.SaveChangesAsync(cancellationToken);
+
+        await brands.AddAsync(entity, cancellationToken);
+        await brands.SaveChangesAsync(cancellationToken);
+
         return Map(entity);
     }
 
     /// <inheritdoc />
-    public async Task<BrandModel?> UpdateBrandAsync(UpdateBrandCommand command, CancellationToken cancellationToken)
+    public async Task<BrandModel?> UpdateBrandAsync(
+        UpdateBrandCommand command,
+        CancellationToken cancellationToken)
     {
-        var entity = await db.Brands.SingleOrDefaultAsync(
+        var entity = await brands.FirstOrDefaultAsync(
             x => x.Id == command.Request.Id,
+            true,
             cancellationToken);
+
         if (entity is null)
         {
             return null;
@@ -296,27 +313,35 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
         entity.Description = command.Request.Description;
         entity.LogoMediaId = command.Request.LogoMediaId;
         entity.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+
+        await brands.SaveChangesAsync(cancellationToken);
+
         return Map(entity);
     }
 
     /// <inheritdoc />
-    public async Task DeleteBrandAsync(Guid id, CancellationToken cancellationToken)
+    public async Task DeleteBrandAsync(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var entity = await db.Brands.SingleOrDefaultAsync(
+        var entity = await brands.FirstOrDefaultAsync(
             x => x.Id == id,
+            true,
             cancellationToken);
+
         if (entity is null)
         {
             return;
         }
 
-        db.Brands.Remove(entity);
-        await db.SaveChangesAsync(cancellationToken);
+        brands.Remove(entity);
+        await brands.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<TagModel> CreateTagAsync(CreateTagCommand command, CancellationToken cancellationToken)
+    public async Task<TagModel> CreateTagAsync(
+        CreateTagCommand command,
+        CancellationToken cancellationToken)
     {
         var entity = new RemoteTag
         {
@@ -324,17 +349,23 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             Slug = command.Request.Slug,
             Description = command.Request.Description
         };
-        db.Tags.Add(entity);
-        await db.SaveChangesAsync(cancellationToken);
+
+        await tags.AddAsync(entity, cancellationToken);
+        await tags.SaveChangesAsync(cancellationToken);
+
         return Map(entity);
     }
 
     /// <inheritdoc />
-    public async Task<TagModel?> UpdateTagAsync(UpdateTagCommand command, CancellationToken cancellationToken)
+    public async Task<TagModel?> UpdateTagAsync(
+        UpdateTagCommand command,
+        CancellationToken cancellationToken)
     {
-        var entity = await db.Tags.SingleOrDefaultAsync(
+        var entity = await tags.FirstOrDefaultAsync(
             x => x.Id == command.Request.Id,
+            true,
             cancellationToken);
+
         if (entity is null)
         {
             return null;
@@ -344,38 +375,50 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
         entity.Slug = command.Request.Slug;
         entity.Description = command.Request.Description;
         entity.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+
+        await tags.SaveChangesAsync(cancellationToken);
+
         return Map(entity);
     }
 
     /// <inheritdoc />
-    public async Task DeleteTagAsync(Guid id, CancellationToken cancellationToken)
+    public async Task DeleteTagAsync(
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var entity = await db.Tags.SingleOrDefaultAsync(
+        var entity = await tags.FirstOrDefaultAsync(
             x => x.Id == id,
+            true,
             cancellationToken);
+
         if (entity is null)
         {
             return;
         }
 
-        db.Tags.Remove(entity);
-        await db.SaveChangesAsync(cancellationToken);
+        tags.Remove(entity);
+        await tags.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<ProductVariantModel> CreateVariantAsync(CreateProductVariantCommand command, CancellationToken cancellationToken)
+    public async Task<ProductVariantModel> CreateVariantAsync(
+        CreateProductVariantCommand command,
+        CancellationToken cancellationToken)
     {
-        if (!await db.Products.AnyAsync(
+        var productExists = await products.CountAsync(
             x => x.Id == command.Request.ProductId,
-            cancellationToken))
+            cancellationToken);
+
+        if (productExists == 0)
         {
             throw new ValidationException("The product does not exist.");
         }
 
-        if (await db.ProductVariants.AnyAsync(
+        var skuExists = await variants.CountAsync(
             x => x.Sku == command.Request.Sku,
-            cancellationToken))
+            cancellationToken);
+
+        if (skuExists > 0)
         {
             throw new ValidationException("The variant SKU is already in use.");
         }
@@ -390,25 +433,33 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             ManageStock = command.Request.ManageStock,
             Status = command.Request.Status
         };
-        db.ProductVariants.Add(variant);
-        await db.SaveChangesAsync(cancellationToken);
+
+        await variants.AddAsync(variant, cancellationToken);
+        await variants.SaveChangesAsync(cancellationToken);
+
         return Map(variant);
     }
 
     /// <inheritdoc />
-    public async Task<ProductVariantModel?> UpdateVariantAsync(UpdateProductVariantCommand command, CancellationToken cancellationToken)
+    public async Task<ProductVariantModel?> UpdateVariantAsync(
+        UpdateProductVariantCommand command,
+        CancellationToken cancellationToken)
     {
-        var variant = await db.ProductVariants.SingleOrDefaultAsync(
+        var variant = await variants.FirstOrDefaultAsync(
             x => x.Id == command.Request.Id && x.ProductId == command.Request.ProductId,
+            true,
             cancellationToken);
+
         if (variant is null)
         {
             return null;
         }
 
-        if (await db.ProductVariants.AnyAsync(
+        var duplicateSku = await variants.CountAsync(
             x => x.Sku == command.Request.Sku && x.Id != command.Request.Id,
-            cancellationToken))
+            cancellationToken);
+
+        if (duplicateSku > 0)
         {
             throw new ValidationException("The variant SKU is already in use.");
         }
@@ -420,108 +471,127 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
         variant.ManageStock = command.Request.ManageStock;
         variant.Status = command.Request.Status;
         variant.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+
+        await variants.SaveChangesAsync(cancellationToken);
+
         return Map(variant);
     }
 
     /// <inheritdoc />
-    public async Task DeleteVariantAsync(Guid productId, Guid variantId, CancellationToken cancellationToken)
+    public async Task DeleteVariantAsync(
+        Guid productId,
+        Guid variantId,
+        CancellationToken cancellationToken)
     {
-        var variant = await db.ProductVariants.SingleOrDefaultAsync(
+        var variant = await variants.FirstOrDefaultAsync(
             x => x.Id == variantId && x.ProductId == productId,
+            true,
             cancellationToken);
+
         if (variant is null)
         {
             return;
         }
 
-        db.ProductVariants.Remove(variant);
-        await db.SaveChangesAsync(cancellationToken);
+        variants.Remove(variant);
+        await variants.SaveChangesAsync(cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<ProductVariantModel>> GetVariantsAsync(Guid productId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProductVariantModel>> GetVariantsAsync(
+        Guid productId,
+        CancellationToken cancellationToken)
     {
-        return await db.ProductVariants
-            .AsNoTracking()
-            .Where(x => x.ProductId == productId)
-            .OrderBy(x => x.Sku)
-            .Select(x => new ProductVariantModel(
-                x.Id,
-                x.ProductId,
-                x.Sku,
-                x.Price,
-                x.CompareAtPrice,
-                x.StockQuantity,
-                x.ManageStock,
-                x.Status))
-            .ToListAsync(cancellationToken);
+        var entities = await variants.ListAsync(
+            x => x.ProductId == productId,
+            x => x.Sku,
+            false,
+            null,
+            null,
+            false,
+            cancellationToken);
+
+        return entities.Select(Map).ToList();
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<ProductMetadataModel>> GetMetadataAsync(Guid productId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProductMetadataModel>> GetMetadataAsync(
+        Guid productId,
+        CancellationToken cancellationToken)
     {
-        return await db.ProductMetadata
-            .AsNoTracking()
-            .Where(x => x.ProductId == productId)
-            .OrderBy(x => x.Key)
-            .Select(x => new ProductMetadataModel(
-                x.Id,
-                x.ProductId,
-                x.Key,
-                x.Type,
-                x.Value))
-            .ToListAsync(cancellationToken);
+        var entities = await metadata.ListAsync(
+            x => x.ProductId == productId,
+            x => x.Key,
+            false,
+            null,
+            null,
+            false,
+            cancellationToken);
+
+        return entities.Select(Map).ToList();
     }
 
     /// <inheritdoc />
-    public async Task<ProductMetadataModel> UpsertMetadataAsync(UpsertProductMetadataCommand command, CancellationToken cancellationToken)
+    public async Task<ProductMetadataModel> UpsertMetadataAsync(
+        UpsertProductMetadataCommand command,
+        CancellationToken cancellationToken)
     {
-        if (!await db.Products.AnyAsync(
+        var productExists = await products.CountAsync(
             x => x.Id == command.Request.ProductId,
-            cancellationToken))
+            cancellationToken);
+
+        if (productExists == 0)
         {
             throw new ValidationException("The product does not exist.");
         }
 
-        var metadata = await db.ProductMetadata.SingleOrDefaultAsync(
+        var entity = await metadata.FirstOrDefaultAsync(
             x => x.ProductId == command.Request.ProductId && x.Key == command.Request.Key,
+            true,
             cancellationToken);
-        if (metadata is null)
+
+        if (entity is null)
         {
-            metadata = new ProductMetadata
+            entity = new ProductMetadata
             {
                 ProductId = command.Request.ProductId,
                 Key = command.Request.Key,
                 Type = command.Request.Type,
                 Value = command.Request.Value
             };
-            db.ProductMetadata.Add(metadata);
+
+            await metadata.AddAsync(entity, cancellationToken);
         }
         else
         {
-            metadata.Type = command.Request.Type;
-            metadata.Value = command.Request.Value;
-            metadata.UpdatedAt = DateTime.UtcNow;
+            entity.Type = command.Request.Type;
+            entity.Value = command.Request.Value;
+            entity.UpdatedAt = DateTime.UtcNow;
         }
 
-        await db.SaveChangesAsync(cancellationToken);
-        return Map(metadata);
+        await metadata.SaveChangesAsync(cancellationToken);
+
+        return Map(entity);
     }
 
     /// <inheritdoc />
-    public async Task DeleteMetadataAsync(Guid productId, string key, CancellationToken cancellationToken)
+    public async Task DeleteMetadataAsync(
+        Guid productId,
+        string key,
+        CancellationToken cancellationToken)
     {
-        var metadata = await db.ProductMetadata.SingleOrDefaultAsync(
+        var entity = await metadata.FirstOrDefaultAsync(
             x => x.ProductId == productId && x.Key == key,
+            true,
             cancellationToken);
-        if (metadata is null)
+
+        if (entity is null)
         {
             return;
         }
 
-        db.ProductMetadata.Remove(metadata);
-        await db.SaveChangesAsync(cancellationToken);
+        metadata.Remove(entity);
+        await metadata.SaveChangesAsync(cancellationToken);
     }
 
     private async Task EnsureUniqueProductAsync(
@@ -530,9 +600,11 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
         Guid? id,
         CancellationToken cancellationToken)
     {
-        if (await db.Products.AnyAsync(
+        var duplicateSlug = await products.CountAsync(
             x => x.Slug == slug && x.Id != id,
-            cancellationToken))
+            cancellationToken);
+
+        if (duplicateSlug > 0)
         {
             throw new ValidationException("The product slug is already in use.");
         }
@@ -542,16 +614,20 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             return;
         }
 
-        if (await db.Products.AnyAsync(
+        var duplicateProductSku = await products.CountAsync(
             x => x.Sku == sku && x.Id != id,
-            cancellationToken))
+            cancellationToken);
+
+        if (duplicateProductSku > 0)
         {
             throw new ValidationException("The product SKU is already in use.");
         }
 
-        if (await db.ProductVariants.AnyAsync(
+        var duplicateVariantSku = await variants.CountAsync(
             x => x.Sku == sku,
-            cancellationToken))
+            cancellationToken);
+
+        if (duplicateVariantSku > 0)
         {
             throw new ValidationException("The SKU is already in use by a variant.");
         }
@@ -567,127 +643,245 @@ public sealed class CatalogService(CommerceDbContext db) : ICatalogService
             return;
         }
 
-        if (currentId == parentId)
+        if (currentId.HasValue && parentId.Value == currentId.Value)
         {
             throw new ValidationException("A category cannot be its own parent.");
         }
 
-        var parent = await db.Categories.SingleOrDefaultAsync(
-            x => x.Id == parentId.Value,
-            cancellationToken);
-        if (parent is null)
-        {
-            throw new ValidationException("The parent category does not exist.");
-        }
+        var visited = new HashSet<Guid>();
+        var cursor = parentId;
 
-        if (!currentId.HasValue)
+        while (cursor.HasValue)
         {
-            return;
-        }
-
-        var seen = new HashSet<Guid> { currentId.Value };
-        while (parent.ParentId.HasValue)
-        {
-            if (!seen.Add(parent.Id) || parent.ParentId == currentId)
+            if (!visited.Add(cursor.Value))
             {
-                throw new ValidationException("The category hierarchy cannot contain a cycle.");
+                throw new ValidationException("The category hierarchy contains a cycle.");
             }
 
-            parent = await db.Categories.SingleOrDefaultAsync(
-                x => x.Id == parent.ParentId.Value,
+            if (currentId.HasValue && cursor.Value == currentId.Value)
+            {
+                throw new ValidationException("A category cannot be moved below its own descendant.");
+            }
+
+            var parent = await categories.FirstOrDefaultAsync(
+                x => x.Id == cursor.Value,
+                false,
                 cancellationToken);
+
             if (parent is null)
             {
-                throw new ValidationException("The category hierarchy is invalid.");
+                throw new ValidationException("The parent category does not exist.");
             }
+
+            cursor = parent.ParentId;
         }
     }
 
-    private static void Apply(Product product, UpdateProductRequest request)
+    private static Expression<Func<Product, bool>> BuildProductPredicate(ProductListQuery query)
     {
-        product.Name = request.Name.Trim();
-        product.Slug = request.Slug;
-        product.Sku = request.Sku;
-        product.ShortDescription = request.ShortDescription;
-        product.Description = request.Description;
-        product.Status = request.Status;
-        product.ProductType = request.ProductType;
-        product.Price = request.Price;
-        product.CompareAtPrice = request.CompareAtPrice;
-        product.Currency = request.Currency.ToUpperInvariant();
-        product.BrandId = request.BrandId;
+        Expression<Func<Product, bool>> predicate = x => true;
+
+        if (!string.IsNullOrWhiteSpace(query.Request.Search))
+        {
+            var search = query.Request.Search.Trim();
+            predicate = Combine(
+                predicate,
+                x => x.Name.Contains(search) || x.Description.Contains(search));
+        }
+
+        if (query.Request.Status.HasValue)
+        {
+            var status = query.Request.Status.Value;
+            predicate = Combine(predicate, x => x.Status == status);
+        }
+
+        if (query.Request.BrandId.HasValue)
+        {
+            var brandId = query.Request.BrandId.Value;
+            predicate = Combine(predicate, x => x.BrandId == brandId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Request.Sku))
+        {
+            var sku = query.Request.Sku.Trim();
+            predicate = Combine(predicate, x => x.Sku == sku);
+        }
+
+        if (query.Request.ProductType.HasValue)
+        {
+            var productType = query.Request.ProductType.Value;
+            predicate = Combine(predicate, x => x.ProductType == productType);
+        }
+
+        if (query.Request.CategoryId.HasValue)
+        {
+            var categoryId = query.Request.CategoryId.Value;
+            predicate = Combine(
+                predicate,
+                x => x.Categories.Any(category => category.CategoryId == categoryId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Request.Tag))
+        {
+            var tag = query.Request.Tag.Trim();
+            predicate = Combine(
+                predicate,
+                x => x.Tags.Any(productTag =>
+                    productTag.Tag!.Slug == tag ||
+                    productTag.Tag!.Name == tag));
+        }
+
+        return predicate;
+    }
+
+    private static Expression<Func<Product, bool>> Combine(
+        Expression<Func<Product, bool>> first,
+        Expression<Func<Product, bool>> second)
+    {
+        var parameter = Expression.Parameter(typeof(Product), "product");
+        var firstBody = ReplaceParameter(
+            first.Body,
+            first.Parameters[0],
+            parameter);
+        var secondBody = ReplaceParameter(
+            second.Body,
+            second.Parameters[0],
+            parameter);
+        var body = Expression.AndAlso(
+            firstBody,
+            secondBody);
+
+        return Expression.Lambda<Func<Product, bool>>(
+            body,
+            parameter);
+    }
+
+    private static Expression ReplaceParameter(
+        Expression expression,
+        ParameterExpression source,
+        ParameterExpression target)
+    {
+        return new ParameterReplaceVisitor(
+            source,
+            target).Visit(expression)!;
+    }
+
+    private static void Apply(
+        Product product,
+        UpdateProductCommand command)
+    {
+        product.Name = command.Request.Name.Trim();
+        product.Slug = command.Request.Slug;
+        product.Sku = command.Request.Sku;
+        product.ShortDescription = command.Request.ShortDescription;
+        product.Description = command.Request.Description;
+        product.Status = command.Request.Status;
+        product.ProductType = command.Request.ProductType;
+        product.Price = command.Request.Price;
+        product.CompareAtPrice = command.Request.CompareAtPrice;
+        product.Currency = command.Request.Currency.ToUpperInvariant();
+        product.BrandId = command.Request.BrandId;
         product.UpdatedAt = DateTime.UtcNow;
     }
 
-    private static ProductModel Map(Product product)
+    private static ProductModel Map(Product entity)
     {
         return new ProductModel(
-            product.Id,
-            product.Name,
-            product.Slug,
-            product.Sku,
-            product.ShortDescription,
-            product.Description,
-            product.Status,
-            product.ProductType,
-            product.Price,
-            product.CompareAtPrice,
-            product.Currency,
-            product.BrandId,
-            product.CreatedAt,
-            product.UpdatedAt);
+            entity.Id,
+            entity.Name,
+            entity.Slug,
+            entity.Sku,
+            entity.ShortDescription,
+            entity.Description,
+            entity.Status,
+            entity.ProductType,
+            entity.Price,
+            entity.CompareAtPrice,
+            entity.Currency,
+            entity.BrandId,
+            entity.CreatedAt,
+            entity.UpdatedAt);
     }
 
-    private static CategoryModel Map(Category category)
+    private static CategoryModel Map(Category entity)
     {
         return new CategoryModel(
-            category.Id,
-            category.Name,
-            category.Slug,
-            category.Description,
-            category.ParentId,
-            category.DisplayOrder);
+            entity.Id,
+            entity.Name,
+            entity.Slug,
+            entity.Description,
+            entity.ParentId,
+            entity.DisplayOrder);
     }
 
-    private static BrandModel Map(Brand brand)
+    private static BrandModel Map(Brand entity)
     {
         return new BrandModel(
-            brand.Id,
-            brand.Name,
-            brand.Slug,
-            brand.Description,
-            brand.LogoMediaId);
+            entity.Id,
+            entity.Name,
+            entity.Slug,
+            entity.Description,
+            entity.LogoMediaId);
     }
 
-    private static TagModel Map(RemoteTag tag)
+    private static TagModel Map(RemoteTag entity)
     {
         return new TagModel(
-            tag.Id,
-            tag.Name,
-            tag.Slug,
-            tag.Description);
+            entity.Id,
+            entity.Name,
+            entity.Slug,
+            entity.Description);
     }
 
-    private static ProductVariantModel Map(ProductVariant variant)
+    private static AttributeModel Map(ProductAttribute entity)
+    {
+        var values = entity.Values
+            .OrderBy(value => value.Value)
+            .Select(value => new AttributeValueModel(
+                value.Id,
+                value.Value,
+                value.Slug))
+            .ToList();
+
+        return new AttributeModel(
+            entity.Id,
+            entity.Name,
+            entity.Slug,
+            values);
+    }
+
+    private static ProductVariantModel Map(ProductVariant entity)
     {
         return new ProductVariantModel(
-            variant.Id,
-            variant.ProductId,
-            variant.Sku,
-            variant.Price,
-            variant.CompareAtPrice,
-            variant.StockQuantity,
-            variant.ManageStock,
-            variant.Status);
+            entity.Id,
+            entity.ProductId,
+            entity.Sku,
+            entity.Price,
+            entity.CompareAtPrice,
+            entity.StockQuantity,
+            entity.ManageStock,
+            entity.Status);
     }
 
-    private static ProductMetadataModel Map(ProductMetadata metadata)
+    private static ProductMetadataModel Map(ProductMetadata entity)
     {
         return new ProductMetadataModel(
-            metadata.Id,
-            metadata.ProductId,
-            metadata.Key,
-            metadata.Type,
-            metadata.Value);
+            entity.Id,
+            entity.ProductId,
+            entity.Key,
+            entity.Type,
+            entity.Value);
+    }
+
+    private sealed class ParameterReplaceVisitor(
+        ParameterExpression source,
+        ParameterExpression target) : ExpressionVisitor
+    {
+        protected override Expression VisitParameter(ParameterExpression node)
+        {
+            return node == source
+                ? target
+                : base.VisitParameter(node);
+        }
     }
 }
