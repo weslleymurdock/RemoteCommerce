@@ -16,16 +16,22 @@ public sealed class LoggingBehavior<TRequest, TResponse>(
     {
         var requestName = typeof(TRequest).Name;
         var started = Stopwatch.GetTimestamp();
-        logger.LogInformation("Handling application request {RequestName}", requestName);
+        logger.LogInformation(
+            "Handling application request {RequestName}",
+            requestName);
 
         try
         {
-            var response = await next(cancellationToken);
-            logger.LogInformation(
-                "Completed application request {RequestName} in {ElapsedMilliseconds} ms",
+            return await next(cancellationToken);
+        }
+        catch (OperationCanceledException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Application request {RequestName} was cancelled after {ElapsedMilliseconds} ms",
                 requestName,
                 Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            return response;
+            throw;
         }
         catch (Exception exception)
         {
@@ -35,6 +41,13 @@ public sealed class LoggingBehavior<TRequest, TResponse>(
                 requestName,
                 Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             throw;
+        }
+        finally
+        {
+            logger.LogDebug(
+                "Application request {RequestName} completed after {ElapsedMilliseconds} ms",
+                requestName,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
     }
 }
