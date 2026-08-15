@@ -3,7 +3,9 @@ namespace RemoteCommerce.Infrastructure.Common.Behaviors;
 /// <summary>Wraps transactional application commands in the scoped EF Core transaction.</summary>
 /// <typeparam name="TRequest">The request type.</typeparam>
 /// <typeparam name="TResponse">The response type.</typeparam>
-public sealed class TransactionalBehavior<TRequest, TResponse>(CommerceDbContext db)
+public sealed class TransactionalBehavior<TRequest, TResponse>(
+    CommerceDbContext db,
+    ILogger<TransactionalBehavior<TRequest, TResponse>> logger)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -23,7 +25,9 @@ public sealed class TransactionalBehavior<TRequest, TResponse>(CommerceDbContext
             return await next(cancellationToken);
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var requestName = typeof(TRequest).Name;
+        await using var transaction = await db.Database.BeginTransactionAsync(
+            cancellationToken);
 
         try
         {
@@ -32,10 +36,20 @@ public sealed class TransactionalBehavior<TRequest, TResponse>(CommerceDbContext
             await transaction.CommitAsync(cancellationToken);
             return response;
         }
-        catch
+        catch (Exception exception)
         {
+            logger.LogError(
+                exception,
+                "Transactional application request {RequestName} failed and will be rolled back.",
+                requestName);
             await transaction.RollbackAsync(CancellationToken.None);
             throw;
+        }
+        finally
+        {
+            logger.LogDebug(
+                "Transactional application request {RequestName} completed.",
+                requestName);
         }
     }
 }
