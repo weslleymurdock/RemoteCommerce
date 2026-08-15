@@ -77,6 +77,12 @@ Applicable flow layers log exceptions and rethrow. The global exception handler 
 - One HTML/Razor component invocation per line when attributes or child content exist.
 - Keep executable Razor expressions and callbacks independently readable.
 
+## Stage 07 — Plugin Persistence Compatibility
+
+**Status: integrated in main.**
+
+Stage 07 established provider-independent plugin persistence, restart-based activation, plugin-owned EF contexts/migrations, reusable soft-delete/history, and persistence-capable reference plugins. Plugin APIs remain under `/api/rp/v1`.
+
 ## Stage 08 — Product Catalog
 
 **Status: implementation in Draft PR #11.**
@@ -92,3 +98,35 @@ The administration UI uses theme/presentation abstractions and dynamic menu cont
 Stage 08 is architecturally complete only when the canonical feature layout, request/command/query/result flow, provider-independent repository boundary, shared abstractions direction, formatting rules, and plugin compatibility are satisfied.
 
 Validation requires build, test, pack, and green CI. The PR remains draft until repository-owner validation.
+
+## Stage 09 — Customers, Cart, and Checkout
+
+Reserved.
+
+## Stage 10 — Orders and Payments
+
+Reserved.
+
+## Stage 11 — Shipping, Taxes, and Store Operations
+
+Reserved.
+
+## Stage 12 — WooCommerce-Compatible REST API
+
+Reserved for broader WooCommerce-compatible resources. `/api/rc/v1` is already established by Stage 08 for RemoteCommerce-owned catalog resources.
+
+## Stage 13 — Storefront and Theme/Extension Model
+
+Reserved for storefront rendering and broader theme/extension capabilities. Stage 08 only establishes reusable presentation contracts needed by the administration UI.
+
+## Stage 14 — Multi-Store Federation
+
+Reserved.
+
+## Stage 15 — Runtime Plugin Hot Reload
+
+Reserved. Plugin activation remains restart-based until this stage.
+
+## Stage 16 — Production Readiness
+
+Reserved.
