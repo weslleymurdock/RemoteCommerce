@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Application.Catalog.Requests;
 
 /// <summary>Represents the payload for creating a product.</summary>
-public sealed class CreateProductRequest
+public class CreateProductRequest
 {
     /// <summary>Gets or sets the product name.</summary>
     public string Name { get; set; } = string.Empty;
@@ -45,7 +45,7 @@ public sealed class UpdateProductRequest : CreateProductRequest
 }
 
 /// <summary>Represents the payload for creating a category.</summary>
-public sealed class CreateCategoryRequest
+public class CreateCategoryRequest
 {
     /// <summary>Gets or sets the category name.</summary>
     public string Name { get; set; } = string.Empty;
@@ -71,7 +71,7 @@ public sealed class UpdateCategoryRequest : CreateCategoryRequest
 }
 
 /// <summary>Represents the payload for creating a brand.</summary>
-public sealed class CreateBrandRequest
+public class CreateBrandRequest
 {
     /// <summary>Gets or sets the brand name.</summary>
     public string Name { get; set; } = string.Empty;
@@ -94,7 +94,7 @@ public sealed class UpdateBrandRequest : CreateBrandRequest
 }
 
 /// <summary>Represents the payload for creating a tag.</summary>
-public sealed class CreateTagRequest
+public class CreateTagRequest
 {
     /// <summary>Gets or sets the tag name.</summary>
     public string Name { get; set; } = string.Empty;
@@ -114,7 +114,7 @@ public sealed class UpdateTagRequest : CreateTagRequest
 }
 
 /// <summary>Represents the payload for creating a product variation.</summary>
-public sealed class CreateProductVariantRequest
+public class CreateProductVariantRequest
 {
     /// <summary>Gets or sets the owning product identifier.</summary>
     public Guid ProductId { get; set; }
