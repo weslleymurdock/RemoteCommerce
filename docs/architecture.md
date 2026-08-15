@@ -33,7 +33,7 @@ The host continues to own concrete Domain, Application, Infrastructure, Presenta
 
 ## Application feature layout
 
-Every feature uses the canonical layout when the concern exists:
+Every Application feature must organize its artifacts under the following canonical structure:
 
 ```text
 src/Application/Feature/
@@ -47,7 +47,9 @@ src/Application/Feature/
 └── Validators/
 ```
 
-Current host path: `src/RemoteCommerce/Application/Feature/...`.
+The current host path is `src/RemoteCommerce/Application/Feature/...`.
+
+A feature must not introduce feature-local `Services`, `Models`, `Dtos`, `Contracts`, `Controllers`, or alternative command/query folders. Concrete feature services belong in the corresponding Infrastructure feature boundary; non-concrete contracts/models belong in `Abstractions`, `Requests`, `Results`, or `Resources` according to their role.
 
 Domain features remain under `src/RemoteCommerce/Domain/<Feature>` and Infrastructure features under `src/RemoteCommerce/Infrastructure/<Feature>`.
 
@@ -74,17 +76,19 @@ Domain features remain under `src/RemoteCommerce/Domain/<Feature>` and Infrastru
                            |____________________________|
 ```
 
-Controllers receive operation-specific Requests and never bind MediatR Commands/Queries directly. Each Command/Query receives its Request instance in its constructor and maps Request values into use-case data.
+Controllers receive operation-specific Requests and never bind MediatR Commands/Queries directly. Each Command/Query receives the exact corresponding Request instance in its constructor and maps Request values into use-case data.
 
-Handlers run through configured MediatR Behaviors. Feature Services coordinate application work through abstractions. Repository contracts are provider agnostic; implementations belong to Infrastructure and may use DbContext or a storage provider.
+Handlers run through configured MediatR Behaviors. Feature Services coordinate application work through abstractions and must not expose or depend on transport/controller concerns. Repository contracts are provider agnostic; implementations belong to Infrastructure and may use DbContext or a storage provider.
 
 Application handlers return `Result` for body-less operations and `Result<T>` for operations with a response body. Controllers map these results to HTTP responses.
 
 ## Exception propagation
 
-Applicable layers in `Controllers -> Handlers -> Behaviors -> Feature Services -> Repository<T> -> StorageProvider` use `try/catch/finally` where exception logging or cleanup is required. Catches log context and rethrow the original exception.
+Every executable layer in `Controllers -> Handlers -> Behaviors -> Feature Services -> Repository<T> -> StorageProvider` must participate in an exception logging/cleanup boundary using `try/catch/finally` directly or through the layer's explicit cross-cutting wrapper/decorator.
 
-The global exception handler is the only HTTP exception translator. It maps known validation, authorization, not-found, conflict, persistence/provider, and unexpected exceptions to Problem Details and appropriate HTTP status codes, with a safe fallback for unknown failures.
+Catch blocks must log relevant context and always rethrow the original exception. They must never swallow exceptions, return silent fallbacks, or translate exceptions into HTTP responses.
+
+The global exception handler is the only HTTP exception translator. It maps validation, authorization, not-found, conflict, persistence/provider, cancellation, and unexpected exceptions to Problem Details and appropriate HTTP status codes, with a safe fallback for unknown failures.
 
 ## Product Catalog
 
