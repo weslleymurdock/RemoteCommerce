@@ -27,6 +27,12 @@ public sealed class LocalizationResource : ISoftDeletable
     /// <summary>Gets or sets whether this version is currently active.</summary>
     public bool IsActive { get; set; }
 
-    /// <inheritdoc />
+    /// <summary>Gets or sets whether this version has been soft-deleted.</summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>Gets or sets the UTC timestamp at which this version was soft-deleted.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Gets or sets whether this version is disabled.</summary>
     public bool IsDisabled { get; set; }
 }
