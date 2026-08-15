@@ -363,7 +363,7 @@ public sealed class Stage05FoundationTests
             .Options;
         var db = new CommerceDbContext(options, new TestApplicationContext());
         await db.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE SiteSettings (Id INTEGER NOT NULL PRIMARY KEY, SiteName TEXT NOT NULL, SiteDescription TEXT NOT NULL, PublicUrl TEXT NOT NULL, TimeZone TEXT NOT NULL, Culture TEXT NOT NULL, Locale TEXT NOT NULL, UpdatedAt TEXT NOT NULL, IsDisabled INTEGER NOT NULL DEFAULT 0, DeletedAt TEXT NULL);",
+            "CREATE TABLE SiteSettings (Id INTEGER NOT NULL PRIMARY KEY, SiteName TEXT NOT NULL, SiteDescription TEXT NOT NULL, PublicUrl TEXT NOT NULL, TimeZone TEXT NOT NULL, Culture TEXT NOT NULL, Locale TEXT NOT NULL, UpdatedAt TEXT NOT NULL, IsDisabled INTEGER NOT NULL DEFAULT 0, IsDeleted INTEGER NOT NULL DEFAULT 0, DeletedAt TEXT NULL);",
             TestContext.Current.CancellationToken);
         return new TestDatabase(db, connection);
     }
