@@ -43,7 +43,12 @@
 - Plugin discovery must be deterministic and failures must not prevent the host from starting; failed plugins are reported through structured logging.
 - Plugin packages must not reference internal host implementation details. Expose capabilities through stable SDK contracts.
 - EF Core entities and DbContexts belong under Infrastructure persistence boundaries or a domain-specific extension boundary where explicitly required.
-- Controllers are thin HTTP adapters. They validate transport concerns, create or map Requests, call MediatR, and map Results to HTTP responses. Controllers must not contain business rules or persistence logic.
+- Controllers are thin HTTP adapters. They receive operation-specific Request objects, map them into MediatR Commands or Queries, call MediatR, and map the returned Result/Result<T> to HTTP responses. Controllers must not receive Commands or Queries directly from HTTP body, form, or route binding.
+- A Command or Query must receive the corresponding operation Request instance in its constructor and explicitly map Request values into the Command/Query data required by the use case.
+- Application handlers return operation Results. Controllers return the standard `Result` for responses without a body and `Result<T>` when the response contains a body. Do not expose EF entities, DbContexts, repositories, or provider objects from controllers.
+- The canonical exception flow is Controller -> Handler -> Behaviors -> Feature Service -> Repository<T> -> StorageProvider. Each applicable layer must use try/catch/finally for logging/cleanup, but catches must not swallow or locally translate exceptions unless that exception is explicitly handled by the global exception policy. Exceptions must be rethrown so they propagate to the global exception handler.
+- The global exception handler is responsible for translating captured exceptions into Problem Details and the appropriate HTTP status code. All expected exception categories that can emerge from the canonical data flow must have an explicit global mapping or a safe fallback mapping.
+- Do not use catch blocks as a substitute for validation or authorization and do not duplicate HTTP error translation inside feature handlers or repositories.
 - The `rc-plugin` dotnet tool generates one Razor SDK plugin project that can contain Razor pages, controllers, or both. During repository development it uses a ProjectReference to the SDK; released templates use the SDK NuGet package.
 - Template source files must live under the tool's `Resources` directory. The generator must not embed generated source files as C# string literals. Placeholders are rendered into resource templates.
 - Every generated plugin includes the plugin information Razor page and plugin health controller by default, regardless of the selected optional extension type.
@@ -80,8 +85,8 @@ The canonical application data flow is:
                            |____________________________|
 ```
 
-- HTTP controllers receive transport Requests and must not expose infrastructure types.
-- Requests are mapped into MediatR Commands or Queries.
+- HTTP controllers receive operation-specific transport Requests and must not expose infrastructure types.
+- Requests are mapped into MediatR Commands or Queries; Commands and Queries receive the corresponding Request instance in their constructors.
 - MediatR Handlers execute the use case after registered Behaviors such as logging, validation, and transaction handling.
 - Feature Services provide application/infrastructure coordination through explicit abstractions.
 - Repository abstractions must remain database-agnostic and storage-provider-agnostic.
@@ -89,6 +94,8 @@ The canonical application data flow is:
 - Application and Domain must never instantiate `DbContext`, `SqlConnection`, `SqlCommand`, MongoDB driver types, filesystem providers, or other storage implementations.
 - Infrastructure is the only layer allowed to translate repository contracts into EF Core, SQL, MongoDB/GridFS, filesystem, or other provider-specific operations.
 - A repository must not leak provider-specific query objects, sessions, contexts, commands, or connection details through its public contract.
+- Every applicable flow layer must log relevant exception context in `catch`/`finally` while rethrowing the original exception; exception-to-HTTP translation belongs to the global exception handler.
+- The application result contract is `Result` for responses without a body and `Result<T>` for responses containing a body.
 - This data flow is the architectural target for all new features and is the required direction for future refactoring.
 
 ## C# readability rule
