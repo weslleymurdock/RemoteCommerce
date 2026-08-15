@@ -77,6 +77,7 @@ global using RemoteCommerce.Infrastructure.Localization.Services;
 global using RemoteCommerce.Infrastructure.Logging;
 global using RemoteCommerce.Infrastructure.Media.Services;
 global using RemoteCommerce.Infrastructure.Persistence;
+global using RemoteCommerce.Infrastructure.Persistence.Repositories;
 global using RemoteCommerce.Infrastructure.Persistence.Entities;
 global using RemoteCommerce.Infrastructure.Persistence.Services;
 global using RemoteCommerce.Infrastructure.Security.Services;
