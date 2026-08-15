@@ -36,6 +36,7 @@ global using RemoteCommerce.Application.Catalog.Commands;
 global using RemoteCommerce.Application.Catalog.Handlers;
 global using RemoteCommerce.Application.Catalog.Queries;
 global using RemoteCommerce.Application.Catalog.Requests;
+global using RemoteCommerce.Application.Catalog.Resources;
 global using RemoteCommerce.Application.Catalog.Results;
 global using RemoteCommerce.Application.Common.Behaviors;
 global using RemoteCommerce.Application.Common.Requests;
