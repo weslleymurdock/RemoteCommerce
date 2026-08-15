@@ -1,34 +1,26 @@
 # Agent Instructions
 
-## Scope
-
-These instructions apply to work under `RemoteCommerce` and complement the root `AGENTS.md` and `.github/instructions.md`.
+These instructions apply to work under RemoteCommerce and complement `AGENTS.md` and `.github/instructions.md`.
 
 ## Workflow
 
-1. Read `AGENTS.md` and this directory before changing code.
-2. Read the current target branch and its open PR before implementing changes.
-3. Maintain exactly one open PR at a time.
-4. Create the next work branch from the current `main` only after the previous PR has been successfully integrated.
-5. Keep integration history linear; prefer fast-forward/rebase strategies.
-6. Do not merge a PR unless the user explicitly asks for the merge.
-7. After a PR is successfully integrated and required jobs pass, delete its work branch.
-8. Historical branches may exist only when needed for audit purposes; do not revive superseded branches.
-9. Implement one stage/PR at a time and keep each stage testable.
+1. Read repository rules, the target branch, and its open PR before changing code.
+2. Maintain exactly one open PR.
+3. Work only on the active Stage branch until that stage is integrated.
+4. Do not merge unless explicitly requested.
+5. Preserve linear integration history.
 
 ## Architecture
 
-- Keep Domain, Application, and Infrastructure as explicit architectural boundaries inside the current host project.
-- Organize each feature consistently across those boundaries.
-- Prepare the physical layout for future class library extraction with root namespace `RemoteCommerce`.
-- Domain must not reference Application or Infrastructure.
-- Application must depend on Domain and abstractions, not Infrastructure implementations.
-- Infrastructure owns persistence implementations, repositories, DbContexts, storage providers, and external integrations.
-- Controllers are transport adapters and must not contain business or persistence rules.
+The repository remains a single host project for concrete Domain, Application, Infrastructure, Presentation, and Plugin Runtime implementations.
 
-## Application feature layout
+The only future shared class library is `RemoteCommerce.Abstractions`, with `RootNamespace=RemoteCommerce`. It contains only contracts/models/non-concrete code and preserves the logical namespaces already used by the host.
 
-Every Application feature must follow this structure when the concern exists:
+Do not create separate future Domain/Application/Infrastructure class library projects unless explicitly requested later.
+
+## Application features
+
+Use:
 
 - `src/Application/Feature/Abstractions`
 - `src/Application/Feature/Commands`
@@ -39,58 +31,22 @@ Every Application feature must follow this structure when the concern exists:
 - `src/Application/Feature/Results`
 - `src/Application/Feature/Validators`
 
-In the current host, use the equivalent `src/RemoteCommerce/Application/Feature/...` path until the class library extraction is explicitly performed.
+Current host path: `src/RemoteCommerce/Application/Feature/...`.
 
 ## Data flow
 
-```text
- ___________________       ___________________________
-|    (Requests)     |      |    (Commands,Queries)    |
-|    Controllers    |=====>| MediatR Handlers         |
-|___________________|      |          └── Behaviors   |
-                           |__________________________|
-                                         |
-                                       \ | /
-                           _____________\|/_____________
-                           |(Application/Infrastructure)|
-                           |     Feature  Services      |
-                           |____________________________|
-                                         |
-                                       \ | /
-                           _____________\|/_____________
-                           |      (Infrastructure)      |
-                           |    Repository<T> *         |  *Repository for dbcontext or storage provider,
-                           |    └──DbContext|Storage    |   db agnostic
-                           |____________________________|
-```
+`Controllers(Requests) -> MediatR Commands/Queries -> Behaviors -> Feature Services -> Repository<T> -> DbContext|StorageProvider`.
 
-- Controllers receive Requests and dispatch MediatR Commands or Queries.
-- MediatR Handlers execute use cases after configured Behaviors.
-- Feature Services coordinate application and infrastructure operations through abstractions.
-- Repository contracts are provider-independent.
-- Repository implementations are Infrastructure-only.
-- DbContext and storage provider types never cross into Domain or Application contracts.
+Controllers never receive Commands/Queries from transport binding. Commands/Queries receive the operation Request instance in their constructors and map its values into use-case data. Handlers return `Result` or `Result<T>`.
 
-## Implementation
+## Exceptions
 
-- Target .NET 10.
-- Use Blazor Server/Blazor Web App server interactivity plus ASP.NET Core controllers in the main project.
-- Use EF Core with SQL Server for persistence.
-- Use MudBlazor for UI.
-- Public APIs require complete XML documentation in en-US.
-- Plugins are NuGet packages and must be loadable after installation and application restart.
-- Plugin Razor assemblies must be registered with Blazor routing through `AdditionalAssemblies`; do not call `AddAdditionalAssemblies` on `IRazorComponentsBuilder`.
-- Plugin controllers are MVC application parts and use `/api/rp/vX/<plugin_controller>`.
-- WooCommerce-compatible controllers use `/api/rc/vX`.
+Applicable flow layers use `try/catch/finally` for logging/cleanup. Catches log and rethrow. HTTP translation occurs only in the global exception handler, which returns Problem Details and appropriate status codes.
 
 ## Source formatting
 
-- One C# instruction or method call per source line.
-- One Razor directive per line.
-- One HTML/Razor component invocation per line when it has attributes or child content.
-- Keep executable Razor expressions and event callbacks independently readable.
-- Apply these formatting rules to production code, tests, templates, and generated source.
+One C# instruction or method call per line. One logical statement per line. One Razor directive per line. One HTML/Razor component invocation per line when attributes or child content are present. Apply to production, tests, templates, and generated source.
 
 ## Validation
 
-Every stage must have a buildable/testable checkpoint. Prefer isolated plugin builds as well as the main solution build when plugin tooling changes. Validate architecture and dependency direction, not only compilation and tests.
+Every stage must build, test, and pack successfully. Validate architecture and dependency direction, not only compilation.
