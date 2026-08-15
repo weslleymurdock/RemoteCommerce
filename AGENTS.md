@@ -3,66 +3,63 @@
 ## Stack
 
 - .NET 10 / ASP.NET Core / Blazor Web App using Interactive Server.
-- Controllers are hosted in the same project as the Blazor UI.
-- EF Core + SQL Server is the persistence boundary.
-- MudBlazor is the UI component library.
-- Plugins are distributed as `.nupkg` packages and loaded before the application host is built.
-- MediatR + FluentValidation are used for application workflows.
+- EF Core + SQL Server is the current persistence implementation.
+- MudBlazor is a UI component library, never the RemoteCommerce theming contract.
+- Plugins are distributed as `.nupkg` packages and activation remains restart-based.
+- MediatR 12.5.0 and FluentValidation are mandatory for application workflows.
 
-## Architecture rules
+## Architectural boundaries
 
-- Organize the host by explicit Domain, Application, and Infrastructure boundaries even while those boundaries remain in the current host project.
-- The physical layout must be migration-ready so `Domain`, `Application`, and `Infrastructure` can later become independent class library projects with root namespace `RemoteCommerce` without changing feature ownership or dependency direction.
-- Domain contains business entities, value objects, domain rules, domain events, and domain abstractions that do not depend on Application, Infrastructure, ASP.NET Core, EF Core, Blazor, MudBlazor, or provider-specific SDKs.
-- Application contains use cases, requests, commands, queries, handlers, behaviors, validators, application services, abstractions, resources, and results.
-- Infrastructure contains persistence, repository implementations, EF Core, DbContexts, storage providers, external integrations, and infrastructure implementations of Application or Domain abstractions.
-- A feature must be organized consistently across Domain, Application, and Infrastructure instead of creating cross-feature utility folders that bypass the feature boundary.
-- Application features must use the following canonical structure when the corresponding concern exists:
-  - `src/Application/Feature/Abstractions`
-  - `src/Application/Feature/Commands`
-  - `src/Application/Feature/Handlers`
-  - `src/Application/Feature/Queries`
-  - `src/Application/Feature/Requests`
-  - `src/Application/Feature/Resources`
-  - `src/Application/Feature/Results`
-  - `src/Application/Feature/Validators`
-- The current repository may retain `src/RemoteCommerce/Application`, `src/RemoteCommerce/Domain`, and `src/RemoteCommerce/Infrastructure` while it remains a single host project.
-- Future class library extraction must preserve the `RemoteCommerce` root namespace and must not introduce feature-specific root namespaces that encode the current host project layout.
-- Application must not depend on Infrastructure implementations directly. Depend on abstractions and resolve implementations through dependency injection.
-- Domain must not depend on Application or Infrastructure.
-- Infrastructure may depend on Application and Domain abstractions as required by the dependency direction.
-- Presentation and Blazor UI are adapters over Application use cases and must not access EF Core or storage providers directly.
-- Prefer primary constructors for services and infrastructure types.
-- Prefer dependency injection over service location or static state.
-- Stable plugin contracts live in `src/RemoteCommerce.Plugin.Abstractions` and are consumed by the host and plugin packages.
-- A plugin package must contain `plugin.manifest.json`, `LICENSE.md`, and `README.md` at its root and its entry assembly under `lib/net10.0/`.
-- The manifest is the source of truth for package metadata. Installation state remains in EF Core; static package metadata is read from the installed manifest rather than duplicated in the database.
-- The manifest `EntryAssembly` must use a package-relative path and `EntryType` must implement `IRemoteCommercePlugin`.
-- Never load an installed plugin into an already-running service provider. Installation is transactional; activation happens after the next process restart.
-- Enable, disable, and uninstall operations update persistent state; they do not attempt to mutate the current DI container.
-- Plugin discovery must be deterministic and failures must not prevent the host from starting; failed plugins are reported through structured logging.
-- Plugin packages must not reference internal host implementation details. Expose capabilities through stable SDK contracts.
-- EF Core entities and DbContexts belong under Infrastructure persistence boundaries or a domain-specific extension boundary where explicitly required.
-- Controllers are thin HTTP adapters. They receive operation-specific Request objects, map them into MediatR Commands or Queries, call MediatR, and map the returned Result/Result<T> to HTTP responses. Controllers must not receive Commands or Queries directly from HTTP body, form, or route binding.
-- A Command or Query must receive the corresponding operation Request instance in its constructor and explicitly map Request values into the Command/Query data required by the use case.
-- Application handlers return operation Results. Controllers return the standard `Result` for responses without a body and `Result<T>` when the response contains a body. Do not expose EF entities, DbContexts, repositories, or provider objects from controllers.
-- The canonical exception flow is Controller -> Handler -> Behaviors -> Feature Service -> Repository<T> -> StorageProvider. Each applicable layer must use try/catch/finally for logging/cleanup, but catches must not swallow or locally translate exceptions unless that exception is explicitly handled by the global exception policy. Exceptions must be rethrown so they propagate to the global exception handler.
-- The global exception handler is responsible for translating captured exceptions into Problem Details and the appropriate HTTP status code. All expected exception categories that can emerge from the canonical data flow must have an explicit global mapping or a safe fallback mapping.
-- Do not use catch blocks as a substitute for validation or authorization and do not duplicate HTTP error translation inside feature handlers or repositories.
-- The `rc-plugin` dotnet tool generates one Razor SDK plugin project that can contain Razor pages, controllers, or both. During repository development it uses a ProjectReference to the SDK; released templates use the SDK NuGet package.
-- Template source files must live under the tool's `Resources` directory. The generator must not embed generated source files as C# string literals. Placeholders are rendered into resource templates.
-- Every generated plugin includes the plugin information Razor page and plugin health controller by default, regardless of the selected optional extension type.
-- The default plugin API prefix is `/api/rp/v1`; future plugin API versions must use the newest supported `vX` prefix, starting from `v1`.
-- Plugin-specific REST controllers use `/api/rp/vX/<plugin_controller>`.
-- Controllers ported from WooCommerce use `/api/rc/vX`; these are distinct namespaces and must not use the plugin `/api/rp` prefix.
-- Do not merge pull requests unless the user explicitly requests a merge. PRs remain open for user validation by default.
-- Maintain exactly one open pull request for the repository at a time. Do not open a new stage PR while another PR is open. New stages must be based on the latest integrated main history so integration remains linear.
-- Preserve a linear integration history. Prefer fast-forward or rebase-based integration; do not introduce merge commits unless explicitly requested by the user.
-- After a pull request has been successfully integrated and all required CI/jobs have passed, delete its working branch. Historical stage branches must not be retained after successful integration unless the user explicitly requests preservation.
+The current repository remains a single host application, but `Domain`, `Application`, and `Infrastructure` are explicit architectural boundaries.
 
-## Application data-flow rule
+- Domain contains business entities, value objects, domain rules, and domain abstractions. It must not depend on Application, Infrastructure, ASP.NET Core, EF Core, Blazor, MudBlazor, or provider SDKs.
+- Application contains feature use cases, requests, commands, queries, handlers, behaviors, validators, feature services, resources, results, and abstractions. It must not depend on concrete Infrastructure implementations.
+- Infrastructure contains persistence, repository implementations, DbContexts, storage providers, provider strategy, external integrations, and concrete implementations of abstractions.
+- Presentation and Blazor UI are adapters over Application and must not access EF Core or storage providers directly.
 
-The canonical application data flow is:
+## Future shared class library
+
+The repository must not be planned around three future class libraries for Domain/Application/Infrastructure. That proposal is obsolete.
+
+The only future shared class library is:
+
+```text
+src/RemoteCommerce.Abstractions/
+└── RemoteCommerce.Abstractions.csproj
+    RootNamespace = RemoteCommerce
+```
+
+`RemoteCommerce.Abstractions` is a non-concrete shared contract/model assembly. It may contain interfaces, DTOs, request/result models, value-independent contracts, enums, and other code that does not represent a concrete implementation.
+
+The package must preserve the same logical namespace architecture already used by the host. For example, shared persistence contracts may retain `RemoteCommerce.Application.Persistence.Abstractions`, domain contracts may retain `RemoteCommerce.Domain.Shared.Abstractions`, and presentation contracts may retain `RemoteCommerce.Application.Presentation`.
+
+`RemoteCommerce.Abstractions` must never contain EF Core, DbContext, SQL/MongoDB/filesystem implementations, ASP.NET Core concrete services, Blazor components, MudBlazor components, plugin runtime implementations, or other concrete infrastructure.
+
+The host remains responsible for concrete Domain, Application, Infrastructure, Presentation, and Plugin Runtime implementations. Future extraction of those implementations is not implied by this rule.
+
+## Application feature organization
+
+Every Application feature uses this canonical structure whenever the concern exists:
+
+```text
+src/Application/Feature/
+├── Abstractions/
+├── Commands/
+├── Handlers/
+├── Queries/
+├── Requests/
+├── Resources/
+├── Results/
+└── Validators/
+```
+
+In the current host the physical path is `src/RemoteCommerce/Application/Feature/...`.
+
+Feature-specific artifacts must remain inside their feature. Do not create global command/query/validator folders for new features.
+
+Domain features belong under `src/RemoteCommerce/Domain/<Feature>` and Infrastructure features under `src/RemoteCommerce/Infrastructure/<Feature>`.
+
+## Canonical data flow
 
 ```text
  ___________________       ___________________________
@@ -85,48 +82,55 @@ The canonical application data flow is:
                            |____________________________|
 ```
 
-- HTTP controllers receive operation-specific transport Requests and must not expose infrastructure types.
-- Requests are mapped into MediatR Commands or Queries; Commands and Queries receive the corresponding Request instance in their constructors.
-- MediatR Handlers execute the use case after registered Behaviors such as logging, validation, and transaction handling.
-- Feature Services provide application/infrastructure coordination through explicit abstractions.
-- Repository abstractions must remain database-agnostic and storage-provider-agnostic.
-- Repository implementations belong to Infrastructure and may use DbContext or a storage provider internally.
-- Application and Domain must never instantiate `DbContext`, `SqlConnection`, `SqlCommand`, MongoDB driver types, filesystem providers, or other storage implementations.
-- Infrastructure is the only layer allowed to translate repository contracts into EF Core, SQL, MongoDB/GridFS, filesystem, or other provider-specific operations.
-- A repository must not leak provider-specific query objects, sessions, contexts, commands, or connection details through its public contract.
-- Every applicable flow layer must log relevant exception context in `catch`/`finally` while rethrowing the original exception; exception-to-HTTP translation belongs to the global exception handler.
-- The application result contract is `Result` for responses without a body and `Result<T>` for responses containing a body.
-- This data flow is the architectural target for all new features and is the required direction for future refactoring.
+- Controllers receive operation-specific Requests only.
+- Endpoints must never receive MediatR Commands or Queries through body, form, route binding, or any other transport binding.
+- Each Command/Query receives the corresponding Request instance in its constructor and explicitly maps request values into use-case data.
+- Handlers execute after MediatR Behaviors.
+- Feature Services coordinate use cases with infrastructure abstractions.
+- Repository contracts are database/storage-provider agnostic.
+- Repository implementations are Infrastructure-only.
+- Application and Domain never instantiate DbContext, SqlConnection, SqlCommand, MongoDB drivers, filesystem providers, or other storage implementations.
+- Controllers return `Result` when no response body exists and `Result<T>` when a response body exists.
 
-## C# readability rule
+## Exception propagation
 
-- Keep C# implementations vertically readable.
-- Do not combine multiple executable statements, declarations, assignments, conditionals, or side effects on a single source line.
-- Use one logical statement per line.
-- Expand compound control-flow bodies when they contain more than a single simple statement.
-- Expression-bodied members are allowed only when the member consists of a single expression and expanding it would not improve readability.
+The canonical flow is instrumented with `try/catch/finally` wherever executable work requires exception logging or cleanup:
 
-## Global one-statement-per-line rule
+`Controllers -> Handlers -> Behaviors -> Feature Services -> Repository<T> -> StorageProvider`.
 
-- Every C# instruction or method call must occupy its own source line.
-- Do not place multiple statements or method calls on the same line separated by semicolons, braces, operators, or other formatting tricks.
-- Every Razor directive must occupy its own line.
-- Every Razor component or HTML element must begin and end on separate readable lines unless the element is genuinely a single self-contained tag with no attributes or child content.
-- Do not place multiple Razor components, HTML tags, attributes containing executable expressions, or method calls on the same line merely to reduce line count.
-- Each Razor event callback or method invocation must be independently readable.
-- These rules apply globally to production code, tests, generated source templates, and Razor UI source.
+Each applicable catch logs relevant context and rethrows the original exception. Catch blocks must not swallow exceptions, return silent fallbacks, or translate exceptions into HTTP responses.
 
-## Public API documentation rule
+The global exception handler translates application, validation, authorization, not-found, conflict, persistence/provider, and unexpected exceptions into RFC Problem Details with the appropriate HTTP status code, using a safe fallback for unknown exceptions.
 
-- Every public API introduced by RemoteCommerce must have XML documentation comments written in en-US.
-- Document every possible XML documentation element applicable to the API: `summary`, `remarks`, `param`, `returns`, `value`, `typeparam`, `exception`, `example`, `see`, `seealso`, and `inheritdoc` where applicable.
-- Public types, constructors, methods, properties, fields, events, delegates, interfaces, enum members, and public extension methods are included in this rule.
-- XML documentation must describe behavior and contracts rather than restating identifiers.
-- Configure the compiler to generate XML documentation and treat missing public documentation as a build error.
+## Formatting
+
+- One C# instruction or method call per source line.
+- One logical statement per line.
+- One Razor directive per line.
+- One HTML/Razor component invocation per line when it has attributes or child content.
+- Keep executable Razor expressions and callbacks independently readable.
+- Apply these rules to production code, tests, generated templates, and plugin source.
+
+## Public API documentation
+
+Every public API must have complete applicable XML documentation in en-US. Document behavior and contracts using applicable `summary`, `remarks`, `param`, `returns`, `typeparam`, `value`, `exception`, `example`, `see`, `seealso`, and `inheritdoc` tags.
+
+## Plugins and API namespaces
+
+- Stable plugin contracts remain under `src/RemoteCommerce.Plugin.Abstractions`.
+- Plugin REST APIs use `/api/rp/vX/<plugin_controller>`.
+- RemoteCommerce/WooCommerce-compatible APIs use `/api/rc/vX`.
+- Plugin lifecycle remains restart-based.
+- Plugin packages must not reference concrete host implementation details.
+
+## Git
+
+- Maintain exactly one open PR.
+- Do not create parallel stage PRs.
+- Preserve linear history.
+- Do not merge unless explicitly requested.
+- Keep the active Stage PR draft until repository owner validation is complete.
 
 ## Validation
 
-- Every stage must build from a clean checkout.
-- Plugin packages and the template dotnet tool must be packed as part of stage validation.
-- Add automated tests before introducing non-trivial business behavior.
-- Validate architectural boundaries in addition to compiler and test success.
+Every stage must be clean-buildable, testable, and packable. Architectural boundaries and dependency direction must be validated in addition to compiler/test success.
