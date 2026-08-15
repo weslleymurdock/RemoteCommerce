@@ -24,7 +24,7 @@ builder.Services.AddMudServices();
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 builder.Services.AddSingleton<ISecretProvider, ConfigurationSecretProvider>();
 builder.Services.AddSingleton<DatabaseProviderResolver>();
-builder.Services.AddSingleton<IDatabaseProvider>(services =>
+builder.Services.AddSingleton<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>(services =>
     services.GetRequiredService<DatabaseProviderResolver>().Resolve());
 builder.Services.AddScoped<IDatabaseReplicationProvider, SqlServerReplicationProvider>();
 builder.Services.AddSingleton<DatabaseSetupStateStore>();
@@ -36,7 +36,7 @@ builder.Services.AddHostedService<ProviderConfigurationValidationService>();
 builder.Services.AddDbContextFactory<CommerceDbContext>((services, options) =>
     options.UseSqlServer(
         services
-            .GetRequiredService<IDatabaseProvider>()
+            .GetRequiredService<RemoteCommerce.Application.Persistence.Abstractions.IDatabaseProvider>()
             .GetConnectionString(DatabaseEndpoint.Primary)));
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -49,7 +49,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     options.Password.RequireNonAlphanumeric = true;
     options.Lockout.MaxFailedAccessAttempts = 5;
     options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-}).AddRoles<ApplicationRole>()
+})
+    .AddRoles<ApplicationRole>()
     .AddEntityFrameworkStores<CommerceDbContext>()
     .AddDefaultTokenProviders();
 builder.Services.AddOptions<JwtOptions>()
