@@ -56,6 +56,7 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
         PreparePersistenceChanges();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
+
     /// <inheritdoc />
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
@@ -70,24 +71,101 @@ public sealed class CommerceDbContext(DbContextOptions<CommerceDbContext> option
         modelBuilder.HasDefaultSchema("commerce");
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CommerceDbContext).Assembly);
-
     }
-
 
     private void PreparePersistenceChanges()
     {
-        var entries = ChangeTracker.Entries().Where(entry => entry.Entity is not OperationHistory && (entry.State == EntityState.Modified || entry.State == EntityState.Deleted)).ToArray();
+        var entries = ChangeTracker
+            .Entries()
+            .Where(
+                entry =>
+                    entry.Entity is not OperationHistory &&
+                    (entry.State == EntityState.Modified ||
+                     entry.State == EntityState.Deleted))
+            .ToArray();
+
         foreach (var entry in entries)
         {
-            var previousState = SerializeState(entry.OriginalValues.Properties.ToDictionary(property => property.Name, property => entry.OriginalValues[property]));
+            var previousState = SerializeState(
+                entry.OriginalValues.Properties.ToDictionary(
+                    property => property.Name,
+                    property => entry.OriginalValues[property]));
             var wasDeleted = entry.State == EntityState.Deleted;
             var operationType = wasDeleted ? "Delete" : "Update";
-            if (entry.Entity is ISoftDeletable softDeletable && wasDeleted) { softDeletable.IsDisabled = true; entry.State = EntityState.Modified; operationType = "SoftDelete"; }
-            var newState = entry.State == EntityState.Modified ? SerializeState(entry.CurrentValues.Properties.ToDictionary(property => property.Name, property => entry.CurrentValues[property])) : null;
-            OperationHistories.Add(new OperationHistory { EntityType = entry.Metadata.ClrType.FullName ?? entry.Metadata.ClrType.Name, EntityId = SerializeEntityId(entry), OperationType = operationType, OccurredAt = DateTimeOffset.UtcNow, UserId = applicationContext.UserId, Actor = applicationContext.Actor, CorrelationId = applicationContext.CorrelationId, IpAddress = applicationContext.IpAddress, PreviousState = previousState, NewState = newState });
+
+            if (entry.Entity is RemoteCommerce.Domain.Shared.Abstractions.ISoftDeletable softDeletable &&
+                wasDeleted)
+            {
+                softDeletable.IsDeleted = true;
+                softDeletable.DeletedAt = DateTimeOffset.UtcNow;
+                softDeletable.IsDisabled = true;
+                entry.State = EntityState.Modified;
+                operationType = "SoftDelete";
+            }
+
+            var newState = entry.State == EntityState.Modified
+                ? SerializeState(
+                    entry.CurrentValues.Properties.ToDictionary(
+                        property => property.Name,
+                        property => entry.CurrentValues[property]))
+                : null;
+
+            OperationHistories.Add(
+                new OperationHistory
+                {
+                    EntityType = entry.Metadata.ClrType.FullName ?? entry.Metadata.ClrType.Name,
+                    EntityId = SerializeEntityId(entry),
+                    OperationType = operationType,
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    UserId = applicationContext.UserId,
+                    Actor = applicationContext.Actor,
+                    CorrelationId = applicationContext.CorrelationId,
+                    IpAddress = applicationContext.IpAddress,
+                    PreviousState = previousState,
+                    NewState = newState
+                });
         }
     }
-    private static string SerializeEntityId(EntityEntry entry) { var key = entry.Metadata.FindPrimaryKey(); if (key is null) return string.Empty; return JsonSerializer.Serialize(key.Properties.ToDictionary(property => property.Name, property => entry.Property(property.Name).CurrentValue)); }
-    private static string SerializeState(IReadOnlyDictionary<string, object?> values) => JsonSerializer.Serialize(values.ToDictionary(pair => pair.Key, pair => IsSensitive(pair.Key) ? "[REDACTED]" : pair.Value));
-    private static bool IsSensitive(string propertyName) => propertyName.Contains("Password", StringComparison.OrdinalIgnoreCase) || propertyName.Contains("Secret", StringComparison.OrdinalIgnoreCase) || propertyName.Contains("Token", StringComparison.OrdinalIgnoreCase) || propertyName.Contains("ApiKey", StringComparison.OrdinalIgnoreCase) || propertyName.Contains("ConnectionString", StringComparison.OrdinalIgnoreCase);
+
+    private static string SerializeEntityId(EntityEntry entry)
+    {
+        var key = entry.Metadata.FindPrimaryKey();
+
+        if (key is null)
+        {
+            return string.Empty;
+        }
+
+        return JsonSerializer.Serialize(
+            key.Properties.ToDictionary(
+                property => property.Name,
+                property => entry.Property(property.Name).CurrentValue));
+    }
+
+    private static string SerializeState(IReadOnlyDictionary<string, object?> values)
+    {
+        return JsonSerializer.Serialize(
+            values.ToDictionary(
+                pair => pair.Key,
+                pair => IsSensitive(pair.Key) ? "[REDACTED]" : pair.Value));
+    }
+
+    private static bool IsSensitive(string propertyName)
+    {
+        return propertyName.Contains(
+                   "Password",
+                   StringComparison.OrdinalIgnoreCase) ||
+               propertyName.Contains(
+                   "Secret",
+                   StringComparison.OrdinalIgnoreCase) ||
+               propertyName.Contains(
+                   "Token",
+                   StringComparison.OrdinalIgnoreCase) ||
+               propertyName.Contains(
+                   "ApiKey",
+                   StringComparison.OrdinalIgnoreCase) ||
+               propertyName.Contains(
+                   "ConnectionString",
+                   StringComparison.OrdinalIgnoreCase);
+    }
 }
