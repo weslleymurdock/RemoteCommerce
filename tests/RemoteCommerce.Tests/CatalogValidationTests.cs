@@ -7,8 +7,19 @@ public sealed class CatalogValidationTests
     [Fact]
     public async Task ProductValidator_RejectsInvalidSlug()
     {
-        var validator = new ProductCommandValidator();
-        var result = await validator.ValidateAsync(new CreateProductCommand(new("Product", "Not Valid", null, string.Empty, string.Empty, ProductStatus.Draft, ProductType.Simple, 10m, null, "USD", null)), TestContext.Current.CancellationToken);
+        var validator = new CreateProductCommandValidator();
+        var request = new CreateProductRequest
+        {
+            Name = "Product",
+            Slug = "Not Valid",
+            Price = 10m,
+            Status = ProductStatus.Draft,
+            ProductType = ProductType.Simple,
+            Currency = "USD"
+        };
+        var result = await validator.ValidateAsync(
+            new CreateProductCommand(request),
+            TestContext.Current.CancellationToken);
         Assert.False(result.IsValid);
     }
 
@@ -16,8 +27,19 @@ public sealed class CatalogValidationTests
     [Fact]
     public async Task ProductValidator_RejectsNegativePrice()
     {
-        var validator = new ProductCommandValidator();
-        var result = await validator.ValidateAsync(new CreateProductCommand(new("Product", "product", null, string.Empty, string.Empty, ProductStatus.Draft, ProductType.Simple, -1m, null, "USD", null)), TestContext.Current.CancellationToken);
+        var validator = new CreateProductCommandValidator();
+        var request = new CreateProductRequest
+        {
+            Name = "Product",
+            Slug = "product",
+            Price = -1m,
+            Status = ProductStatus.Draft,
+            ProductType = ProductType.Simple,
+            Currency = "USD"
+        };
+        var result = await validator.ValidateAsync(
+            new CreateProductCommand(request),
+            TestContext.Current.CancellationToken);
         Assert.False(result.IsValid);
     }
 
@@ -26,7 +48,16 @@ public sealed class CatalogValidationTests
     public async Task MetadataValidator_RejectsSecretKey()
     {
         var validator = new ProductMetadataValidator();
-        var result = await validator.ValidateAsync(new UpsertProductMetadataCommand(Guid.NewGuid(), "api_token", MetadataValueType.String, "value"), TestContext.Current.CancellationToken);
+        var request = new UpsertProductMetadataRequest
+        {
+            ProductId = Guid.NewGuid(),
+            Key = "api_token",
+            Type = MetadataValueType.String,
+            Value = "value"
+        };
+        var result = await validator.ValidateAsync(
+            new UpsertProductMetadataCommand(request),
+            TestContext.Current.CancellationToken);
         Assert.False(result.IsValid);
     }
 
@@ -35,7 +66,18 @@ public sealed class CatalogValidationTests
     public async Task VariantValidator_RejectsNegativeStock()
     {
         var validator = new CreateProductVariantCommandValidator();
-        var result = await validator.ValidateAsync(new CreateProductVariantCommand(Guid.NewGuid(), "SKU-1", 10m, null, -1m, true, ProductVariantStatus.Active), TestContext.Current.CancellationToken);
+        var request = new CreateProductVariantRequest
+        {
+            ProductId = Guid.NewGuid(),
+            Sku = "SKU-1",
+            Price = 10m,
+            StockQuantity = -1m,
+            ManageStock = true,
+            Status = ProductVariantStatus.Active
+        };
+        var result = await validator.ValidateAsync(
+            new CreateProductVariantCommand(request),
+            TestContext.Current.CancellationToken);
         Assert.False(result.IsValid);
     }
 }
