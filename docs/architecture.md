@@ -1,34 +1,39 @@
 # Architecture
 
-RemoteCommerce is a .NET 10 ASP.NET Core application with Interactive Server Blazor, EF Core persistence, MediatR application workflows, MudBlazor administration, and a restart-based runtime plugin model.
+RemoteCommerce is a .NET 10 ASP.NET Core application with Interactive Server Blazor, EF Core persistence, MediatR application workflows, MudBlazor administration, and a restart-based plugin model.
 
 ## Architectural boundaries
 
-The current repository is a single host project, but Domain, Application, and Infrastructure are explicit architectural boundaries.
+The repository is currently a single host project. Domain, Application, Infrastructure, Presentation, and Plugin Runtime are explicit logical boundaries inside that host.
+
+- Domain contains business entities and rules and has no dependency on Application or Infrastructure.
+- Application contains feature use cases and abstractions and does not depend on concrete Infrastructure implementations.
+- Infrastructure owns EF Core, DbContexts, repositories, storage providers, provider strategy, and external integrations.
+- UI/Presentation is an adapter and must not access EF Core or storage providers directly.
+
+## Future shared assembly
+
+The previous plan to extract Domain, Application, and Infrastructure into three class libraries is retired.
+
+The only future shared class library is:
 
 ```text
-RemoteCommerce
-├── Components/                 Blazor UI and administration adapters
-├── Application/                feature use cases and contracts
-├── Domain/                     business model and domain rules
-├── Infrastructure/             persistence, repositories, storage, integrations
-├── Plugins/                    runtime loading and lifecycle orchestration
-└── Plugin.Abstractions/        stable SDK contract consumed by plugins
+src/RemoteCommerce.Abstractions/
+└── RemoteCommerce.Abstractions.csproj
+    RootNamespace = RemoteCommerce
 ```
 
-The layout is intentionally migration-ready. Domain, Application, and Infrastructure may later become independent class library projects while retaining root namespace `RemoteCommerce` and the same dependency direction.
+Its purpose is to hold reusable non-concrete code: contracts, interfaces, request/result models, DTOs, enums, and other boundary-neutral models.
 
-Domain has no dependency on Application or Infrastructure.
+It must not contain concrete implementations or references to EF Core, DbContext, SQL/MongoDB/filesystem providers, ASP.NET Core concrete services, Blazor, MudBlazor, or plugin runtime implementation details.
 
-Application depends on Domain and abstractions, but not on Infrastructure implementations.
+The class library preserves the same logical namespace architecture used by the current host. A file can therefore retain namespaces such as `RemoteCommerce.Application.Persistence.Abstractions` while physically living in `RemoteCommerce.Abstractions`.
 
-Infrastructure owns provider-specific implementations, EF Core, DbContexts, repositories, storage providers, and external integrations.
-
-Presentation and Blazor UI are adapters over Application and must not access EF Core or storage providers directly.
+The host continues to own concrete Domain, Application, Infrastructure, Presentation, and Plugin Runtime implementations. No additional implementation assemblies are implied by this rule.
 
 ## Application feature layout
 
-Every Application feature is organized by feature and concern using this canonical structure when the corresponding concern exists:
+Every feature uses the canonical layout when the concern exists:
 
 ```text
 src/Application/Feature/
@@ -42,17 +47,11 @@ src/Application/Feature/
 └── Validators/
 ```
 
-In the current host project the equivalent physical path is `src/RemoteCommerce/Application/Feature/...`.
+Current host path: `src/RemoteCommerce/Application/Feature/...`.
 
-Domain features belong under `src/RemoteCommerce/Domain/<Feature>`.
+Domain features remain under `src/RemoteCommerce/Domain/<Feature>` and Infrastructure features under `src/RemoteCommerce/Infrastructure/<Feature>`.
 
-Infrastructure features belong under `src/RemoteCommerce/Infrastructure/<Feature>`.
-
-Feature-specific application artifacts must not be placed in a global commands, queries, validators, or contracts folder.
-
-## Application data flow
-
-The canonical data flow for all new features is:
+## Canonical data flow
 
 ```text
  ___________________       ___________________________
@@ -75,57 +74,27 @@ The canonical data flow for all new features is:
                            |____________________________|
 ```
 
-Controllers receive transport Requests and dispatch MediatR Commands or Queries.
+Controllers receive operation-specific Requests and never bind MediatR Commands/Queries directly. Each Command/Query receives its Request instance in its constructor and maps Request values into use-case data.
 
-MediatR Handlers execute use cases after configured Behaviors such as logging, validation, and transaction handling.
+Handlers run through configured MediatR Behaviors. Feature Services coordinate application work through abstractions. Repository contracts are provider agnostic; implementations belong to Infrastructure and may use DbContext or a storage provider.
 
-Feature Services coordinate Application and Infrastructure through explicit abstractions.
+Application handlers return `Result` for body-less operations and `Result<T>` for operations with a response body. Controllers map these results to HTTP responses.
 
-Repository contracts are database-agnostic and storage-provider-agnostic.
+## Exception propagation
 
-Repository implementations belong to Infrastructure and may use `DbContext` or a storage provider internally.
+Applicable layers in `Controllers -> Handlers -> Behaviors -> Feature Services -> Repository<T> -> StorageProvider` use `try/catch/finally` where exception logging or cleanup is required. Catches log context and rethrow the original exception.
 
-Provider-specific types never cross the Infrastructure boundary into Domain or Application contracts.
-
-The host owns `CommerceDbContext`, `IDatabaseProvider`, `DatabaseTopology`, `ISecretProvider`, `TransactionalBehavior`, and operation history.
-
-Plugins never receive `CommerceDbContext`, arbitrary connection strings, provider-specific database objects, or host implementation details.
-
-## Application feature extraction rule
-
-The future class library extraction must preserve the following conceptual projects and root namespace:
-
-```text
-RemoteCommerce.Domain
-RemoteCommerce.Application
-RemoteCommerce.Infrastructure
-```
-
-The project extraction itself is not implied by this rule. Until explicitly requested, the repository remains a single host project.
+The global exception handler is the only HTTP exception translator. It maps known validation, authorization, not-found, conflict, persistence/provider, and unexpected exceptions to Problem Details and appropriate HTTP status codes, with a safe fallback for unknown failures.
 
 ## Product Catalog
 
-Stage 08 adds a host-owned catalog model without copying WooCommerce's internal PHP storage model. The core aggregate is `Product`; related entities represent variants, taxonomy, attributes, metadata, and media references.
+Stage 08 introduces the host-owned catalog domain: Product, ProductVariant, Category, Brand, Tag, ProductAttribute, ProductAttributeValue, ProductMetadata, and product media references.
 
-`Product` supports name, URL slug, optional SKU, descriptions, lifecycle status, product type, prices, currency, optional brand, categories, tags, attributes, variants, metadata, and media references. Product types are `Simple`, `Variable`, `Virtual`, and `Downloadable`. Statuses are `Draft`, `Published`, and `Archived`.
+Catalog persistence uses the existing CommerceDbContext and Stage 06/07 provider strategy. Media binaries remain behind IMediaStorageProvider. Catalog entities participate in the shared soft-delete and operation-history mechanisms.
 
-`Category` is hierarchical through `ParentId` and uses restrictive parent deletion to prevent accidental tree corruption. `Brand` and `Tag` have unique slugs. Product and variant SKUs are database-unique. `ProductAttribute` and `ProductAttributeValue` provide extensible values such as Color, Size, and Material without hardcoding attributes into `Product`.
+## Administration and theming
 
-Product metadata is represented by explicit `ProductMetadata` records containing a validated key, scalar/JSON type, and value. Secrets are not a catalog metadata capability. Product media contains only a `MediaId`, role, order, and alternative text; binary content remains owned by `IMediaStorageProvider`.
-
-The catalog uses the existing host `CommerceDbContext` and provider strategy. It does not introduce a second context or provider-specific database API. Catalog entities participate in the shared soft-delete contract and EF query filtering. The Stage 08 migration creates catalog tables under the existing `commerce` schema.
-
-## Catalog API
-
-RemoteCommerce-owned resources use `/api/rc/v1`. Plugin resources remain under `/api/rp/v1`.
-
-Stage 08 provides product collection/detail and administrative mutation endpoints plus category, brand, tag, and attribute resources. Product collections are paged with a safe maximum page size of 100 and support search/status/brand/SKU/product-type filters. Administrative mutations require the existing Administrator policy. Controllers dispatch through MediatR and return application Results rather than EF entities.
-
-OpenAPI and Scalar continue using the host configuration. The catalog controller is in the host MVC application and therefore participates in the existing API discovery pipeline.
-
-## Administration UI and theming
-
-The administration UI is layered as:
+The presentation architecture is:
 
 ```text
 Application use case
@@ -139,50 +108,14 @@ Theme / presentation contracts
 Component library implementation
 ```
 
-`IThemeProvider` and `ThemeDefinition` define theme identity, version, author, layouts, assets, stylesheets, scripts, component override metadata, and other presentation metadata. The Application/Domain catalog model has no reference to MudBlazor or the theme implementation.
+Theme contracts live in the shared abstractions boundary. MudBlazor remains an internal component library and is not the RemoteCommerce theme contract.
 
-MudBlazor remains a component library used by the host UI. It is not the RemoteCommerce theme contract.
+Dynamic administration menus are composed from core and plugin contributions. Menu visibility is not authorization; protected routes and APIs continue to use ASP.NET Core policies.
 
-## Dynamic menu system
+## Plugin boundaries
 
-Administration navigation is composed through `IMenuProvider`, `IMenuContributor`, and `MenuItemDefinition`. Core navigation registers the catalog tree and existing administration destinations as contributions instead of making a page implementation the navigation contract.
+Stable plugin contracts remain in `src/RemoteCommerce.Plugin.Abstractions`. Plugins cannot access host DbContext, provider-specific persistence objects, or concrete host implementation details. Plugin APIs use `/api/rp/vX`; RemoteCommerce catalog APIs use `/api/rc/v1`.
 
-The stable plugin SDK exposes `IRemoteCommercePluginMenuContributor` and `PluginMenuItem`. A plugin can register its contributor without referencing host Razor components.
+## Formatting and documentation
 
-Menu filtering is presentation visibility only. Every sensitive route and API mutation continues to use ASP.NET Core authorization policies. A hidden menu item is never considered authorization.
-
-## Source formatting
-
-C# instructions and method calls must be vertically readable with one logical statement per line.
-
-Razor directives must be one per line.
-
-HTML and Razor component invocations with attributes or child content must remain independently readable and must not be compressed onto shared lines.
-
-These rules apply to production code, tests, generated templates, and Razor UI.
-
-## Localization
-
-Catalog UI labels use the existing `ILocalizer` boundary and a `CatalogResources` resource marker. Initial supported cultures remain `en-US` and `pt-BR`.
-
-## Plugin extension points
-
-Stage 08 establishes narrow plugin extension points rather than arbitrary component injection:
-
-- administration menu contributions through the stable SDK;
-- catalog metadata through explicit `ProductMetadata` records;
-- future product UI extensions through typed Application/Presentation contracts without coupling Domain to Razor or MudBlazor.
-
-The plugin runtime, manifest, package validator, generator, persistence contract, and restart lifecycle remain unchanged.
-
-## Soft-delete and operation history
-
-Catalog entities implement the same `ISoftDeletable` contract used by the host. Normal EF queries exclude disabled records. Deletions flow through the existing persistence preparation path and are represented as soft-delete state changes. Operation history remains infrastructure-owned and uses the existing redaction rules; catalog code does not create a second audit system.
-
-## Provider and media boundaries
-
-Catalog persistence uses the Stage 06/07 `IDatabaseProvider` strategy and the host `CommerceDbContext`. Media references do not know whether content is stored in the filesystem or MongoDB/GridFS. No catalog code creates `SqlConnection`, `SqlCommand`, or MongoDB driver objects.
-
-## Plugin persistence
-
-Plugin persistence remains separate from host catalog persistence. Plugin-owned contexts, migrations, schema names, transactions, soft-delete, and operation history continue to follow the Stage 07 contract. The host catalog does not expose its EF context to plugins.
+C# instructions/method calls, Razor directives, and multi-line HTML/Razor component invocations follow the one-statement/one-instruction-per-line rule. Public APIs require complete en-US XML documentation.
