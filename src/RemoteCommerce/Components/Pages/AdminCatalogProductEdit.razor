@@ -4,30 +4,89 @@
 @inject NavigationManager Navigation
 @inject ILocalizer Localizer
 
-<PageTitle>@Get("Catalog.CreateProduct")</PageTitle>
-<MudStack Spacing="3" MaxWidth="MaxWidth.Medium">
-    <MudText Typo="Typo.h4">@Get("Catalog.CreateProduct")</MudText>
-    <MudTextField @bind-Value="model.Name" Label="@Get("Catalog.Name")" Required="true" />
-    <MudTextField @bind-Value="model.Slug" Label="@Get("Catalog.Slug")" Required="true" />
-    <MudTextField @bind-Value="model.Sku" Label="@Get("Catalog.Sku")" />
-    <MudTextField @bind-Value="model.ShortDescription" Label="@Get("Catalog.ShortDescription")" />
-    <MudTextField @bind-Value="model.Description" Label="@Get("Catalog.Description")" Lines="5" />
-    <MudNumericField @bind-Value="model.Price" Label="@Get("Catalog.Price")" Min="0" />
-    <MudSelect @bind-Value="model.Status" Label="@Get("Catalog.Status")">
-        @foreach (var status in Enum.GetValues<ProductStatus>()) { <MudSelectItem Value="status">@status</MudSelectItem> }
+<PageTitle>
+    @Get("Catalog.CreateProduct")
+</PageTitle>
+
+<MudStack
+    Spacing="3">
+    <MudText Typo="Typo.h4">
+        @Get("Catalog.CreateProduct")
+    </MudText>
+    <MudTextField
+        @bind-Value="model.Name"
+        Label="@Get("Catalog.Name")"
+        Required="true" />
+    <MudTextField
+        @bind-Value="model.Slug"
+        Label="@Get("Catalog.Slug")"
+        Required="true" />
+    <MudTextField
+        @bind-Value="model.Sku"
+        Label="@Get("Catalog.Sku")" />
+    <MudTextField
+        @bind-Value="model.ShortDescription"
+        Label="@Get("Catalog.ShortDescription")" />
+    <MudTextField
+        @bind-Value="model.Description"
+        Label="@Get("Catalog.Description")"
+        Lines="5" />
+    <MudNumericField
+        @bind-Value="model.Price"
+        Label="@Get("Catalog.Price")"
+        Min="0" />
+    <MudSelect
+        @bind-Value="model.Status"
+        Label="@Get("Catalog.Status")">
+        @foreach (var status in Enum.GetValues<ProductStatus>())
+        {
+            <MudSelectItem
+                Value="status">
+                @status
+            </MudSelectItem>
+        }
     </MudSelect>
-    <MudSelect @bind-Value="model.ProductType" Label="@Get("Catalog.ProductType")">
-        @foreach (var type in Enum.GetValues<ProductType>()) { <MudSelectItem Value="type">@type</MudSelectItem> }
+    <MudSelect
+        @bind-Value="model.ProductType"
+        Label="@Get("Catalog.ProductType")">
+        @foreach (var type in Enum.GetValues<ProductType>())
+        {
+            <MudSelectItem
+                Value="type">
+                @type
+            </MudSelectItem>
+        }
     </MudSelect>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">@Get("Catalog.Save")</MudButton>
+    <MudButton
+        Variant="Variant.Filled"
+        Color="Color.Primary"
+        OnClick="Save">
+        @Get("Catalog.Save")
+    </MudButton>
 </MudStack>
 
 @code {
-    private CreateProductRequest model = new("", "", null, "", "", ProductStatus.Draft, ProductType.Simple, 0, null, "USD", null);
-    private string Get(string key) => Localizer.Get<CatalogResources>(key);
-    private async Task Save() 
-    { 
-        await Mediator.Send(new CreateProductCommand(model)); 
-        Navigation.NavigateTo("/admin/catalog/products"); 
+    private CreateProductRequest model = new()
+    {
+        Status = ProductStatus.Draft,
+        ProductType = ProductType.Simple,
+        Currency = "USD"
+    };
+
+    private string Get(string key)
+    {
+        return Localizer.Get<CatalogResources>(key);
+    }
+
+    private async Task Save()
+    {
+        var result = await Mediator.Send(
+            new CreateProductCommand(model));
+
+        if (result.Succeeded)
+        {
+            Navigation.NavigateTo(
+                "/admin/catalog/products");
+        }
     }
 }
