@@ -7,176 +7,605 @@ namespace RemoteCommerce.Controllers.v1;
 public sealed class CatalogController(IMediator mediator) : ControllerBase
 {
     /// <summary>Lists catalog products with bounded pagination and filters.</summary>
-    /// <param name="query">Pagination and filtering parameters.</param>
+    /// <param name="request">The product listing request.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A paged product collection.</returns>
+    /// <returns>A standard result containing the paged product collection.</returns>
     [HttpGet("products")]
     [AllowAnonymous]
-    [ProducesResponseType<PagedResult<ProductModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<Result<PagedResult<ProductModel>>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status405MethodNotAllowed)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status408RequestTimeout)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetProducts([FromQuery] ProductListQuery query, CancellationToken cancellationToken) 
-        => Ok(await mediator.Send(query, cancellationToken));
+    public async Task<IActionResult> GetProducts(
+        [FromQuery] ProductListRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new ProductListQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
     /// <summary>Gets a product by identifier.</summary>
     /// <param name="id">The product identifier.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The product when found.</returns>
-    [HttpGet("products/{id:guid}")][AllowAnonymous]
-    public async Task<ActionResult<ProductModel>> GetProduct(Guid id, CancellationToken cancellationToken) { var result = await mediator.Send(new GetProductQuery(id), cancellationToken); return result is null ? NotFound() : Ok(result); }
-    
+    /// <returns>A standard result containing the product.</returns>
+    [HttpGet("products/{id:guid}")]
+    [AllowAnonymous]
+    [ProducesResponseType<Result<ProductModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProduct(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new GetProductQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Creates a product.</summary>
-    /// <param name="command">The product payload.</param>
+    /// <param name="request">The product creation request.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The created product.</returns>
+    /// <returns>A standard result containing the created product.</returns>
     [HttpPost("products")]
     [Authorize(Policy = AuthorizationPolicies.Administrator)]
-    [ProducesResponseType<PagedResult<ProductModel>>(StatusCodes.Status201Created)]
+    [ProducesResponseType<Result<ProductModel>>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status405MethodNotAllowed)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status408RequestTimeout)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status422UnprocessableEntity)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<ProductModel>> CreateProduct(CreateProductCommand command, CancellationToken cancellationToken) 
-    { 
-        var result = await mediator.Send(command, cancellationToken); 
-        return CreatedAtAction(nameof(GetProduct), new { id = result.Id }, result); 
+    public async Task<IActionResult> CreateProduct(
+        [FromBody] CreateProductRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new CreateProductCommand(request),
+            cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ToActionResult(result);
+        }
+
+        return CreatedAtAction(
+            nameof(GetProduct),
+            new { id = result.Value!.Id },
+            result);
     }
-    
+
     /// <summary>Updates a product.</summary>
     /// <param name="id">The product identifier.</param>
-    /// <param name="command">The product payload.</param>
+    /// <param name="request">The product update request.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The updated product.</returns>
-    [HttpPut("products/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<ProductModel>> UpdateProduct(Guid id, UpdateProductCommand command, CancellationToken cancellationToken) 
-    { 
-        if (id != command.Id) return BadRequest(); 
-        var result = await mediator.Send(command, cancellationToken); 
-        return result is null ? NotFound() : Ok(result); 
+    /// <returns>A standard result containing the updated product.</returns>
+    [HttpPut("products/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    [ProducesResponseType<Result<ProductModel>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProduct(
+        Guid id,
+        [FromBody] UpdateProductRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.Id = id;
+        var result = await mediator.Send(
+            new UpdateProductCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
     }
-    
+
     /// <summary>Soft-deletes a product.</summary>
-    /// <param name="id">The product identifier.</param><param name="cancellationToken">The cancellation token.</param>
+    /// <param name="id">The product identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result without a response body.</returns>
     [HttpDelete("products/{id:guid}")]
     [Authorize(Policy = AuthorizationPolicies.Administrator)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    public async Task<IActionResult> DeleteProduct(Guid id, CancellationToken cancellationToken) { await mediator.Send(new DeleteProductCommand(id), cancellationToken); return NoContent(); }
+    public async Task<IActionResult> DeleteProduct(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new DeleteProductCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
     /// <summary>Lists categories.</summary>
-    /// <param name="cancellationToken">The cancellation token.</param><returns>The categories.</returns>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the categories.</returns>
     [HttpGet("categories")]
     [AllowAnonymous]
-    public Task<IReadOnlyList<CategoryModel>> GetCategories(CancellationToken cancellationToken) => mediator.Send(new GetCategoriesQuery(), cancellationToken);
+    public async Task<IActionResult> GetCategories(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new GetCategoriesQuery(),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Gets a category.</summary>
-    /// <param name="id">The category identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The category.</returns>
-    [HttpGet("categories/{id:guid}")][AllowAnonymous]
-    public async Task<ActionResult<CategoryModel>> GetCategory(Guid id, CancellationToken cancellationToken) { var result = (await mediator.Send(new GetCategoriesQuery(), cancellationToken)).FirstOrDefault(x => x.Id == id); return result is null ? NotFound() : Ok(result); }
+    /// <param name="id">The category identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the category.</returns>
+    [HttpGet("categories/{id:guid}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetCategory(Guid id, CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new GetCategoryQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Creates a category.</summary>
-    /// <param name="command">The category payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The created category.</returns>
-    [HttpPost("categories")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public Task<CategoryModel> CreateCategory(CreateCategoryCommand command, CancellationToken cancellationToken) => mediator.Send(command, cancellationToken);
+    /// <param name="request">The category creation request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the created category.</returns>
+    [HttpPost("categories")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> CreateCategory(
+        [FromBody] CreateCategoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new CreateCategoryCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Updates a category.</summary>
-    /// <param name="id">The category identifier.</param><param name="command">The category payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The updated category.</returns>
-    [HttpPut("categories/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<CategoryModel>> UpdateCategory(Guid id, UpdateCategoryCommand command, CancellationToken cancellationToken) { if (id != command.Id) return BadRequest(); var result = await mediator.Send(command, cancellationToken); return result is null ? NotFound() : Ok(result); }
+    /// <param name="id">The category identifier.</param>
+    /// <param name="request">The category update request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the updated category.</returns>
+    [HttpPut("categories/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> UpdateCategory(
+        Guid id,
+        [FromBody] UpdateCategoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.Id = id;
+        var result = await mediator.Send(
+            new UpdateCategoryCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Soft-deletes a category.</summary>
-    /// <param name="id">The category identifier.</param><param name="cancellationToken">The cancellation token.</param>
-    [HttpDelete("categories/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<IActionResult> DeleteCategory(Guid id, CancellationToken cancellationToken) { await mediator.Send(new DeleteCategoryCommand(id), cancellationToken); return NoContent(); }
+    /// <param name="id">The category identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result without a response body.</returns>
+    [HttpDelete("categories/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> DeleteCategory(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new DeleteCategoryCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
     /// <summary>Lists brands.</summary>
-    /// <param name="cancellationToken">The cancellation token.</param><returns>The brands.</returns>
-    [HttpGet("brands")][AllowAnonymous]
-    public Task<IReadOnlyList<BrandModel>> GetBrands(CancellationToken cancellationToken) => mediator.Send(new GetBrandsQuery(), cancellationToken);
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the brands.</returns>
+    [HttpGet("brands")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetBrands(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new GetBrandsQuery(),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Gets a brand.</summary>
-    /// <param name="id">The brand identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The brand.</returns>
-    [HttpGet("brands/{id:guid}")][AllowAnonymous]
-    public async Task<ActionResult<BrandModel>> GetBrand(Guid id, CancellationToken cancellationToken) { var result = (await mediator.Send(new GetBrandsQuery(), cancellationToken)).FirstOrDefault(x => x.Id == id); return result is null ? NotFound() : Ok(result); }
+    /// <param name="id">The brand identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the brand.</returns>
+    [HttpGet("brands/{id:guid}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetBrand(Guid id, CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new GetBrandQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Creates a brand.</summary>
-    /// <param name="command">The brand payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The created brand.</returns>
-    [HttpPost("brands")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public Task<BrandModel> CreateBrand(CreateBrandCommand command, CancellationToken cancellationToken) => mediator.Send(command, cancellationToken);
+    /// <param name="request">The brand creation request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the created brand.</returns>
+    [HttpPost("brands")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> CreateBrand(
+        [FromBody] CreateBrandRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new CreateBrandCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Updates a brand.</summary>
-    /// <param name="id">The brand identifier.</param><param name="command">The brand payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The updated brand.</returns>
-    [HttpPut("brands/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<BrandModel>> UpdateBrand(Guid id, UpdateBrandCommand command, CancellationToken cancellationToken) { if (id != command.Id) return BadRequest(); var result = await mediator.Send(command, cancellationToken); return result is null ? NotFound() : Ok(result); }
+    /// <param name="id">The brand identifier.</param>
+    /// <param name="request">The brand update request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the updated brand.</returns>
+    [HttpPut("brands/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> UpdateBrand(
+        Guid id,
+        [FromBody] UpdateBrandRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.Id = id;
+        var result = await mediator.Send(
+            new UpdateBrandCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Soft-deletes a brand.</summary>
-    /// <param name="id">The brand identifier.</param><param name="cancellationToken">The cancellation token.</param>
-    [HttpDelete("brands/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<IActionResult> DeleteBrand(Guid id, CancellationToken cancellationToken) { await mediator.Send(new DeleteBrandCommand(id), cancellationToken); return NoContent(); }
+    /// <param name="id">The brand identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result without a response body.</returns>
+    [HttpDelete("brands/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> DeleteBrand(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new DeleteBrandCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
     /// <summary>Lists tags.</summary>
-    /// <param name="cancellationToken">The cancellation token.</param><returns>The tags.</returns>
-    [HttpGet("tags")][AllowAnonymous]
-    public Task<IReadOnlyList<TagModel>> GetTags(CancellationToken cancellationToken) => mediator.Send(new GetTagsQuery(), cancellationToken);
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the tags.</returns>
+    [HttpGet("tags")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetTags(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new GetTagsQuery(),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Gets a tag.</summary>
-    /// <param name="id">The tag identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The tag.</returns>
-    [HttpGet("tags/{id:guid}")][AllowAnonymous]
-    public async Task<ActionResult<TagModel>> GetTag(Guid id, CancellationToken cancellationToken) { var result = (await mediator.Send(new GetTagsQuery(), cancellationToken)).FirstOrDefault(x => x.Id == id); return result is null ? NotFound() : Ok(result); }
+    /// <param name="id">The tag identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the tag.</returns>
+    [HttpGet("tags/{id:guid}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetTag(Guid id, CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new GetTagQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Creates a tag.</summary>
-    /// <param name="command">The tag payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The created tag.</returns>
-    [HttpPost("tags")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public Task<TagModel> CreateTag(CreateTagCommand command, CancellationToken cancellationToken) => mediator.Send(command, cancellationToken);
+    /// <param name="request">The tag creation request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the created tag.</returns>
+    [HttpPost("tags")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> CreateTag(
+        [FromBody] CreateTagRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new CreateTagCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Updates a tag.</summary>
-    /// <param name="id">The tag identifier.</param><param name="command">The tag payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The updated tag.</returns>
-    [HttpPut("tags/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<TagModel>> UpdateTag(Guid id, UpdateTagCommand command, CancellationToken cancellationToken) { if (id != command.Id) return BadRequest(); var result = await mediator.Send(command, cancellationToken); return result is null ? NotFound() : Ok(result); }
+    /// <param name="id">The tag identifier.</param>
+    /// <param name="request">The tag update request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the updated tag.</returns>
+    [HttpPut("tags/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> UpdateTag(
+        Guid id,
+        [FromBody] UpdateTagRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.Id = id;
+        var result = await mediator.Send(
+            new UpdateTagCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
     /// <summary>Soft-deletes a tag.</summary>
-    /// <param name="id">The tag identifier.</param><param name="cancellationToken">The cancellation token.</param>
-    [HttpDelete("tags/{id:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<IActionResult> DeleteTag(Guid id, CancellationToken cancellationToken) { await mediator.Send(new DeleteTagCommand(id), cancellationToken); return NoContent(); }
+    /// <param name="id">The tag identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result without a response body.</returns>
+    [HttpDelete("tags/{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> DeleteTag(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = id
+        };
+        var result = await mediator.Send(
+            new DeleteTagCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
     /// <summary>Lists product attributes.</summary>
-    /// <param name="cancellationToken">The cancellation token.</param><returns>The attributes.</returns>
-    [HttpGet("attributes")][AllowAnonymous]
-    public Task<IReadOnlyList<AttributeModel>> GetAttributes(CancellationToken cancellationToken) => mediator.Send(new GetAttributesQuery(), cancellationToken);
-    /// <summary>Gets an attribute.</summary>
-    /// <param name="id">The attribute identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The attribute.</returns>
-    [HttpGet("attributes/{id:guid}")][AllowAnonymous]
-    public async Task<ActionResult<AttributeModel>> GetAttribute(Guid id, CancellationToken cancellationToken) { var result = (await mediator.Send(new GetAttributesQuery(), cancellationToken)).FirstOrDefault(x => x.Id == id); return result is null ? NotFound() : Ok(result); }
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the attributes.</returns>
+    [HttpGet("attributes")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAttributes(CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(
+            new GetAttributesQuery(),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
-    /// <summary>Lists product variants.</summary>
-    /// <param name="productId">The product identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The variants.</returns>
-    [HttpGet("products/{productId:guid}/variations")][AllowAnonymous]
-    public Task<IReadOnlyList<ProductVariantModel>> GetVariations(Guid productId, CancellationToken cancellationToken) => mediator.Send(new ProductVariantListQuery(productId), cancellationToken);
-    /// <summary>Creates a product variant.</summary>
-    /// <param name="productId">The product identifier.</param><param name="command">The variant payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The created variant.</returns>
-    [HttpPost("products/{productId:guid}/variations")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public Task<ProductVariantModel> CreateVariation(Guid productId, CreateProductVariantCommand command, CancellationToken cancellationToken) => mediator.Send(command with { ProductId = productId }, cancellationToken);
-    /// <summary>Gets a product variant.</summary>
-    /// <param name="productId">The product identifier.</param><param name="variationId">The variant identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The variant.</returns>
-    [HttpGet("products/{productId:guid}/variations/{variationId:guid}")][AllowAnonymous]
-    public async Task<ActionResult<ProductVariantModel>> GetVariation(Guid productId, Guid variationId, CancellationToken cancellationToken) { var result = (await mediator.Send(new ProductVariantListQuery(productId), cancellationToken)).FirstOrDefault(x => x.Id == variationId); return result is null ? NotFound() : Ok(result); }
-    /// <summary>Updates a product variant.</summary>
-    /// <param name="productId">The product identifier.</param><param name="variationId">The variant identifier.</param><param name="command">The variant payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The updated variant.</returns>
-    [HttpPut("products/{productId:guid}/variations/{variationId:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<ActionResult<ProductVariantModel>> UpdateVariation(Guid productId, Guid variationId, UpdateProductVariantCommand command, CancellationToken cancellationToken) { var result = await mediator.Send(command with { ProductId = productId, Id = variationId }, cancellationToken); return result is null ? NotFound() : Ok(result); }
-    /// <summary>Deletes a product variant.</summary>
-    /// <param name="productId">The product identifier.</param><param name="variationId">The variant identifier.</param><param name="cancellationToken">The cancellationToken.</param>
-    [HttpDelete("products/{productId:guid}/variations/{variationId:guid}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<IActionResult> DeleteVariation(Guid productId, Guid variationId, CancellationToken cancellationToken) { await mediator.Send(new DeleteProductVariantCommand(productId, variationId), cancellationToken); return NoContent(); }
+    /// <summary>Gets product variations.</summary>
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the variations.</returns>
+    [HttpGet("products/{productId:guid}/variations")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetVariations(
+        Guid productId,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = productId
+        };
+        var result = await mediator.Send(
+            new ProductVariantListQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Gets a product variation.</summary>
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="variationId">The variation identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the variation.</returns>
+    [HttpGet("products/{productId:guid}/variations/{variationId:guid}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetVariation(
+        Guid productId,
+        Guid variationId,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductVariationIdRequest
+        {
+            ProductId = productId,
+            VariationId = variationId
+        };
+        var result = await mediator.Send(
+            new GetProductVariantQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Creates a product variation.</summary>
+    /// <param name="productId">The owning product identifier.</param>
+    /// <param name="request">The variation creation request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the created variation.</returns>
+    [HttpPost("products/{productId:guid}/variations")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> CreateVariation(
+        Guid productId,
+        [FromBody] CreateProductVariantRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.ProductId = productId;
+        var result = await mediator.Send(
+            new CreateProductVariantCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Updates a product variation.</summary>
+    /// <param name="productId">The owning product identifier.</param>
+    /// <param name="variationId">The variation identifier.</param>
+    /// <param name="request">The variation update request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing the updated variation.</returns>
+    [HttpPut("products/{productId:guid}/variations/{variationId:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> UpdateVariation(
+        Guid productId,
+        Guid variationId,
+        [FromBody] UpdateProductVariantRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.ProductId = productId;
+        request.Id = variationId;
+        var result = await mediator.Send(
+            new UpdateProductVariantCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Deletes a product variation.</summary>
+    /// <param name="productId">The owning product identifier.</param>
+    /// <param name="variationId">The variation identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result without a response body.</returns>
+    [HttpDelete("products/{productId:guid}/variations/{variationId:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> DeleteVariation(
+        Guid productId,
+        Guid variationId,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductVariationIdRequest
+        {
+            ProductId = productId,
+            VariationId = variationId
+        };
+        var result = await mediator.Send(
+            new DeleteProductVariantCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
     /// <summary>Lists product metadata.</summary>
-    /// <param name="productId">The product identifier.</param><param name="cancellationToken">The cancellation token.</param><returns>The metadata records.</returns>
-    [HttpGet("products/{productId:guid}/metadata")][AllowAnonymous]
-    public Task<IReadOnlyList<ProductMetadataModel>> GetMetadata(Guid productId, CancellationToken cancellationToken) => mediator.Send(new ProductMetadataQuery(productId), cancellationToken);
-    /// <summary>Creates or replaces product metadata.</summary>
-    /// <param name="productId">The product identifier.</param><param name="command">The metadata payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The metadata record.</returns>
-    [HttpPost("products/{productId:guid}/metadata")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public Task<ProductMetadataModel> CreateMetadata(Guid productId, UpsertProductMetadataCommand command, CancellationToken cancellationToken) => mediator.Send(command with { ProductId = productId }, cancellationToken);
-    /// <summary>Replaces product metadata by key.</summary>
-    /// <param name="productId">The product identifier.</param><param name="key">The metadata key.</param><param name="command">The metadata payload.</param><param name="cancellationToken">The cancellation token.</param><returns>The metadata record.</returns>
-    [HttpPut("products/{productId:guid}/metadata/{key}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public Task<ProductMetadataModel> UpdateMetadata(Guid productId, string key, UpsertProductMetadataCommand command, CancellationToken cancellationToken) => mediator.Send(command with { ProductId = productId, Key = key }, cancellationToken);
-    /// <summary>Deletes product metadata.</summary>
-    /// <param name="productId">The product identifier.</param><param name="key">The metadata key.</param><param name="cancellationToken">The cancellation token.</param>
-    [HttpDelete("products/{productId:guid}/metadata/{key}")][Authorize(Policy = AuthorizationPolicies.Administrator)]
-    public async Task<IActionResult> DeleteMetadata(Guid productId, string key, CancellationToken cancellationToken) { await mediator.Send(new DeleteProductMetadataCommand(productId, key), cancellationToken); return NoContent(); }
-}
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing metadata.</returns>
+    [HttpGet("products/{productId:guid}/metadata")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetMetadata(
+        Guid productId,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductIdRequest
+        {
+            Id = productId
+        };
+        var result = await mediator.Send(
+            new ProductMetadataQuery(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
 
+    /// <summary>Creates or replaces product metadata.</summary>
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="request">The metadata request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing metadata.</returns>
+    [HttpPost("products/{productId:guid}/metadata")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> CreateMetadata(
+        Guid productId,
+        [FromBody] UpsertProductMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.ProductId = productId;
+        var result = await mediator.Send(
+            new UpsertProductMetadataCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Replaces product metadata by key.</summary>
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="request">The metadata request.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result containing metadata.</returns>
+    [HttpPut("products/{productId:guid}/metadata/{key}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> UpdateMetadata(
+        Guid productId,
+        string key,
+        [FromBody] UpsertProductMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        request.ProductId = productId;
+        request.Key = key;
+        var result = await mediator.Send(
+            new UpsertProductMetadataCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    /// <summary>Deletes product metadata.</summary>
+    /// <param name="productId">The product identifier.</param>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A standard result without a response body.</returns>
+    [HttpDelete("products/{productId:guid}/metadata/{key}")]
+    [Authorize(Policy = AuthorizationPolicies.Administrator)]
+    public async Task<IActionResult> DeleteMetadata(
+        Guid productId,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var request = new ProductMetadataKeyRequest
+        {
+            ProductId = productId,
+            Key = key
+        };
+        var result = await mediator.Send(
+            new DeleteProductMetadataCommand(request),
+            cancellationToken);
+        return ToActionResult(result);
+    }
+
+    private IActionResult ToActionResult(Result result)
+    {
+        if (result.Succeeded)
+        {
+            return result.StatusCode == StatusCodes.Status204NoContent
+                ? NoContent()
+                : StatusCode(result.StatusCode);
+        }
+
+        return Problem(
+            statusCode: result.StatusCode,
+            title: result.ErrorCode,
+            detail: result.ErrorMessage);
+    }
+
+    private IActionResult ToActionResult<T>(Result<T> result)
+    {
+        if (result.Succeeded)
+        {
+            return StatusCode(
+                result.StatusCode,
+                result);
+        }
+
+        return Problem(
+            statusCode: result.StatusCode,
+            title: result.ErrorCode,
+            detail: result.ErrorMessage);
+    }
+}
