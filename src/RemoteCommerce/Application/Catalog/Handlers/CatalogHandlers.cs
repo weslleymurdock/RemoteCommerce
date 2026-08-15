@@ -1,77 +1,321 @@
 namespace RemoteCommerce.Application.Catalog.Handlers;
 
-/// <summary>Handles catalog commands and queries through the application service.</summary>
+/// <summary>Handles catalog commands and queries through the catalog application service.</summary>
 public sealed class CatalogHandlers(ICatalogService catalog) :
-    IRequestHandler<CreateProductCommand, ProductModel>, IRequestHandler<UpdateProductCommand, ProductModel?>, IRequestHandler<DeleteProductCommand>,
-    IRequestHandler<PublishProductCommand, ProductModel?>, IRequestHandler<ArchiveProductCommand, ProductModel?>, IRequestHandler<ProductListQuery, PagedResult<ProductModel>>,
-    IRequestHandler<CreateCategoryCommand, CategoryModel>, IRequestHandler<UpdateCategoryCommand, CategoryModel?>, IRequestHandler<DeleteCategoryCommand>,
-    IRequestHandler<CreateBrandCommand, BrandModel>, IRequestHandler<UpdateBrandCommand, BrandModel?>, IRequestHandler<DeleteBrandCommand>,
-    IRequestHandler<CreateTagCommand, TagModel>, IRequestHandler<UpdateTagCommand, TagModel?>, IRequestHandler<DeleteTagCommand>,
-    IRequestHandler<CreateProductVariantCommand, ProductVariantModel>, IRequestHandler<UpdateProductVariantCommand, ProductVariantModel?>, IRequestHandler<DeleteProductVariantCommand>,
-    IRequestHandler<ProductVariantListQuery, IReadOnlyList<ProductVariantModel>>, IRequestHandler<ProductMetadataQuery, IReadOnlyList<ProductMetadataModel>>,
-    IRequestHandler<UpsertProductMetadataCommand, ProductMetadataModel>, IRequestHandler<DeleteProductMetadataCommand>, IRequestHandler<GetProductQuery, ProductModel?>,
-    IRequestHandler<GetCategoriesQuery, IReadOnlyList<CategoryModel>>, IRequestHandler<GetBrandsQuery, IReadOnlyList<BrandModel>>, IRequestHandler<GetTagsQuery, IReadOnlyList<TagModel>>, IRequestHandler<GetAttributesQuery, IReadOnlyList<AttributeModel>>
+    IRequestHandler<CreateProductCommand, Result<ProductModel>>,
+    IRequestHandler<UpdateProductCommand, Result<ProductModel>>,
+    IRequestHandler<DeleteProductCommand, Result>,
+    IRequestHandler<PublishProductCommand, Result<ProductModel>>,
+    IRequestHandler<ArchiveProductCommand, Result<ProductModel>>,
+    IRequestHandler<ProductListQuery, Result<PagedResult<ProductModel>>>,
+    IRequestHandler<GetProductQuery, Result<ProductModel>>,
+    IRequestHandler<CreateCategoryCommand, Result<CategoryModel>>,
+    IRequestHandler<UpdateCategoryCommand, Result<CategoryModel>>,
+    IRequestHandler<DeleteCategoryCommand, Result>,
+    IRequestHandler<GetCategoriesQuery, Result<IReadOnlyList<CategoryModel>>>,
+    IRequestHandler<GetCategoryQuery, Result<CategoryModel>>,
+    IRequestHandler<CreateBrandCommand, Result<BrandModel>>,
+    IRequestHandler<UpdateBrandCommand, Result<BrandModel>>,
+    IRequestHandler<DeleteBrandCommand, Result>,
+    IRequestHandler<GetBrandsQuery, Result<IReadOnlyList<BrandModel>>>,
+    IRequestHandler<GetBrandQuery, Result<BrandModel>>,
+    IRequestHandler<CreateTagCommand, Result<TagModel>>,
+    IRequestHandler<UpdateTagCommand, Result<TagModel>>,
+    IRequestHandler<DeleteTagCommand, Result>,
+    IRequestHandler<GetTagsQuery, Result<IReadOnlyList<TagModel>>>,
+    IRequestHandler<GetTagQuery, Result<TagModel>>,
+    IRequestHandler<GetAttributesQuery, Result<IReadOnlyList<AttributeModel>>>,
+    IRequestHandler<CreateProductVariantCommand, Result<ProductVariantModel>>,
+    IRequestHandler<UpdateProductVariantCommand, Result<ProductVariantModel>>,
+    IRequestHandler<DeleteProductVariantCommand, Result>,
+    IRequestHandler<ProductVariantListQuery, Result<IReadOnlyList<ProductVariantModel>>>,
+    IRequestHandler<GetProductVariantQuery, Result<ProductVariantModel>>,
+    IRequestHandler<ProductMetadataQuery, Result<IReadOnlyList<ProductMetadataModel>>>,
+    IRequestHandler<UpsertProductMetadataCommand, Result<ProductMetadataModel>>,
+    IRequestHandler<DeleteProductMetadataCommand, Result>
 {
     /// <inheritdoc />
-    public Task<ProductModel> Handle(CreateProductCommand r, CancellationToken c) => catalog.CreateProductAsync(r, c);
+    public async Task<Result<ProductModel>> Handle(CreateProductCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.CreateProductAsync(request, cancellationToken);
+        return Result<ProductModel>.Success(value, StatusCodes.Status201Created);
+    }
+
     /// <inheritdoc />
-    public Task<ProductModel?> Handle(UpdateProductCommand r, CancellationToken c) => catalog.UpdateProductAsync(r, c);
+    public async Task<Result<ProductModel>> Handle(UpdateProductCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.UpdateProductAsync(request, cancellationToken);
+        return value is null
+            ? Result<ProductModel>.Failure(StatusCodes.Status404NotFound, "product_not_found", "The product was not found.")
+            : Result<ProductModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task Handle(DeleteProductCommand r, CancellationToken c) => catalog.DeleteProductAsync(r.Id, c);
+    public async Task<Result> Handle(DeleteProductCommand request, CancellationToken cancellationToken)
+    {
+        await catalog.DeleteProductAsync(request.Request.Id, cancellationToken);
+        return Result.Success(StatusCodes.Status204NoContent);
+    }
+
     /// <inheritdoc />
-    public async Task<ProductModel?> Handle(PublishProductCommand r, CancellationToken c) => await ChangeStatus(r.Id, ProductStatus.Published, c);
+    public async Task<Result<ProductModel>> Handle(PublishProductCommand request, CancellationToken cancellationToken)
+    {
+        return await ChangeStatusAsync(request.Request.Id, ProductStatus.Published, cancellationToken);
+    }
+
     /// <inheritdoc />
-    public async Task<ProductModel?> Handle(ArchiveProductCommand r, CancellationToken c) => await ChangeStatus(r.Id, ProductStatus.Archived, c);
+    public async Task<Result<ProductModel>> Handle(ArchiveProductCommand request, CancellationToken cancellationToken)
+    {
+        return await ChangeStatusAsync(request.Request.Id, ProductStatus.Archived, cancellationToken);
+    }
+
     /// <inheritdoc />
-    public Task<PagedResult<ProductModel>> Handle(ProductListQuery r, CancellationToken c) => catalog.ListProductsAsync(r, c);
+    public async Task<Result<PagedResult<ProductModel>>> Handle(ProductListQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.ListProductsAsync(request, cancellationToken);
+        return Result<PagedResult<ProductModel>>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<CategoryModel> Handle(CreateCategoryCommand r, CancellationToken c) => catalog.CreateCategoryAsync(r, c);
+    public async Task<Result<ProductModel>> Handle(GetProductQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetProductAsync(request.Request.Id, cancellationToken);
+        return value is null
+            ? Result<ProductModel>.Failure(StatusCodes.Status404NotFound, "product_not_found", "The product was not found.")
+            : Result<ProductModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<CategoryModel?> Handle(UpdateCategoryCommand r, CancellationToken c) => catalog.UpdateCategoryAsync(r, c);
+    public async Task<Result<CategoryModel>> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.CreateCategoryAsync(request, cancellationToken);
+        return Result<CategoryModel>.Success(value, StatusCodes.Status201Created);
+    }
+
     /// <inheritdoc />
-    public Task Handle(DeleteCategoryCommand r, CancellationToken c) => catalog.DeleteCategoryAsync(r.Id, c);
+    public async Task<Result<CategoryModel>> Handle(UpdateCategoryCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.UpdateCategoryAsync(request, cancellationToken);
+        return value is null
+            ? Result<CategoryModel>.Failure(StatusCodes.Status404NotFound, "category_not_found", "The category was not found.")
+            : Result<CategoryModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<BrandModel> Handle(CreateBrandCommand r, CancellationToken c) => catalog.CreateBrandAsync(r, c);
+    public async Task<Result> Handle(DeleteCategoryCommand request, CancellationToken cancellationToken)
+    {
+        await catalog.DeleteCategoryAsync(request.Request.Id, cancellationToken);
+        return Result.Success(StatusCodes.Status204NoContent);
+    }
+
     /// <inheritdoc />
-    public Task<BrandModel?> Handle(UpdateBrandCommand r, CancellationToken c) => catalog.UpdateBrandAsync(r, c);
+    public async Task<Result<IReadOnlyList<CategoryModel>>> Handle(GetCategoriesQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetCategoriesAsync(cancellationToken);
+        return Result<IReadOnlyList<CategoryModel>>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task Handle(DeleteBrandCommand r, CancellationToken c) => catalog.DeleteBrandAsync(r.Id, c);
+    public async Task<Result<CategoryModel>> Handle(GetCategoryQuery request, CancellationToken cancellationToken)
+    {
+        var values = await catalog.GetCategoriesAsync(cancellationToken);
+        var value = values.FirstOrDefault(x => x.Id == request.Request.Id);
+        return value is null
+            ? Result<CategoryModel>.Failure(StatusCodes.Status404NotFound, "category_not_found", "The category was not found.")
+            : Result<CategoryModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<TagModel> Handle(CreateTagCommand r, CancellationToken c) => catalog.CreateTagAsync(r, c);
+    public async Task<Result<BrandModel>> Handle(CreateBrandCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.CreateBrandAsync(request, cancellationToken);
+        return Result<BrandModel>.Success(value, StatusCodes.Status201Created);
+    }
+
     /// <inheritdoc />
-    public Task<TagModel?> Handle(UpdateTagCommand r, CancellationToken c) => catalog.UpdateTagAsync(r, c);
+    public async Task<Result<BrandModel>> Handle(UpdateBrandCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.UpdateBrandAsync(request, cancellationToken);
+        return value is null
+            ? Result<BrandModel>.Failure(StatusCodes.Status404NotFound, "brand_not_found", "The brand was not found.")
+            : Result<BrandModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task Handle(DeleteTagCommand r, CancellationToken c) => catalog.DeleteTagAsync(r.Id, c);
+    public async Task<Result> Handle(DeleteBrandCommand request, CancellationToken cancellationToken)
+    {
+        await catalog.DeleteBrandAsync(request.Request.Id, cancellationToken);
+        return Result.Success(StatusCodes.Status204NoContent);
+    }
+
     /// <inheritdoc />
-    public Task<ProductVariantModel> Handle(CreateProductVariantCommand r, CancellationToken c) => catalog.CreateVariantAsync(r, c);
+    public async Task<Result<IReadOnlyList<BrandModel>>> Handle(GetBrandsQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetBrandsAsync(cancellationToken);
+        return Result<IReadOnlyList<BrandModel>>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<ProductVariantModel?> Handle(UpdateProductVariantCommand r, CancellationToken c) => catalog.UpdateVariantAsync(r, c);
+    public async Task<Result<BrandModel>> Handle(GetBrandQuery request, CancellationToken cancellationToken)
+    {
+        var values = await catalog.GetBrandsAsync(cancellationToken);
+        var value = values.FirstOrDefault(x => x.Id == request.Request.Id);
+        return value is null
+            ? Result<BrandModel>.Failure(StatusCodes.Status404NotFound, "brand_not_found", "The brand was not found.")
+            : Result<BrandModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task Handle(DeleteProductVariantCommand r, CancellationToken c) => catalog.DeleteVariantAsync(r.ProductId, r.Id, c);
+    public async Task<Result<TagModel>> Handle(CreateTagCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.CreateTagAsync(request, cancellationToken);
+        return Result<TagModel>.Success(value, StatusCodes.Status201Created);
+    }
+
     /// <inheritdoc />
-    public Task<IReadOnlyList<ProductVariantModel>> Handle(ProductVariantListQuery r, CancellationToken c) => catalog.GetVariantsAsync(r.ProductId, c);
+    public async Task<Result<TagModel>> Handle(UpdateTagCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.UpdateTagAsync(request, cancellationToken);
+        return value is null
+            ? Result<TagModel>.Failure(StatusCodes.Status404NotFound, "tag_not_found", "The tag was not found.")
+            : Result<TagModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<IReadOnlyList<ProductMetadataModel>> Handle(ProductMetadataQuery r, CancellationToken c) => catalog.GetMetadataAsync(r.ProductId, c);
+    public async Task<Result> Handle(DeleteTagCommand request, CancellationToken cancellationToken)
+    {
+        await catalog.DeleteTagAsync(request.Request.Id, cancellationToken);
+        return Result.Success(StatusCodes.Status204NoContent);
+    }
+
     /// <inheritdoc />
-    public Task<ProductMetadataModel> Handle(UpsertProductMetadataCommand r, CancellationToken c) => catalog.UpsertMetadataAsync(r, c);
+    public async Task<Result<IReadOnlyList<TagModel>>> Handle(GetTagsQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetTagsAsync(cancellationToken);
+        return Result<IReadOnlyList<TagModel>>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task Handle(DeleteProductMetadataCommand r, CancellationToken c) => catalog.DeleteMetadataAsync(r.ProductId, r.Key, c);
+    public async Task<Result<TagModel>> Handle(GetTagQuery request, CancellationToken cancellationToken)
+    {
+        var values = await catalog.GetTagsAsync(cancellationToken);
+        var value = values.FirstOrDefault(x => x.Id == request.Request.Id);
+        return value is null
+            ? Result<TagModel>.Failure(StatusCodes.Status404NotFound, "tag_not_found", "The tag was not found.")
+            : Result<TagModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<ProductModel?> Handle(GetProductQuery request, CancellationToken cancellationToken) => catalog.GetProductAsync(request.Id, cancellationToken);
+    public async Task<Result<IReadOnlyList<AttributeModel>>> Handle(GetAttributesQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetAttributesAsync(cancellationToken);
+        return Result<IReadOnlyList<AttributeModel>>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<IReadOnlyList<CategoryModel>> Handle(GetCategoriesQuery r, CancellationToken c) => catalog.GetCategoriesAsync(c);
+    public async Task<Result<ProductVariantModel>> Handle(CreateProductVariantCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.CreateVariantAsync(request, cancellationToken);
+        return Result<ProductVariantModel>.Success(value, StatusCodes.Status201Created);
+    }
+
     /// <inheritdoc />
-    public Task<IReadOnlyList<BrandModel>> Handle(GetBrandsQuery r, CancellationToken c) => catalog.GetBrandsAsync(c);
+    public async Task<Result<ProductVariantModel>> Handle(UpdateProductVariantCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.UpdateVariantAsync(request, cancellationToken);
+        return value is null
+            ? Result<ProductVariantModel>.Failure(StatusCodes.Status404NotFound, "variation_not_found", "The product variation was not found.")
+            : Result<ProductVariantModel>.Success(value);
+    }
+
     /// <inheritdoc />
-    public Task<IReadOnlyList<TagModel>> Handle(GetTagsQuery r, CancellationToken c) => catalog.GetTagsAsync(c);
+    public async Task<Result> Handle(DeleteProductVariantCommand request, CancellationToken cancellationToken)
+    {
+        await catalog.DeleteVariantAsync(request.Request.ProductId, request.Request.VariationId, cancellationToken);
+        return Result.Success(StatusCodes.Status204NoContent);
+    }
+
     /// <inheritdoc />
-    public Task<IReadOnlyList<AttributeModel>> Handle(GetAttributesQuery r, CancellationToken c) => catalog.GetAttributesAsync(c);
-    private async Task<ProductModel?> ChangeStatus(Guid id, ProductStatus status, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<ProductVariantModel>>> Handle(ProductVariantListQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetVariantsAsync(request.Request.Id, cancellationToken);
+        return Result<IReadOnlyList<ProductVariantModel>>.Success(value);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ProductVariantModel>> Handle(GetProductVariantQuery request, CancellationToken cancellationToken)
+    {
+        var values = await catalog.GetVariantsAsync(request.Request.ProductId, cancellationToken);
+        var value = values.FirstOrDefault(x => x.Id == request.Request.VariationId);
+        return value is null
+            ? Result<ProductVariantModel>.Failure(StatusCodes.Status404NotFound, "variation_not_found", "The product variation was not found.")
+            : Result<ProductVariantModel>.Success(value);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<IReadOnlyList<ProductMetadataModel>>> Handle(ProductMetadataQuery request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.GetMetadataAsync(request.Request.Id, cancellationToken);
+        return Result<IReadOnlyList<ProductMetadataModel>>.Success(value);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result<ProductMetadataModel>> Handle(UpsertProductMetadataCommand request, CancellationToken cancellationToken)
+    {
+        var value = await catalog.UpsertMetadataAsync(request, cancellationToken);
+        return Result<ProductMetadataModel>.Success(value, StatusCodes.Status200OK);
+    }
+
+    /// <inheritdoc />
+    public async Task<Result> Handle(DeleteProductMetadataCommand request, CancellationToken cancellationToken)
+    {
+        await catalog.DeleteMetadataAsync(request.Request.ProductId, request.Request.Key, cancellationToken);
+        return Result.Success(StatusCodes.Status204NoContent);
+    }
+
+    private async Task<Result<ProductModel>> ChangeStatusAsync(
+        Guid id,
+        ProductStatus status,
+        CancellationToken cancellationToken)
     {
         var current = await catalog.GetProductAsync(id, cancellationToken);
-        if (current is null) return null;
-        if (current.Status == ProductStatus.Archived && status == ProductStatus.Published) throw new ValidationException("An archived product cannot be published directly.");
-        if (current.Status == status) return current;
-        return await catalog.UpdateProductAsync(new UpdateProductCommand(current.Id, current.Name, current.Slug, current.Sku, current.ShortDescription, current.Description, status, current.ProductType, current.Price, current.CompareAtPrice, current.Currency, current.BrandId), cancellationToken);
+        if (current is null)
+        {
+            return Result<ProductModel>.Failure(
+                StatusCodes.Status404NotFound,
+                "product_not_found",
+                "The product was not found.");
+        }
+
+        if (current.Status == ProductStatus.Archived && status == ProductStatus.Published)
+        {
+            throw new ValidationException("An archived product cannot be published directly.");
+        }
+
+        if (current.Status == status)
+        {
+            return Result<ProductModel>.Success(current);
+        }
+
+        var request = new UpdateProductRequest
+        {
+            Id = current.Id,
+            Name = current.Name,
+            Slug = current.Slug,
+            Sku = current.Sku,
+            ShortDescription = current.ShortDescription,
+            Description = current.Description,
+            Status = status,
+            ProductType = current.ProductType,
+            Price = current.Price,
+            CompareAtPrice = current.CompareAtPrice,
+            Currency = current.Currency,
+            BrandId = current.BrandId
+        };
+
+        var value = await catalog.UpdateProductAsync(new UpdateProductCommand(request), cancellationToken);
+        return value is null
+            ? Result<ProductModel>.Failure(StatusCodes.Status404NotFound, "product_not_found", "The product was not found.")
+            : Result<ProductModel>.Success(value);
     }
 }
