@@ -3,20 +3,91 @@
 @inject IMediator Mediator
 @inject ILocalizer Localizer
 
-<PageTitle>@Get("Catalog.Products")</PageTitle>
+<PageTitle>
+    @Get("Catalog.Products")
+</PageTitle>
+
 <MudStack Spacing="3">
-    <MudText Typo="Typo.h4">@Get("Catalog.Products")</MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/admin/catalog/products/new">@Get("Catalog.CreateProduct")</MudButton>
-    <MudTable Items="products.Items" Hover="true" Dense="true">
-        <HeaderContent><MudTh>@Get("Catalog.Name")</MudTh><MudTh>@Get("Catalog.Sku")</MudTh><MudTh>@Get("Catalog.Status")</MudTh><MudTh>@Get("Catalog.Price")</MudTh></HeaderContent>
-        <RowTemplate><MudTd>@context.Name</MudTd><MudTd>@context.Sku</MudTd><MudTd>@context.Status</MudTd><MudTd>@context.Price.ToString("N2") @context.Currency</MudTd></RowTemplate>
+    <MudText Typo="Typo.h4">
+        @Get("Catalog.Products")
+    </MudText>
+    <MudButton
+        Variant="Variant.Filled"
+        Color="Color.Primary"
+        Href="/admin/catalog/products/new">
+        @Get("Catalog.CreateProduct")
+    </MudButton>
+    <MudTable
+        Items="products.Items"
+        Hover="true"
+        Dense="true">
+        <HeaderContent>
+            <MudTh>
+                @Get("Catalog.Name")
+            </MudTh>
+            <MudTh>
+                @Get("Catalog.Sku")
+            </MudTh>
+            <MudTh>
+                @Get("Catalog.Status")
+            </MudTh>
+            <MudTh>
+                @Get("Catalog.Price")
+            </MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @context.Name
+            </MudTd>
+            <MudTd>
+                @context.Sku
+            </MudTd>
+            <MudTd>
+                @context.Status
+            </MudTd>
+            <MudTd>
+                @context.Price.ToString("N2") @context.Currency
+            </MudTd>
+        </RowTemplate>
     </MudTable>
-    <MudPagination Count="@Math.Max(1, (int)Math.Ceiling(products.TotalCount / (double)products.PageSize))" Selected="products.Page" SelectedChanged="LoadPage" />
+    <MudPagination
+        Count="@PageCount"
+        Selected="products.Page"
+        SelectedChanged="LoadPage" />
 </MudStack>
 
 @code {
     private PagedResult<ProductModel> products = new([], 1, 20, 0);
-    private string Get(string key) => Localizer.Get<CatalogResources>(key);
-    protected override async Task OnInitializedAsync() => await LoadPage(1);
-    private async Task LoadPage(int page) => products = await Mediator.Send(new ProductListQuery(page, 20));
+
+    private string Get(string key)
+    {
+        return Localizer.Get<CatalogResources>(key);
+    }
+
+    private int PageCount =>
+        Math.Max(
+            1,
+            (int)Math.Ceiling(
+                products.TotalCount / (double)products.PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage(1);
+    }
+
+    private async Task LoadPage(int page)
+    {
+        var request = new ProductListRequest
+        {
+            Page = page,
+            PageSize = 20
+        };
+        var result = await Mediator.Send(
+            new ProductListQuery(request));
+
+        if (result.Succeeded && result.Value is not null)
+        {
+            products = result.Value;
+        }
+    }
 }
