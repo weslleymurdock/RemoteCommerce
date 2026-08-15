@@ -5,14 +5,25 @@ public sealed class PluginDependency : ISoftDeletable
 {
     /// <summary>Gets or sets the persistent dependency identifier.</summary>
     public Guid Id { get; set; }
+
     /// <summary>Gets or sets the plugin that owns the dependency declaration.</summary>
     public string PluginId { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the required plugin identifier.</summary>
     public string DependencyPluginId { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the minimum supported dependency version.</summary>
     public string MinimumVersion { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the optional exclusive maximum dependency version.</summary>
     public string? MaximumVersion { get; set; }
-    /// <inheritdoc />
+
+    /// <summary>Gets or sets whether the dependency has been soft-deleted.</summary>
+    public bool IsDeleted { get; set; }
+
+    /// <summary>Gets or sets the UTC timestamp at which the dependency was soft-deleted.</summary>
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    /// <summary>Gets or sets whether the dependency is disabled.</summary>
     public bool IsDisabled { get; set; }
 }
