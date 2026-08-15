@@ -1,7 +1,7 @@
 namespace RemoteCommerce.Infrastructure.Persistence.Entities;
 
 /// <summary>Represents a persisted dependency declared by an installed plugin version.</summary>
-public sealed class PluginDependency : ISoftDeletable
+public sealed class PluginDependency : RemoteCommerce.Domain.Shared.Abstractions.ISoftDeletable
 {
     /// <summary>Gets or sets the persistent dependency identifier.</summary>
     public Guid Id { get; set; }
