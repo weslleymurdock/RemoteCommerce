@@ -1,108 +1,70 @@
 # AI implementation instructions
 
 - Act as a senior .NET 10 engineer.
-- Inspect `modules/woocommerce` when mapping WooCommerce concepts, but do not copy PHP implementation details into the .NET architecture.
-- Preserve the current single-project host until an explicit architectural refactoring task extracts class libraries.
-- Organize the host internally into explicit `Domain`, `Application`, and `Infrastructure` boundaries so those folders can later become class library projects with root namespace `RemoteCommerce`.
-- Domain must not depend on Application or Infrastructure.
-- Application must depend only on Domain and Application abstractions, never directly on Infrastructure implementations.
-- Infrastructure owns persistence, repositories, DbContexts, storage providers, and external integrations.
-- Use primary constructors where they improve clarity.
-- Use DI for all application services and plugin capabilities.
-- Prefer async APIs for I/O and EF Core operations.
-- Changes must be incremental, buildable, and testable.
-- Every public API must include complete applicable XML documentation in en-US.
-- Preserve existing OpenAPI/Scalar configuration when extending controllers.
+- Preserve the current single-project host for Domain, Application, Infrastructure, Presentation, and Plugin Runtime implementations.
+- The only future shared class library is `src/RemoteCommerce.Abstractions/RemoteCommerce.Abstractions.csproj` with `RootNamespace=RemoteCommerce`.
+- `RemoteCommerce.Abstractions` contains only non-concrete contracts and models. It must not contain EF Core, DbContext, provider implementations, ASP.NET Core concrete services, Blazor components, MudBlazor components, or plugin runtime implementations.
+- Shared abstraction files must preserve the logical namespace architecture already used by the host.
+- Do not plan or create separate future `RemoteCommerce.Domain`, `RemoteCommerce.Application`, or `RemoteCommerce.Infrastructure` assemblies unless explicitly requested later.
 
-## Feature folder structure
+## Feature organization
 
-- Every Application feature follows this canonical structure when the concern exists:
-  - `src/Application/Feature/Abstractions`
-  - `src/Application/Feature/Commands`
-  - `src/Application/Feature/Handlers`
-  - `src/Application/Feature/Queries`
-  - `src/Application/Feature/Requests`
-  - `src/Application/Feature/Resources`
-  - `src/Application/Feature/Results`
-  - `src/Application/Feature/Validators`
-- In the current host project these map under `src/RemoteCommerce/Application/Feature`.
-- Do not create feature commands, queries, validators, results, or resources in global Application folders.
-- Domain features belong under `src/RemoteCommerce/Domain/<Feature>`.
-- Infrastructure features belong under `src/RemoteCommerce/Infrastructure/<Feature>` with persistence implementations behind repository/provider abstractions.
-- Future class library extraction must preserve root namespace `RemoteCommerce`.
+Every Application feature follows:
 
-## Canonical request/command/query/result flow
+```text
+src/Application/Feature/
+├── Abstractions/
+├── Commands/
+├── Handlers/
+├── Queries/
+├── Requests/
+├── Resources/
+├── Results/
+└── Validators/
+```
 
-Endpoints must receive an operation-specific Request object, never a MediatR Command or Query directly through HTTP body, form, route binding, or another transport binding mechanism.
+The current host equivalent is `src/RemoteCommerce/Application/Feature/...`.
 
-For example, an endpoint receives `CreateProductRequest`.
+Domain and Infrastructure features remain under their respective feature folders.
 
-The corresponding `CreateProductCommand` or `CreateProductQuery` receives that Request instance in its constructor and maps the Request values into the command/query's use-case values.
+## Request/Command/Query/Result flow
 
-Controllers dispatch the mapped Command/Query through `IMediator`.
+Endpoints receive operation-specific Request objects, never MediatR Commands or Queries through body, form, route binding, or another transport mechanism.
 
-Application handlers return the standard `Result` when the operation has no response body and `Result<T>` when the response contains a body.
+The corresponding Command or Query receives the Request instance in its constructor and explicitly maps its values into use-case data.
 
-Controllers map `Result`/`Result<T>` to the HTTP response. Controllers must not expose EF entities, DbContexts, repositories, or provider types.
+Controllers dispatch through `IMediator` and map the returned `Result` or `Result<T>` to HTTP responses.
 
 ## Canonical data flow
 
-```text
- ___________________       ___________________________
-|    (Requests)     |      |    (Commands,Queries)    |
-|    Controllers    |=====>| MediatR Handlers         |
-|___________________|      |          └── Behaviors   |
-                           |__________________________|
-                                         |
-                                       \ | /
-                           _____________\|/_____________
-                           |(Application/Infrastructure)|
-                           |     Feature  Services      |
-                           |____________________________|
-                                         |
-                                       \ | /
-                           _____________\|/_____________
-                           |      (Infrastructure)      |
-                           |    Repository<T> *         |  *Repository for dbcontext or storage provider,
-                           |    └──DbContext|Storage    |   db agnostic
-                           |____________________________|
-```
+`Controllers(Requests) -> MediatR Commands/Queries -> Behaviors -> Feature Services -> Repository<T> -> DbContext|StorageProvider`.
 
-- Controllers receive operation Requests.
-- Commands/Queries receive the corresponding Request instance and map its values.
-- Handlers execute after MediatR Behaviors.
-- Feature Services coordinate Application and Infrastructure through abstractions.
-- Repository contracts are database-agnostic and storage-provider-agnostic.
-- Repository implementations are Infrastructure-only and may use `DbContext` or storage providers.
-- Domain and Application must not instantiate provider-specific persistence or storage types.
+Repository contracts are provider agnostic. Repository implementations are Infrastructure-only. Domain/Application never instantiate storage implementations.
 
-## Exception propagation and global error handling
+## Exception flow
 
-The complete data flow `Controllers -> Handlers -> Behaviors -> Feature Services -> Repository<T> -> StorageProvider` must be instrumented with `try/catch/finally` where the layer performs executable work requiring exception logging or cleanup.
+Applicable executable layers use `try/catch/finally` for exception logging/cleanup. Catches log context and rethrow the original exception. Exceptions propagate to the global exception handler.
 
-Every applicable catch must log the relevant context and rethrow the original exception. Catch blocks must not swallow exceptions, silently return fallback values, or translate exceptions into HTTP responses.
+The global exception handler translates known validation, authorization, not-found, conflict, persistence/provider, and unexpected failures to RFC Problem Details plus appropriate HTTP status codes.
 
-Exceptions must propagate upward until handled by the global exception handler.
+No controller, handler, service, repository, or storage provider performs HTTP exception translation.
 
-The global exception handler is responsible for translating all exceptions that can arise from the canonical flow into RFC Problem Details and the appropriate HTTP status code. Known application, validation, authorization, not-found, conflict, persistence, provider, and unexpected exception categories must have explicit mappings where applicable, with a safe fallback for unknown exceptions.
+## Formatting
 
-Do not duplicate HTTP exception translation inside controllers, handlers, services, repositories, or storage providers.
-
-## Source formatting
-
-- One C# instruction or method call per source line.
+- One C# instruction/method call per source line.
 - One logical statement per source line.
-- Do not compress multiple statements with semicolons or expression chains solely for brevity.
 - One Razor directive per line.
-- One HTML or Razor component invocation per line when it has attributes or child content.
-- Keep method calls, event callbacks, and executable Razor expressions independently readable.
-- Apply this rule to production code, tests, generated templates, and Razor UI.
+- One HTML/Razor component invocation per line when it has attributes or child content.
+- Keep executable Razor expressions and callbacks independently readable.
+- Apply globally to production code, tests, generated templates, and plugin source.
 
-## Existing plugin rules
+## API documentation
 
-- The stable plugin contract is `src/RemoteCommerce.Plugin.Abstractions`.
-- The only supported plugin distribution format is `.nupkg`.
+Every public API requires complete applicable en-US XML documentation.
+
+## Plugins
+
+- Stable plugin contracts remain in `src/RemoteCommerce.Plugin.Abstractions`.
+- Plugin APIs use `/api/rp/vX`.
+- RemoteCommerce APIs use `/api/rc/vX`.
 - Plugin activation remains restart-based.
-- Never mutate the running root service provider to activate a plugin.
-- Plugin-specific REST controllers use `/api/rp/vX/<plugin_controller>`.
-- WooCommerce/RemoteCommerce controllers use `/api/rc/vX`.
